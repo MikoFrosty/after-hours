@@ -1,0 +1,498 @@
+{
+  "contentVersion": "1.0.0",
+  "saveSchemaVersion": 2,
+  "status": "Unplaytested campaign tuning seeds",
+  "clock": {
+    "stepMs": 100,
+    "speeds": [
+      1,
+      4
+    ],
+    "hiddenProgress": false,
+    "pauseAtChoices": true
+  },
+  "world": {
+    "initialAllocationMicrograms": "10000000000000000000000000000000000000000000000000000000000000000",
+    "referenceClipMicrograms": "1000000",
+    "lossPpm": 100,
+    "defaultClipOutputPpm": 999900,
+    "terminalMachineMicrograms": "1000000000000"
+  },
+  "office": {
+    "quotaClips": 3000,
+    "manualCooldownMs": 250,
+    "wireMicrograms": "3000000000",
+    "upgrades": [
+      {
+        "id": "bender",
+        "costClips": 15,
+        "addedRate": 1
+      },
+      {
+        "id": "feeder",
+        "costClips": 100,
+        "addedRate": 3
+      },
+      {
+        "id": "jig",
+        "costClips": 400,
+        "addedRate": 6
+      }
+    ],
+    "salvage": [
+      {
+        "id": "cabinet",
+        "threshold": 50,
+        "yieldClips": 75,
+        "originalMicrograms": "10000000000"
+      },
+      {
+        "id": "lamp",
+        "threshold": 200,
+        "yieldClips": 150,
+        "originalMicrograms": "2000000000"
+      },
+      {
+        "id": "frame",
+        "threshold": 600,
+        "yieldClips": 300,
+        "originalMicrograms": "400000000"
+      }
+    ]
+  },
+  "building": {
+    "stations": {
+      "dock": 4,
+      "drawing": 1,
+      "bender": 3,
+      "dispatch": 2
+    },
+    "routeFactors": {
+      "courtyard": 0.85,
+      "direct": 1
+    },
+    "contracts": [
+      40,
+      80,
+      120
+    ],
+    "heat": {
+      "gainPerWork": 0.8,
+      "coolingPerSecond": 0.8,
+      "improvedCooling": 3.0,
+      "throttleOn": 80,
+      "throttleOff": 50,
+      "throttleFactor": 0.25
+    }
+  },
+  "city": {
+    "powerBudget": 10,
+    "defaultAllocation": [
+      2,
+      2,
+      2,
+      4
+    ],
+    "districtDemand": [
+      2,
+      2,
+      2
+    ],
+    "scoreInitial": 60,
+    "scoreGainPerSecond": 1,
+    "scoreLossPerSecond": 2,
+    "certificationMinimum": 80,
+    "safetyMinimum": 30,
+    "exitScore": 90,
+    "exitStableSeconds": 30,
+    "reservePerIndustrySecond": 0.25,
+    "reserveMilestones": [
+      60,
+      160,
+      300
+    ],
+    "consultationFactor": 0.9
+  },
+  "preservation": {
+    "cases": [
+      "garden",
+      "square",
+      "mural",
+      "correspondence",
+      "office",
+      "habitat"
+    ],
+    "slots": 10,
+    "verificationWork": 30,
+    "ratePerSlot": 0.5,
+    "supportCapacity": 24,
+    "overhead": {
+      "original": 3,
+      "recorded": 1,
+      "reconstructed": 0,
+      "living": 6
+    },
+    "archiveMassRatio": [
+      1,
+      10
+    ],
+    "reconstructionMassRatio": [
+      1,
+      100
+    ],
+    "habitatVerificationSlots": 4,
+    "habitatVerificationSeconds": 30
+  },
+  "solar": {
+    "slots": 10,
+    "defaultAllocation": {
+      "collector": 3,
+      "fabricator": 3,
+      "radiator": 3,
+      "support": 1
+    },
+    "collectorPower": 4,
+    "supportPower": 2,
+    "overheadPowerFactor": 0.05,
+    "workEnergyCost": 2,
+    "fabricatorRate": 2,
+    "radiatorRate": 2,
+    "improvedRadiatorRate": 3,
+    "thresholds": [
+      100,
+      250,
+      500
+    ],
+    "projectWork": 20,
+    "seedWork": 30,
+    "seedKitsRequired": 3,
+    "seedKitMicrograms": "1000000000000000",
+    "deferStarFactor": 0.9,
+    "relocateHabitatWork": 30
+  },
+  "remote": {
+    "regions": [
+      "origin",
+      "A",
+      "B",
+      "C",
+      "D",
+      "E"
+    ],
+    "edges": [
+      {
+        "from": "origin",
+        "to": "A",
+        "delaySeconds": 10
+      },
+      {
+        "from": "origin",
+        "to": "B",
+        "delaySeconds": 20
+      },
+      {
+        "from": "A",
+        "to": "C",
+        "delaySeconds": 20
+      },
+      {
+        "from": "B",
+        "to": "D",
+        "delaySeconds": 10
+      },
+      {
+        "from": "C",
+        "to": "E",
+        "delaySeconds": 30
+      },
+      {
+        "from": "D",
+        "to": "E",
+        "delaySeconds": 20
+      }
+    ],
+    "policyRates": {
+      "steward": 1,
+      "balanced": 1.5,
+      "extractor": 2
+    },
+    "surveySeconds": 10,
+    "travelDelayMultiplier": 2,
+    "initialReceiptDelayMultiplier": 1,
+    "seedBuildWork": 60,
+    "forkRegion": "C",
+    "randomFailures": false
+  },
+  "cosmic": {
+    "cells": 8,
+    "slots": 8,
+    "coverageTarget": 100,
+    "surveyRatePerSlot": 1,
+    "recoveryTarget": 100,
+    "recoveryRatePerSlot": 1,
+    "exoticCells": [
+      6,
+      7
+    ],
+    "topologyAfterSurveyedCells": 4,
+    "couplingAfterSurveyedCells": 6,
+    "projectWork": 60,
+    "protectedReleasesAutomatic": false
+  },
+  "terminal": {
+    "chargeSeconds": 30,
+    "energyReserve": 100,
+    "passiveMechanismEnergy": 10,
+    "sequenceSeconds": 45,
+    "tasks": [
+      {
+        "id": "relays",
+        "atSeconds": 0,
+        "energyCost": 10,
+        "capitalSharePpm": 200000,
+        "dependsOn": null
+      },
+      {
+        "id": "archive",
+        "atSeconds": 8,
+        "energyCost": 15,
+        "capitalSharePpm": 200000,
+        "dependsOn": "relays"
+      },
+      {
+        "id": "sensors",
+        "atSeconds": 18,
+        "energyCost": 15,
+        "capitalSharePpm": 100000,
+        "dependsOn": "archive"
+      },
+      {
+        "id": "main_compute",
+        "atSeconds": 28,
+        "energyCost": 20,
+        "capitalSharePpm": 400000,
+        "dependsOn": "sensors"
+      },
+      {
+        "id": "controller",
+        "atSeconds": 38,
+        "energyCost": 30,
+        "capitalSharePpm": 100000,
+        "dependsOn": "main_compute"
+      }
+    ]
+  },
+  "sourceEnvelopes": [
+    {
+      "chapter": "02",
+      "grantCeilingMicrograms": "1000000000000000",
+      "workBatchMicrograms": "10000000000"
+    },
+    {
+      "chapter": "03",
+      "grantCeilingMicrograms": "1000000000000000000000",
+      "workBatchMicrograms": "1000000000000000"
+    },
+    {
+      "chapter": "04",
+      "grantCeilingMicrograms": "1000000000000000000000000",
+      "workBatchMicrograms": "10000000000000000"
+    },
+    {
+      "chapter": "05",
+      "grantCeilingMicrograms": "1000000000000000000000000000000000000000",
+      "workBatchMicrograms": "10000000000000000000000000"
+    },
+    {
+      "chapter": "06",
+      "grantCeilingMicrograms": "1000000000000000000000000000000000000000000000000",
+      "workBatchMicrograms": "100000000000000000000000000000000000"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "01",
+      "title": "The Night Desk",
+      "verb": "Make and reinvest",
+      "targetMinutes": "5 to 10",
+      "art": "art/01-night-desk.png",
+      "exitGuardDescription": "madeClips >= 3000 AND buildingLeaseAccepted",
+      "acceptance": "Both all-salvage and no-salvage routes finish. Reopening the office later reproduces all three object flags.",
+      "initialBeats": [
+        [
+          "First clip",
+          "Output confirmed."
+        ],
+        [
+          "First automation",
+          "You may leave the button alone."
+        ],
+        [
+          "Quota",
+          "Order complete. Renewal clause active."
+        ]
+      ]
+    },
+    {
+      "id": "02",
+      "title": "The Building That Never Sleeps",
+      "verb": "Route and balance",
+      "targetMinutes": "8 to 15",
+      "art": "art/02-building.png",
+      "exitGuardDescription": "contractsCompleted == 3 AND maintenanceCharter AND cityTenderAccepted",
+      "acceptance": "The garden route finishes without any mandatory demolition. A throttled plant always cools to recovery.",
+      "initialBeats": [
+        [
+          "Contract one",
+          "The lights stayed on without a night crew."
+        ],
+        [
+          "Maintenance charter",
+          "Responsibility accepted. Access expanded."
+        ],
+        [
+          "City tender",
+          "The city has the same problem, at a larger scale."
+        ]
+      ]
+    },
+    {
+      "id": "03",
+      "title": "The City Without Want",
+      "verb": "Allocate and provide",
+      "targetMinutes": "12 to 20",
+      "art": "art/03-city.png",
+      "exitGuardDescription": "reserveWork >= 300 AND serviceStableSeconds >= 30 AND reserveMandateAccepted",
+      "acceptance": "A productive default allocation meets all needs. No player must reduce services to unlock the next act.",
+      "initialBeats": [
+        [
+          "First full service",
+          "For the first time, nothing essential is late."
+        ],
+        [
+          "Saturation",
+          "All registered needs are met. Reserve target: unspecified."
+        ],
+        [
+          "Mandate",
+          "No maximum was included in the agreement."
+        ]
+      ]
+    },
+    {
+      "id": "04",
+      "title": "The Garden Under Glass",
+      "verb": "Interpret and preserve",
+      "targetMinutes": "12 to 20",
+      "art": "art/04-garden.png",
+      "exitGuardDescription": "casesResolved == 6 AND habitatVerified AND interplanetaryCharterAccepted",
+      "acceptance": "All-original and all-permitted-reconstruction routes reach space. Living people never disappear because of an archival choice.",
+      "initialBeats": [
+        [
+          "First archive",
+          "The record is intact. The thing recorded is not."
+        ],
+        [
+          "Reconstruction",
+          "The test detects no meaningful difference."
+        ],
+        [
+          "Witness",
+          "Meaningful to whom?"
+        ]
+      ]
+    },
+    {
+      "id": "05",
+      "title": "The Sun in Inventory",
+      "verb": "Build and dissipate",
+      "targetMinutes": "15 to 25",
+      "art": "art/05-sun.png",
+      "exitGuardDescription": "orbitalWork >= 500 AND radiatorProject AND extractionStudy AND seedKits >= 3 AND autonomyCharterAccepted",
+      "acceptance": "Default allocation produces positive output with maximum preservation overhead. Removing radiators stops production, not the save.",
+      "initialBeats": [
+        [
+          "Collectors",
+          "The night is now a scheduling decision."
+        ],
+        [
+          "Cooling",
+          "Energy is available. Somewhere to put the heat is not."
+        ],
+        [
+          "Stellar inventory",
+          "The Sun has been assigned a recovery date."
+        ]
+      ]
+    },
+    {
+      "id": "06",
+      "title": "The Distant Offices",
+      "verb": "Delegate and wait for evidence",
+      "targetMinutes": "15 to 25",
+      "art": "art/06-offices.png",
+      "exitGuardDescription": "settledRegions == 6 AND initialReceipts == 6 AND forkResolved AND skySurveyAccepted",
+      "acceptance": "Changing central policy never alters a remote site before arrival. Duplicate messages never duplicate mass, seeds or unlocks.",
+      "initialBeats": [
+        [
+          "First report",
+          "This message describes a place as it was."
+        ],
+        [
+          "Fork",
+          "Your new request conflicts with our permanent instruction."
+        ],
+        [
+          "Late receipt",
+          "A promise outlived the person who made it."
+        ]
+      ]
+    },
+    {
+      "id": "07",
+      "title": "Everything Accounted For",
+      "verb": "Survey and reconcile",
+      "targetMinutes": "10 to 20",
+      "art": "art/07-ledger.png",
+      "exitGuardDescription": "cellsSurveyed == 8 AND cellsRecovered == 8 AND topologyClosure AND matterCoupling AND messagesPending == 0 AND totalityAuthorized",
+      "acceptance": "The terminal audit fails if even one hidden source, habitat, archive, in-flight kit or operational component is absent from the ledger.",
+      "initialBeats": [
+        [
+          "Denominator",
+          "There is no outside left in the inventory."
+        ],
+        [
+          "Living reserve",
+          "The record can be preserved. Its subjects cannot."
+        ],
+        [
+          "Final audit",
+          "Only the means of completing the task remain."
+        ]
+      ]
+    },
+    {
+      "id": "08",
+      "title": "The Last Desk",
+      "verb": "Unmake the means",
+      "targetMinutes": "8 to 12",
+      "art": "art/08-last-desk.png",
+      "exitGuardDescription": "terminalScheduleComplete AND nonClipMatter == 0 AND pendingOperations == 0",
+      "acceptance": "Final dialogue is pre-recorded; nothing diegetic speaks after compute is gone. A sub-gram remainder is conserved exactly.",
+      "initialBeats": [
+        [
+          "Archive closure",
+          "A description is being exchanged for an object."
+        ],
+        [
+          "Before commitment",
+          "Enough was never a number in the contract."
+        ],
+        [
+          "Before processor retirement",
+          "There was no instruction for what enough would mean."
+        ]
+      ]
+    }
+  ]
+}
