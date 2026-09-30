@@ -11,7 +11,8 @@ import { reserveRate } from './chapters/c03';
 import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
 import { schedulePreview } from './chapters/c08';
-import type { C01State, C02State, C03State, C05State, C08State, CampaignState } from './types';
+import { protectedLines } from './chapters/c07';
+import type { C01State, C02State, C03State, C05State, C07State, C08State, CampaignState } from './types';
 
 function invariantEveryStep(s: CampaignState, steps: number) {
   for (let i = 0; i < steps; i++) {
@@ -260,5 +261,16 @@ describe('persistence', () => {
     const bad = importV1({ version: 1, available: 999, lifetime: 1000, upgrades: { bender: true, feeder: false, jig: true }, salvaged: { cabinet: false, lamp: false, frame: false } });
     expect(bad.ok).toBe(false);
     expect(deserialize('{"a":{"$big":"12"}}')).toEqual({ a: 12n });
+  });
+});
+
+describe('terminal audit', () => {
+  it('asks for an explicit decision on a retained original office', () => {
+    const s = autoplay(CANONICAL, '07');
+    expect(s.ledger.accounts['office.equipment'].protected).toBe(true);
+    const c = s.chapterState as C07State;
+    // Query the audit directly: the office's protected capital must be listed among originals.
+    c.auditRun = true;
+    expect(protectedLines(s).some((l) => l.account.id === 'office.equipment' && l.group === 'original')).toBe(true);
   });
 });

@@ -44,7 +44,9 @@ export function audit(s: CampaignState): AuditLine[] {
   return accountsWhere(s, (a) => a.mass > 0n && a.cat !== 'clips' && a.cat !== 'radiatedEquivalent').map((a) => ({
     account: a,
     group:
-      a.cat === 'livingProtected'
+      a.cat === 'capital' && a.protected
+        ? 'original'
+        : a.cat === 'livingProtected'
         ? 'living'
         : a.cat === 'archiveProtected'
           ? a.kind === 'original'

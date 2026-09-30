@@ -1454,3 +1454,10 @@ details.exact .digits {
   --muted: #cfd2cc;
   --faint: #a9ada6;
 }
+
+/* Containers focused programmatically for screen readers need no ring; their buttons keep theirs. */
+.dialog:focus,
+.drawer:focus,
+.intro:focus {
+  outline: none;
+}
