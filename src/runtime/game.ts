@@ -193,8 +193,11 @@ class GameRuntime {
     return err;
   };
 
-  setPaused(p: boolean) {
+  pauseReason: string | null = null;
+
+  setPaused(p: boolean, reason: string | null = null) {
     this.paused = p;
+    this.pauseReason = p ? reason : null;
     this.notify();
   }
 
@@ -293,7 +296,8 @@ class GameRuntime {
     const s = this.state;
     switch (sig.type) {
       case 'save':
-        if (s && sig.reason !== 'message') this.save(sig.reason);
+        // Message deliveries can cluster; coalesce them to at most one write per second.
+        if (s && (sig.reason !== 'message' || this.sinceSave >= 1000)) this.save(sig.reason);
         else this.dirty = true;
         break;
       case 'checkpoint':
@@ -303,6 +307,15 @@ class GameRuntime {
         this.toastSeq += 1;
         this.toast = { id: this.toastSeq, title: sig.title, text: sig.text };
         this.dirty = true;
+        {
+          const id = this.toastSeq;
+          window.setTimeout(() => {
+            if (this.toast?.id === id) {
+              this.toast = null;
+              this.notify();
+            }
+          }, 7200);
+        }
         break;
       case 'sound':
         audio.cue(sig.id);

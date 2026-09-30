@@ -17,6 +17,11 @@ export function CheckpointPanel({ onClose }: { onClose: () => void }) {
         <button className="btn small" onClick={() => { game.save('manual'); setMsg('Saved.'); }}>Save now</button>
         <button className="btn small" onClick={() => { game.manualCheckpoint(); setRev((r) => r + 1); }}>Store a checkpoint</button>
         <button className="btn small" onClick={() => { const t = game.exportSave(); if (t) download(`after-hours-ch${s.chapter}.json`, t); }}>Export save file</button>
+        <button className="btn small" onClick={() => {
+          const t = game.exportSave();
+          if (!t) return;
+          navigator.clipboard?.writeText(t).then(() => setMsg('Save copied to the clipboard. Paste it into a .json file to keep it.'), () => setMsg('Copying is not available here. Use Export save file instead.'));
+        }}>Copy save</button>
         <button className="btn small" onClick={() => fileRef.current?.click()}>Import save file</button>
         <input ref={fileRef} type="file" accept=".json,application/json" className="sr-only" onChange={async (e) => {
           const f = e.target.files?.[0];

@@ -56,7 +56,7 @@ export const EFFICIENT: Route = {
   policy: 'extractor',
 };
 
-function answer(s: CampaignState, r: Route): void {
+export function answer(s: CampaignState, r: Route): void {
   const c = s.choices[0];
   if (!c) return;
   const hold = r.holdAt === s.chapter;
@@ -115,7 +115,7 @@ function answer(s: CampaignState, r: Route): void {
 
 let tick = 0;
 
-function act(s: CampaignState, r: Route): void {
+export function act(s: CampaignState, r: Route): void {
   tick += 1;
   switch (s.chapter) {
     case '01': {

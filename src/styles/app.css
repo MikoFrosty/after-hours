@@ -164,8 +164,8 @@ select {
   border-color: var(--line);
 }
 .btn.small {
-  min-height: 36px;
-  padding: 6px 10px;
+  min-height: 44px;
+  padding: 6px 12px;
   font-size: 0.87em;
 }
 .btn.icon {
@@ -298,7 +298,7 @@ select {
 }
 .rail {
   position: sticky;
-  top: 0;
+  top: env(safe-area-inset-top, 0px);
   z-index: 20;
   display: flex;
   align-items: stretch;
@@ -352,6 +352,8 @@ select {
   font-family: var(--font-mono);
   font-size: 1.02em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
 }
 .metric.bottleneck {
@@ -608,7 +610,7 @@ select {
 /* ---------- dock ---------- */
 .dock {
   position: sticky;
-  bottom: 0;
+  bottom: env(safe-area-inset-bottom, 0px);
   z-index: 20;
   display: flex;
   align-items: center;
@@ -622,6 +624,8 @@ select {
 .dock .btn {
   min-height: 40px;
   font-size: 0.88em;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .dock .save-status {
   margin-left: auto;
@@ -1097,6 +1101,13 @@ select {
   place-items: center;
   background: radial-gradient(ellipse at 45% 45%, #1a1f1f 0%, #070909 75%);
 }
+.office-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 48%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
 .office-frame.recorded {
   background: radial-gradient(ellipse at 45% 45%, #0c1a14 0%, #020403 75%);
 }
@@ -1362,12 +1373,37 @@ details.exact .digits {
     font-size: calc(14px * var(--text-scale));
   }
   .rail {
+    position: relative;
     padding: 6px 8px;
+    gap: 6px;
+  }
+  .rail .brand {
+    flex: 1 1 100%;
+    padding-right: 120px;
+  }
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    flex: 1 1 100%;
   }
   .metric {
     min-width: 0;
-    flex: 1 1 42%;
     padding: 4px 8px;
+  }
+  .metric .v {
+    font-size: 0.9em;
+  }
+  .story-clock {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    padding: 0;
+  }
+  .dock .kbd {
+    display: none;
+  }
+  .dock .save-status {
+    display: none;
   }
   .controls {
     width: 100%;

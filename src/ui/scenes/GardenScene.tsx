@@ -1,4 +1,5 @@
-import { useGameState, act } from '../hooks';
+import { useGameState } from '../hooks';
+import { openCase } from '../panels/P04';
 import type { C04State, CaseId } from '../../game/types';
 import { ANCHOR_LABELS } from '../../content/world';
 import { FidIcon, FID_LABEL } from '../drawer/OfficeBookmark';
@@ -32,7 +33,7 @@ export function GardenScene() {
           <button
             key={id}
             className="glass"
-            onClick={() => act({ type: 'c04/focus', id })}
+            onClick={() => openCase(c, id)}
             aria-pressed={focus}
             style={{
               position: 'absolute',

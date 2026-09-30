@@ -133,12 +133,18 @@ export type LoadResult =
 export function readSave(): LoadResult {
   const ls = storage();
   if (!ls) return { status: 'none' };
-  const text = ls.getItem(SAVE_KEY);
+  let text: string | null = null;
+  let prev: string | null = null;
+  try {
+    text = ls.getItem(SAVE_KEY);
+    prev = ls.getItem(PREV_KEY);
+  } catch {
+    return { status: 'none' };
+  }
   if (!text) return { status: 'none' };
   const r = parse(text);
   if (r.status === 'ok') return r;
   // Try the rolling previous-valid snapshot; the corrupt save is left untouched.
-  const prev = ls.getItem(PREV_KEY);
   if (prev && r.status === 'invalid' && !r.futureVersion) {
     const p = parse(prev);
     if (p.status === 'ok') return { ...p, fromPrevious: true };
@@ -159,9 +165,13 @@ export function parse(text: string): LoadResult {
 }
 
 export function clearSave(): void {
-  const ls = storage();
-  ls?.removeItem(SAVE_KEY);
-  ls?.removeItem(PREV_KEY);
+  try {
+    const ls = storage();
+    ls?.removeItem(SAVE_KEY);
+    ls?.removeItem(PREV_KEY);
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 export function readCheckpoints(): Checkpoint[] {
@@ -221,12 +231,20 @@ export function addCheckpoint(s: CampaignState, label: string, kind: Checkpoint[
 export function deleteCheckpoint(id: string): void {
   const ls = storage();
   const list = readCheckpoints().filter((c) => c.id !== id || c.kind === 'precommit');
-  if (ls) ls.setItem(CHECKPOINT_KEY, JSON.stringify(list));
-  else memoryCheckpoints = list;
+  memoryCheckpoints = list;
+  try {
+    ls?.setItem(CHECKPOINT_KEY, JSON.stringify(list));
+  } catch {
+    /* kept in memory */
+  }
 }
 
 export function clearCheckpoints(): void {
-  storage()?.removeItem(CHECKPOINT_KEY);
+  try {
+    storage()?.removeItem(CHECKPOINT_KEY);
+  } catch {
+    /* storage unavailable */
+  }
   memoryCheckpoints = [];
 }
 

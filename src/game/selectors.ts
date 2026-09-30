@@ -39,6 +39,17 @@ export const STORY_SPANS: Record<ChapterId, string> = {
   '08': 'The final local interval',
 };
 
+export const STORY_SCALE_TEXT: Record<ChapterId, string> = {
+  '01': '1 simulated second = 1 story minute',
+  '02': '1 simulated second = 12 story hours',
+  '03': '1 simulated second = 20 story days',
+  '04': '1 simulated second = 1 story year',
+  '05': '1 simulated second = 5,000 story years',
+  '06': '1 simulated second = 10 million story years',
+  '07': '1 simulated second = 10 billion story years',
+  '08': 'Local seconds',
+};
+
 /** Presentation-only mapping of simulated time to story time. */
 export function storyClock(s: CampaignState): string {
   const sec = s.storySeconds;

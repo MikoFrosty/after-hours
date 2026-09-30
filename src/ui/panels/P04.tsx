@@ -1,4 +1,5 @@
 import { useGameState, act } from '../hooks';
+import { game } from '../../runtime/game';
 import { PRESERVATION } from '../../content/campaign';
 import { CASE_EVIDENCE } from '../../content/narrative';
 import { ANCHOR_LABELS } from '../../content/world';
@@ -18,6 +19,13 @@ const TREATMENT: Record<Treatment, { name: string; fid: 'original' | 'recorded' 
 };
 
 const CASES = PRESERVATION.cases as CaseId[];
+
+/** Every case starts unresolved and pauses on opening, so its evidence can be read. */
+export function openCase(c: C04State, id: CaseId) {
+  const first = !c.cases[id].opened && !c.cases[id].resolved;
+  act({ type: 'c04/focus', id });
+  if (first) game.setPaused(true, `Paused while you review a new case: ${ANCHOR_LABELS[id]}.`);
+}
 
 export function P04() {
   const s = useGameState();
@@ -58,7 +66,7 @@ export function P04() {
 
       <div className="row" role="tablist" aria-label="Cases">
         {CASES.map((cid) => (
-          <button key={cid} role="tab" aria-selected={cid === id} className="btn small" aria-pressed={cid === id} onClick={() => act({ type: 'c04/focus', id: cid })}>
+          <button key={cid} role="tab" aria-selected={cid === id} className="btn small" aria-pressed={cid === id} onClick={() => openCase(c, cid)}>
             <FidIcon f={s.anchors[cid].fidelity} /> {ANCHOR_LABELS[cid]}
           </button>
         ))}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { game } from '../runtime/game';
 import { useGameState } from './hooks';
-import { metrics, storyClock, charterStatus, STORY_SPANS } from '../game/selectors';
+import { metrics, storyClock, charterStatus, STORY_SPANS, STORY_SCALE_TEXT } from '../game/selectors';
 import { CHAPTER_META } from '../content/campaign';
 import type { C08State } from '../game/types';
 import { DecisionDialog } from './DecisionDialog';
@@ -71,7 +71,7 @@ export function Shell() {
             <div className="v">{charterStatus(s)}</div>
           </div>
         </div>
-        <div className="story-clock" title="Presentation scale only: simulated seconds are mapped to story time.">
+        <div className="story-clock" title={`Presentation scale only, not a physics simulation: ${STORY_SCALE_TEXT[s.chapter]}. Simulated ${Math.round(s.simMs / 1000)} s; active play ${Math.round(s.activePlayMs / 60000)} min.`}>
           {storyClock(s)}
           <small>{STORY_SPANS[s.chapter]}</small>
         </div>
@@ -107,7 +107,7 @@ export function Shell() {
         <section className={`panel ${computeGone ? 'withdrawn' : ''}`} aria-label={`${meta.title} controls`}>
           {game.paused && (
             <div className="card row between" role="status">
-              <span>Paused.</span>
+              <span>{game.pauseReason ?? 'Paused.'}</span>
               <button className="btn small" onClick={() => game.setPaused(false)}>
                 Resume
               </button>

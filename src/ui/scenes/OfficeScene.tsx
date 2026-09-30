@@ -239,6 +239,10 @@ function OfficeSvg({ v }: { v: OfficeView }) {
           ))}
         </g>
       )}
+      {/* moonlight from the window across the floor */}
+      {!wire && !recon && (
+        <polygon points={pts([[0.02, 3.3, 0.02], [0.02, 6.3, 0.02], [3.6, 8.2, 0.02], [3.6, 5.2, 0.02]])} fill="#7f9ad8" opacity={last ? 0.03 : 0.07} />
+      )}
       {/* rug */}
       {detail && <polygon points={pts([[1.2, 5.2, 0.01], [6.2, 5.2, 0.01], [6.2, 8.6, 0.01], [1.2, 8.6, 0.01]])} fill={wire ? 'none' : shade('#3b3a36', st.dim)} stroke={wire ? st.stroke : 'none'} strokeWidth={0.6} opacity={0.8} />}
       {/* walls */}
