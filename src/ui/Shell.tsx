@@ -24,7 +24,7 @@ export function Shell() {
   const choice = s.choices[0];
   const unread = s.log.filter((l) => l.kind === 'letter' || l.kind === 'note').length;
   // In the office, faster pace and skipping arrive with the wire feeder, so the night cannot be fast-forwarded.
-  const paceOpen = s.chapter !== '01' || Boolean(s.flags['c01.pace']);
+  const paceOpen = s.chapter !== '01';
   const inOffice = s.chapter === '01';
   const c1 = inOffice ? (s.chapterState as C01State) : null;
   const showLedger = !c1 || c1.owned.length > 0 || c1.sealed > 0;

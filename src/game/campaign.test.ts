@@ -12,6 +12,7 @@ import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
 import { schedulePreview } from './chapters/c08';
 import { protectedLines } from './chapters/c07';
+import { glintActive, machineRate, tendingBonus, tuneBand } from './chapters/c01';
 import type { C01State, C02State, C03State, C05State, C07State, C08State, CampaignState } from './types';
 
 function invariantEveryStep(s: CampaignState, steps: number) {
@@ -109,11 +110,61 @@ describe('chapter 01 office', () => {
     expect(s.clips.currentMicrograms >= BigInt(OFFICE.quota) * CLIP).toBe(true);
   });
 
-  it('the night lasts: about 20+ minutes for a reasonable player, over a quarter hour even when optimized', () => {
+  it('the night lasts 20+ minutes for a relaxed player; skill shortens it but not to a sprint', () => {
     const reasonable = autoplay(CANONICAL, '02').summaries['01']!.simMs / 60000;
-    const efficient = autoplay(EFFICIENT, '02').summaries['01']!.simMs / 60000;
+    const engaged = autoplay(EFFICIENT, '02').summaries['01']!.simMs / 60000;
     expect(reasonable).toBeGreaterThanOrEqual(20);
-    expect(efficient).toBeGreaterThanOrEqual(16);
+    expect(engaged).toBeGreaterThanOrEqual(12);
+    expect(engaged).toBeLessThan(reasonable);
+  });
+
+  it('after the feeder, hands tend the line instead of bending clips', () => {
+    const s = newCampaign();
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder');
+    const made = c.madeClips;
+    for (let i = 0; i < 20; i++) dispatch(s, { type: 'c01/make' });
+    expect(c.madeClips).toBe(made);
+    expect(c.tending).toBe(100_000);
+    expect(tendingBonus(c)).toBe(250);
+    const tended = machineRate(s);
+    c.tending = 0;
+    expect(tended).toBeGreaterThan(machineRate(s));
+  });
+
+  it('catching the true wire gives a clean run and frees a caught wire', () => {
+    const s = newCampaign();
+    for (let i = 0; i < 15; i++) dispatch(s, { type: 'c01/make' });
+    dispatch(s, { type: 'c01/project', id: 'calibrate' });
+    let guard = 0;
+    while (!glintActive(s) && guard++ < 20000) {
+      if (night(s).jammed) dispatch(s, { type: 'c01/free' });
+      step(s);
+    }
+    expect(glintActive(s)).toBe(true);
+    night(s).jammed = true;
+    const before = machineRate(s);
+    expect(dispatch(s, { type: 'c01/catch' })).toBeNull();
+    expect(night(s).jammed).toBe(false);
+    expect(machineRate(s)).toBeGreaterThan(before);
+    expect(dispatch(s, { type: 'c01/catch' })).not.toBeNull();
+  });
+
+  it('tuning: a hit is permanent, a miss only costs a few seconds, and careful tuning always works', () => {
+    const s = newCampaign();
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder');
+    const band = tuneBand(c);
+    dispatch(s, { type: 'c01/tune', needle: band.center });
+    expect(c.tuneLevel).toBe(1);
+    const next = tuneBand(c);
+    expect(next.width).toBeLessThan(band.width);
+    dispatch(s, { type: 'c01/tune', needle: (next.center + 50) % 100 });
+    expect(c.tuneLevel).toBe(1);
+    expect(dispatch(s, { type: 'c01/tune', needle: next.center })).not.toBeNull();
+    dispatch(s, { type: 'c01/tuneSlow' });
+    run(s, 200);
+    expect(c.tuneLevel).toBe(2);
   });
 
   it('story time reaches dawn as the order completes', () => {

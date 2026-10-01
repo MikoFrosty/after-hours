@@ -21,16 +21,20 @@ Manifesto (fiction, arc, meaning) → implementation spec (simulation, accountin
 
 - *The order counts sealed cartons, not lifetime clips.* 3,000 clips = 12 cartons of 250. Clips spent on machinery must be bent again, so every purchase is a trade between going faster later and finishing sooner. Lifetime production can exceed 3,000.
 - *A 2 kg spare coil* sits in the cabinet's bottom drawer (disclosed by the facilities inventory, or offered automatically when wire runs low). Total wire 5 kg covers the order plus every machine, so salvage stays optional. Taking the coil does not touch the cabinet.
-- *Hand bending has no speed limit* (the 250 ms cooldown is gone).
+- *Hand bending has no speed limit* (the 250 ms cooldown is gone). Once the wire feeder is installed, the feeder owns the wire and hand presses *tend the line* instead of forming clips, so clicking speed can never outrun the order.
 - *Thirteen installations replace the three upgrades*, revealed one at a time, each paid from clips on the desk and taking a few seconds to install: calibrate, oil the die, spring tensioner, wire feeder, second die, auto-packer, guide roller, desk fan, parallel jig, three jig heads, wire straightener. Numbers live in `campaign.json` (`office.projects`).
 - *The wire catches* in the bender's guide every 25 machine clips (60 with the tensioner) until the feeder is installed; the line stops until the player frees it. This is Mara's first note made playable.
 - *Line speed* (after the jig): steady, brisk ×1.25 with ~5% ruined, hard ×1.45 with ~12% ruined. Ruined clips go to a rejects account, never lost; the straightener draws them back into wire.
-- *Pace controls* (4× and Next event) appear only once the feeder is installed.
+- *No fast-forward in the office.* At the owner's request, 1×/4× and Next event are absent for the whole chapter; the line is sped up by playing it instead:
+  - **Tending**: each hand press fills a meter that drains at 12/s; a full meter adds up to +25% to machine output. **Practice** (every 150 presses, three levels) makes each press tend half again as much.
+  - **True wire**: once the bender runs, light catches the wire every 50–90 s. Catching it within 10 s (button, C key, or clicking the glint on the spool) gives a 20 s clean run at ×1.6 and frees a caught wire. Missing one costs nothing.
+  - **Tuning the die** (after the feeder): stop a swinging needle inside a band for a permanent +4% (five levels; the band narrows each time). A miss costs a 6 s wait. *Tune by hand* always succeeds in 20 s, for anyone who prefers not to play the timing game.
+  Later chapters keep their 1×/4× pacing for now.
 - *Story time follows the order*: the clock runs from 11:47 PM to 6:10 AM as cartons fill, so dawn comes with the last carton. Outside the window the floors go dark, a tram passes, the rain eases, a van stops, the sky turns grey. Birds start once the rain thins.
 - *Terminal files* (the order, the contract with its §9 continuation clause that activates on completion, the bender manual, the facilities inventory, a lamp ticket, a building memo that sets up chapter 2). Mara still leaves only her three messages.
 - The shift report waits six seconds after the last carton so the room can go quiet first.
 
-Measured with the simulated players in `autopilot.ts`: a reasonable player (about 2 clicks/s for two minutes, then 1/s, notices jams after ~2 s) takes about 25 minutes; an optimizing bot that clicks 5 times a second, never reads and runs the line hard takes about 17. Tests guard both bounds. Older saves in the office are migrated in place.
+Measured with the simulated players in `autopilot.ts`: a relaxed player (tends in short bursts, notices true wire after a few seconds and catches two in three, hits half its tunings) takes about 23 minutes; an engaged player who plays every mechanic hard takes about 14. Tests guard both bounds. Older saves in the office are migrated in place.
 
 **02.** The route starts on the courtyard. *Build* on the direct route is the only way to clear the garden and is the moment of loss. The building upgrades are permit-only (no mass). Every contract pauses for a one-button inspection.
 

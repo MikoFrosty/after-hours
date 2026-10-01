@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from 'react';
 import type { CampaignState, C01State, OfficeProjectId } from '../../game/types';
-import { goodRate, loose } from '../../game/chapters/c01';
+import { cleanRunActive, glintActive, goodRate, loose } from '../../game/chapters/c01';
 import { mass } from '../../game/ledger';
 import { OFFICE } from '../../content/campaign';
 import { CLIP } from '../../game/mass';
@@ -36,6 +36,9 @@ export interface OfficeView {
   rejects: boolean;
   /** Story minutes since 11:47 PM: lights go out, rain eases, dawn comes. */
   minute: number;
+  /** The wire is running true (a catchable moment), and a clean run is under way. */
+  glint: boolean;
+  cleanRun: boolean;
 }
 
 // Isometric projection
@@ -156,7 +159,7 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
       ? ['MARA: WIRE CATCHES IF', 'YOU PULL TOO HARD.', 'ORDER 4471 · 0 / 12', '>']
       : c1.capped
         ? ['ORDER 4471 COMPLETE', '12 / 12 CARTONS', 'CONTRACT §9 ACTIVE', '>']
-        : [`CARTONS ${c1.sealed} / 12`, `ON DESK ${desk}`, c1.jammed ? 'WIRE CAUGHT · FREE IT' : `RATE ${(goodRate(c1) / 1000).toFixed(1)}/S`, '>']
+        : [`CARTONS ${c1.sealed} / 12`, `ON DESK ${desk}`, c1.jammed ? 'WIRE CAUGHT · FREE IT' : `RATE ${(goodRate(s) / 1000).toFixed(1)}/S`, '>']
     : ['PRODUCTION LOG', `CHAPTER ${s.chapter}`, 'OFFICE BOOKMARK', '>'];
   return {
     mode: m,
@@ -183,6 +186,8 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
     straightener: has('straightener'),
     rejects: c1 ? c1.rejects > 0 : false,
     minute: c1 ? s.storySeconds / 60 : 0,
+    glint: c1 ? glintActive(s) : false,
+    cleanRun: c1 ? cleanRunActive(s) : false,
   };
 }
 
@@ -208,7 +213,7 @@ function Photo({ recorded }: { recorded: boolean }) {
   );
 }
 
-function OfficeSvg({ v }: { v: OfficeView }) {
+function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
   const wire = v.mode === 'recorded';
   const recon = v.mode === 'reconstructed';
   const last = v.frozen;
@@ -669,6 +674,32 @@ function OfficeSvg({ v }: { v: OfficeView }) {
       {/* wastebasket */}
       <Cyl c={[8.7, 6.9]} r={0.45} z0={0} h={1.0} color="#2e3232" st={st} top={wire ? undefined : '#141616'} />
 
+      {/* a clean run: warm light over the machines */}
+      {v.cleanRun && !wire && !last && (
+        <ellipse className={anim ? 'cleanglow' : undefined} cx={P(4.6, 3.2, 3.2)[0]} cy={P(4.6, 3.2, 3.2)[1]} rx={120} ry={60} fill="url(#lampglow)" opacity={0.9} pointerEvents="none" />
+      )}
+      {/* the wire running true: light along its whole length, catchable by clicking */}
+      {v.glint && !wire && !last && (
+        <g className="glint" onClick={onGlint} style={{ cursor: onGlint ? 'pointer' : undefined }} role={onGlint ? 'button' : undefined} aria-label="Catch the clean run">
+          <polyline
+            points={[P(5.6, 3.4, 3.2), P(4.77, 3.02, 3.25), P(4.1, 3.1, 3.05)].map((p) => p.join(',')).join(' ')}
+            fill="none"
+            stroke="#fff6d8"
+            strokeWidth={3}
+            strokeLinecap="round"
+            className={anim ? 'glintline' : undefined}
+          />
+          {(() => {
+            const [gx, gy] = P(5.6, 3.4, 3.55);
+            return (
+              <g transform={`translate(${gx},${gy})`}>
+                <path className={anim ? 'sparkle' : undefined} d="M0,-16 L3,-3 L16,0 L3,3 L0,16 L-3,3 L-16,0 L-3,-3 Z" fill="#fff6d8" />
+                <circle r={46} fill="transparent" />
+              </g>
+            );
+          })()}
+        </g>
+      )}
       {/* headlights sweeping the far wall as the van stops */}
       {vanPassing && anim && !wire && (
         <polygon className="sweep" points={pts([[1, 0.02, 1.5], [3.4, 0.02, 1.2], [3.4, 0.02, 4.4], [1, 0.02, 3.9]])} fill="#fff3d6" opacity={0} />
@@ -707,7 +738,7 @@ export function describeOffice(v: OfficeView): string {
   return parts.join(' ');
 }
 
-export const OfficeScene = memo(function OfficeScene({ view, label }: { view: OfficeView; label?: string }) {
+export const OfficeScene = memo(function OfficeScene({ view, label, onGlint }: { view: OfficeView; label?: string; onGlint?: () => void }) {
   const [pulse, setPulse] = useState(0);
   useEffect(() => setPulse(view.pulse), [view.pulse]);
   const v = { ...view, pulse };
@@ -719,7 +750,7 @@ export const OfficeScene = memo(function OfficeScene({ view, label }: { view: Of
         {view.mode === 'recorded' && <span className="pill accent">Archive · recorded</span>}
         {view.mode === 'reconstructed' && <span className="pill warn">Reconstruction · approximate</span>}
       </div>
-      <OfficeSvg v={v} />
+      <OfficeSvg v={v} onGlint={onGlint} />
     </div>
   );
 });

@@ -299,6 +299,22 @@ export interface C01State {
   rejects: number;
   straightenResidue: number;
   spareTaken: boolean;
+  /** Tending: hand bends keep the line fed. 0–100,000 milli. */
+  tending: number;
+  /** Hand presses this night; practice adds clips per press. */
+  handBends: number;
+  /** True wire: a short window to catch a clean run. Times are simulated ms; 0 = none. */
+  nextGlintMs: number;
+  glintUntilMs: number;
+  cleanRunUntilMs: number;
+  glintsCaught: number;
+  /** Tuning the die: permanent levels won on the gauge. */
+  tuneLevel: number;
+  tuneAttempts: number;
+  tuneCooldownUntilMs: number;
+  lastTune: 'hit' | 'miss' | null;
+  /** Careful tuning by hand: progress in ms, or null when not under way. */
+  slowTuneMs: number | null;
   /** Terminal files that have appeared, and whether they have been opened. */
   files: Record<string, 'unread' | 'read'>;
   salvaged: { cabinet: boolean; lamp: boolean; frame: boolean };
@@ -478,6 +494,9 @@ export type Action =
   | { type: 'c01/speed'; speed: LineSpeed }
   | { type: 'c01/read'; file: string }
   | { type: 'c01/takeSpare' }
+  | { type: 'c01/catch' }
+  | { type: 'c01/tune'; needle: number }
+  | { type: 'c01/tuneSlow' }
   | { type: 'c02/run'; running: boolean }
   | { type: 'c02/route'; route: 'courtyard' | 'direct' }
   | { type: 'c02/upgrade'; id: 'wireDraw' | 'freight' | 'roofCooling' }

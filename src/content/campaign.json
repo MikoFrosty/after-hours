@@ -90,7 +90,7 @@
         "costClips": 15,
         "installSeconds": 8,
         "group": "bender",
-        "addedRate": 0.4,
+        "addedRate": 0.32,
         "unlock": {
           "made": 10
         }
@@ -124,7 +124,7 @@
         "costClips": 200,
         "installSeconds": 25,
         "group": "line",
-        "addedRate": 0.8,
+        "addedRate": 0.64,
         "unlock": {
           "after": "oil",
           "made": 250
@@ -136,7 +136,7 @@
         "costClips": 150,
         "installSeconds": 15,
         "group": "bender",
-        "addedRate": 0.4,
+        "addedRate": 0.32,
         "unlock": {
           "after": "feeder"
         }
@@ -158,7 +158,7 @@
         "costClips": 90,
         "installSeconds": 12,
         "group": "line",
-        "addedRate": 0.3,
+        "addedRate": 0.24,
         "unlock": {
           "after": "packer"
         }
@@ -169,7 +169,7 @@
         "costClips": 130,
         "installSeconds": 12,
         "group": "line",
-        "addedRate": 0.3,
+        "addedRate": 0.24,
         "unlock": {
           "after": "roller",
           "boxes": 2
@@ -181,7 +181,7 @@
         "costClips": 400,
         "installSeconds": 60,
         "group": "line",
-        "addedRate": 1.6,
+        "addedRate": 1.28,
         "unlock": {
           "after": "die2",
           "boxes": 3
@@ -193,7 +193,7 @@
         "costClips": 100,
         "installSeconds": 10,
         "group": "line",
-        "addedRate": 0.3,
+        "addedRate": 0.24,
         "unlock": {
           "after": "jig"
         }
@@ -204,7 +204,7 @@
         "costClips": 150,
         "installSeconds": 10,
         "group": "line",
-        "addedRate": 0.3,
+        "addedRate": 0.24,
         "unlock": {
           "after": "head1"
         }
@@ -215,7 +215,7 @@
         "costClips": 220,
         "installSeconds": 10,
         "group": "line",
-        "addedRate": 0.3,
+        "addedRate": 0.24,
         "unlock": {
           "after": "head2"
         }
@@ -231,7 +231,35 @@
           "rejects": 20
         }
       }
-    ]
+    ],
+    "active": {
+      "tending": {
+        "perBendMilli": 8000,
+        "decayPerSecondMilli": 12000,
+        "maxBonus": 0.25
+      },
+      "trueWire": {
+        "firstAfterSeconds": 40,
+        "windowSeconds": 10,
+        "runSeconds": 20,
+        "multiplier": 1.6,
+        "intervalSeconds": 50,
+        "intervalSpreadSeconds": 40
+      },
+      "tuning": {
+        "levels": 5,
+        "bonusPerLevel": 0.04,
+        "bandWidth": 24,
+        "bandShrink": 3,
+        "cooldownSeconds": 6,
+        "periodSeconds": 2.4,
+        "slowSeconds": 20
+      },
+      "practice": {
+        "bendsPerLevel": 150,
+        "maxExtra": 3
+      }
+    }
   },
   "building": {
     "stations": {

@@ -93,7 +93,7 @@ export function metrics(s: CampaignState): { items: Metric[]; bottleneck: string
       else if (c.jammed) b = 'Wire caught';
       else if (c.installing) b = `Installing: ${project(c.installing.id).name}`;
       else if (wireGrams(s) < 50) b = 'Wire coil empty';
-      else if (owns(c, 'calibrate')) b = `${(goodRate(c) / 1000).toFixed(1)} clips/s`;
+      else if (owns(c, 'calibrate')) b = `${(goodRate(s) / 1000).toFixed(1)} clips/s`;
       const items: Metric[] = [deskClips];
       if (c.files.order) items.push({ label: 'Cartons', value: `${c.sealed} / ${CARTONS}`, hint: 'The order is twelve sealed cartons of 250.' });
       return { items, bottleneck: b };

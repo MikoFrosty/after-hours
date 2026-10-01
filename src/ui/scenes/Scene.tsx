@@ -18,7 +18,7 @@ export function Scene() {
   switch (s.chapter) {
     case '01': {
       const c = s.chapterState as C01State;
-      body = <OfficeScene view={officeViewFrom(s, false, animate, c.madeClips)} label="11th floor · the night desk" />;
+      body = <OfficeScene view={officeViewFrom(s, false, animate, c.madeClips)} label="11th floor · the night desk" onGlint={() => game.dispatch({ type: 'c01/catch' })} />;
       break;
     }
     case '02':

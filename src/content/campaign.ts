@@ -83,6 +83,34 @@ export const OFFICE = {
       unlock: p.unlock as OfficeProject['unlock'],
     }),
   ),
+  active: {
+    tending: {
+      perBend: c.office.active.tending.perBendMilli,
+      decayPerSecond: c.office.active.tending.decayPerSecondMilli,
+      maxBonus: milli(c.office.active.tending.maxBonus),
+    },
+    trueWire: {
+      firstAfterMs: c.office.active.trueWire.firstAfterSeconds * 1000,
+      windowMs: c.office.active.trueWire.windowSeconds * 1000,
+      runMs: c.office.active.trueWire.runSeconds * 1000,
+      multiplier: milli(c.office.active.trueWire.multiplier),
+      intervalMs: c.office.active.trueWire.intervalSeconds * 1000,
+      spreadMs: c.office.active.trueWire.intervalSpreadSeconds * 1000,
+    },
+    tuning: {
+      levels: c.office.active.tuning.levels,
+      bonusPerLevel: milli(c.office.active.tuning.bonusPerLevel),
+      bandWidth: c.office.active.tuning.bandWidth,
+      bandShrink: c.office.active.tuning.bandShrink,
+      cooldownMs: c.office.active.tuning.cooldownSeconds * 1000,
+      periodMs: c.office.active.tuning.periodSeconds * 1000,
+      slowMs: c.office.active.tuning.slowSeconds * 1000,
+    },
+    practice: {
+      bendsPerLevel: c.office.active.practice.bendsPerLevel,
+      maxExtra: c.office.active.practice.maxExtra,
+    },
+  },
   /** The original office upgrades, kept for importing version 1 office saves. */
   legacyUpgrades: c.office.legacyUpgrades as Array<{ id: 'bender' | 'feeder' | 'jig'; costClips: number; addedRate: number }>,
   salvage: c.office.salvage.map((s) => ({

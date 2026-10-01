@@ -271,6 +271,10 @@ export function migrateOffice(s: CampaignState): void {
     A.unreached.mass -= OFFICE.spareWire;
     A['office.spare'].mass += OFFICE.spareWire;
   }
+  if (old?.kind === '01' && !old.upgrades && (old as unknown as { tending?: number }).tending === undefined) {
+    // Saved by the first version of the rebuilt night: fill in the active-play fields.
+    s.chapterState = { ...newOfficeState(), ...(s.chapterState as C01State) };
+  }
   if (old?.kind === '01' && old.upgrades) {
     const prev = s.chapterState as unknown as { madeClips: number; salvaged: C01State['salvaged']; upgrades: { bender: boolean; feeder: boolean; jig: boolean } };
     const next = newOfficeState();
@@ -279,7 +283,6 @@ export function migrateOffice(s: CampaignState): void {
     if (prev.upgrades.bender) next.owned.push('calibrate');
     if (prev.upgrades.feeder) next.owned.push('oil', 'feeder');
     if (prev.upgrades.jig) next.owned.push('die2', 'jig');
-    if (next.owned.includes('feeder')) s.flags['c01.pace'] = true;
     if (s.mode === 'choice') {
       s.choices = s.choices.filter((c) => c.kind !== 'c01/report');
       if (s.choices.length === 0) s.mode = 'playing';
@@ -355,7 +358,6 @@ export function importV1(raw: unknown): { ok: true; state: CampaignState; summar
     c.owned.push(...mapping[u.id]);
     s.projects[u.id] = 'complete';
   }
-  if (c.owned.includes('feeder')) s.flags['c01.pace'] = true;
   c.madeClips = v.lifetime;
   s.clips.lifetimeMadeMicrograms = BigInt(v.lifetime) * CLIP;
   const inv = checkInvariant(s);

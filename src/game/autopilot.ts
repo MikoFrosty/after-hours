@@ -2,7 +2,7 @@
 // It only dispatches ordinary player actions; it never mutates state directly.
 import { COSMIC, PRESERVATION } from '../content/campaign';
 import { dispatch, step } from './engine';
-import { canStart, loose, offeredProjects, owns, salvageAvailable, spareOffered } from './chapters/c01';
+import { canStart, glintActive, loose, offeredProjects, owns, salvageAvailable, spareOffered, tuneBand } from './chapters/c01';
 import { OFFICE } from '../content/campaign';
 import { allowedTreatments, slotsInUse } from './chapters/c04';
 import { adriftKits } from './chapters/c06';
@@ -121,9 +121,12 @@ export function answer(s: CampaignState, r: Route): void {
 let tick = 0;
 let clickCredit = 0;
 let jamSteps = 0;
+let glintSeen = 0;
+let glintDecided = 0;
 
 /**
- * A simulated player for the office night. Steps are 100 ms.
+ * A simulated player for the office night. Steps are 100 ms. The "efficient" route models an
+ * engaged, optimizing person rather than a machine.
  * Reasonable: clicks about 3 times a second until the feeder, notices a jam after ~2 s, keeps a
  * small reserve, packs cartons when nothing is affordable soon. Efficient: clicks 6 times a second,
  * frees jams at once, buys the moment it can, runs the line hard and packs only at the end.
@@ -140,14 +143,32 @@ function officeNight(s: CampaignState, r: Route) {
       jamSteps = 0;
     }
   }
-  // Clicking by hand while it still matters.
-  if (!owns(c, 'feeder')) {
-    // People click hard at first, then settle: ~2/s for two minutes, then ~1/s. Efficient: 5/s throughout.
-    const minutes = s.simMs / 60000;
-    clickCredit += eff ? 0.5 : minutes < 2 ? 0.2 : 0.1;
-    while (clickCredit >= 1) {
-      clickCredit -= 1;
-      dispatch(s, { type: 'c01/make' });
+  const minutes = s.simMs / 60000;
+  // Hand bending and tending.
+  // Reasonable: ~2/s for two minutes, then bursts of ~2.5/s for 15 s in every minute.
+  // Engaged: 4/s until the feeder, then bursts of 3/s for 30 s in every minute.
+  const sec = s.simMs % 60_000;
+  const rate = eff ? (owns(c, 'feeder') ? (sec < 30_000 ? 0.3 : 0) : 0.4) : minutes < 2 ? 0.2 : sec < 15_000 ? 0.25 : 0;
+  clickCredit += rate;
+  while (clickCredit >= 1) {
+    clickCredit -= 1;
+    dispatch(s, { type: 'c01/make' });
+  }
+  // True wire. Reasonable: notices after ~2.5 s and catches two in three. Engaged: after ~1 s, nine in ten.
+  if (glintActive(s)) {
+    const shownFor = s.simMs - (c.glintUntilMs - OFFICE.active.trueWire.windowMs);
+    if (shownFor >= (eff ? 1000 : 2500) && glintDecided !== c.glintUntilMs) {
+      glintDecided = c.glintUntilMs;
+      glintSeen += 1;
+      if (eff ? glintSeen % 10 !== 0 : glintSeen % 3 !== 0) dispatch(s, { type: 'c01/catch' });
+    }
+  }
+  // Tuning. Reasonable: tries every 20 s, hits half the time. Engaged: tries every 8 s, hits two in three.
+  if (owns(c, 'feeder') && c.tuneLevel < OFFICE.active.tuning.levels && s.simMs >= c.tuneCooldownUntilMs && c.slowTuneMs === null) {
+    const band = tuneBand(c);
+    if (s.simMs % (eff ? 8_000 : 20_000) < 100) {
+      const hit = eff ? c.tuneAttempts % 3 !== 2 : c.tuneAttempts % 2 === 1;
+      dispatch(s, { type: 'c01/tune', needle: hit ? band.center : band.center + band.width });
     }
   }
   const offered = offeredProjects(s);
@@ -281,6 +302,8 @@ export function autoplay(route: Route = CANONICAL, until: ChapterId | 'end' = 'e
   tick = 0;
   clickCredit = 0;
   jamSteps = 0;
+  glintSeen = 0;
+  glintDecided = 0;
   for (let i = 0; i < maxSteps; i++) {
     if (until !== 'end' && s.chapter === until && s.choices.length === 0) return s;
     if (s.mode === 'ended' || s.mode === 'holding') return s;

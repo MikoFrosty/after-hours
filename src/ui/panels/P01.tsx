@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { game } from '../../runtime/game';
 import { useGameState, act } from '../hooks';
 import { OFFICE, type OfficeProject } from '../../content/campaign';
 import { MARA, TERMINAL_FILES } from '../../content/narrative';
 import type { C01State, LineSpeed, OfficeProjectId } from '../../game/types';
-import { canStart, CARTONS, goodRate, loose, offeredProjects, owns, project, salvageAvailable, spareOffered, wireGrams } from '../../game/chapters/c01';
+import { canStart, CARTONS, cleanRunActive, glintActive, goodRate, handLevel, loose, offeredProjects, owns, project, salvageAvailable, spareOffered, tendingBonus, tuneBand, wireGrams } from '../../game/chapters/c01';
 import { mass } from '../../game/ledger';
 import { fmtMass } from '../../game/mass';
 import { Bar } from './Panel';
@@ -47,7 +48,10 @@ export function P01() {
   const files = Object.keys(c.files);
   const unread = files.filter((f) => c.files[f] === 'unread').length;
 
-  // B bends a clip and F frees the wire, from anywhere in the chapter. Key repeat is ignored.
+  const glint = glintActive(s);
+  const tending = owns(c, 'feeder');
+
+  // B bends (or tends), F frees the wire, C catches a true-wire moment. Key repeat is ignored.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -55,10 +59,11 @@ export function P01() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
       if (e.key === 'b' || e.key === 'B') act({ type: 'c01/make' });
       if ((e.key === 'f' || e.key === 'F') && c.jammed) act({ type: 'c01/free' });
+      if ((e.key === 'c' || e.key === 'C') && glint) act({ type: 'c01/catch' });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [c.jammed]);
+  }, [c.jammed, glint]);
 
   return (
     <>
@@ -68,6 +73,20 @@ export function P01() {
           <div className="tiny" style={{ opacity: 0.6, marginTop: 6 }}>
             {'dateline' in note ? note.dateline : ''}
           </div>
+        </div>
+      )}
+
+      {glint && (
+        <div className="card reveal truewire" role="alert">
+          <h3>
+            The wire is running true <span className="tag">{Math.max(0, Math.ceil((c.glintUntilMs - s.simMs) / 1000))} s</span>
+          </h3>
+          <p className="small" style={{ margin: '0 0 10px' }}>
+            Light runs the whole length of it without a kink. Catch it for a clean run: the line works at ×1.6 for 20 seconds.
+          </p>
+          <button className="btn primary" onClick={() => act({ type: 'c01/catch' })}>
+            Catch the clean run <span className="kbd">C</span>
+          </button>
         </div>
       )}
 
@@ -84,10 +103,26 @@ export function P01() {
       )}
 
       <div className="card">
-        <button className="btn primary make-btn" onClick={() => act({ type: 'c01/make' })} disabled={c.capped || wire === 0}>
-          {c.capped ? 'The order is complete' : c.madeClips === 0 ? 'Bend the first clip' : 'Bend a clip by hand'}
+        <button className="btn primary make-btn" onClick={() => act({ type: 'c01/make' })} disabled={c.capped || (!tending && wire === 0)}>
+          {c.capped ? 'The order is complete' : c.madeClips === 0 ? 'Bend the first clip' : tending ? 'Tend the line' : 'Bend a clip by hand'}
           {!c.capped && <span className="kbd">B</span>}
         </button>
+        {owns(c, 'calibrate') && !c.capped && (
+          <div style={{ marginTop: 10 }}>
+            <div className="row between small">
+              <span className="muted">{tending ? 'Tending: the feeder has the wire; your hands keep it fed' : 'Tending: hand bends keep the bender fed'}</span>
+              <span className="mono">+{Math.round(tendingBonus(c) / 10)}%</span>
+            </div>
+            <Bar value={c.tending} max={100_000} />
+            {handLevel(c) > 0 && <div className="tiny faint">Practice {handLevel(c)} of 3: each press tends {50 * handLevel(c)}% more.</div>}
+          </div>
+        )}
+        {cleanRunActive(s) && (
+          <div className="row between small cleanrun" role="status">
+            <span>Clean run · ×1.6</span>
+            <span className="mono">{Math.ceil((c.cleanRunUntilMs - s.simMs) / 1000)} s</span>
+          </div>
+        )}
         <div className="row between small" style={{ marginTop: 10 }}>
           <span className="muted">Clips on the desk</span>
           <span className="mono" style={{ fontSize: '1.2em' }}>
@@ -97,7 +132,7 @@ export function P01() {
         {owns(c, 'calibrate') && (
           <div className="row between small">
             <span className="muted">Machines</span>
-            <span className="mono">{c.jammed ? 'stopped' : `${(goodRate(c) / 1000).toFixed(2)} clips/s`}</span>
+            <span className="mono">{c.jammed ? 'stopped' : `${(goodRate(s) / 1000).toFixed(2)} clips/s`}</span>
           </div>
         )}
         {(c.spareTaken || wire < 1500 || c.files.inventory) && (
@@ -122,6 +157,8 @@ export function P01() {
           </div>
         </div>
       )}
+
+      {owns(c, 'feeder') && !c.capped && <TuningCard />}
 
       {spareOffered(s) && (
         <div className="card reveal highlight-card">
@@ -282,6 +319,82 @@ function ProjectRow({ p, reason, installing, deskClips }: { p: OfficeProject; re
       <button className="btn small" disabled={Boolean(reason)} onClick={() => act({ type: 'c01/project', id: p.id })} title={reason ?? undefined}>
         {installing ? 'Installing' : `Install · ${p.costClips}`}
       </button>
+    </div>
+  );
+}
+
+/** Tuning the die: stop the swinging needle inside the band. A miss costs a few seconds, nothing else. */
+function TuningCard() {
+  const s = game.state!;
+  const c = s.chapterState as C01State;
+  const max = OFFICE.active.tuning.levels;
+  const band = tuneBand(c);
+  const [needle, setNeedle] = useState(50);
+  const needleRef = useRef(50);
+  const done = c.tuneLevel >= max;
+  const cooling = s.simMs < c.tuneCooldownUntilMs;
+  const slow = c.slowTuneMs !== null;
+
+  useEffect(() => {
+    if (done) return;
+    let raf = 0;
+    const start = performance.now();
+    const frame = (t: number) => {
+      raf = requestAnimationFrame(frame);
+      if (game.paused) return;
+      const v = 50 + 50 * Math.sin(((t - start) / OFFICE.active.tuning.periodMs) * Math.PI * 2);
+      needleRef.current = v;
+      setNeedle(v);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [done]);
+
+  const set = () => act({ type: 'c01/tune', needle: needleRef.current });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.key === 't' || e.key === 'T') && !done) set();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [done]);
+
+  return (
+    <div className="card reveal">
+      <h3>
+        Tune the die <span className="tag">{c.tuneLevel} of {max} · +{(c.tuneLevel * OFFICE.active.tuning.bonusPerLevel) / 10}%</span>
+      </h3>
+      {done ? (
+        <div className="small muted">Tuned as far as it will go.</div>
+      ) : (
+        <>
+          <div className="gauge" aria-hidden>
+            <span className="band" style={{ left: `${band.center - band.width / 2}%`, width: `${band.width}%` }} />
+            <span className="needle" style={{ left: `${needle}%` }} />
+          </div>
+          <div className="row between" style={{ marginTop: 10 }}>
+            <span className="small muted" role="status">
+              {slow
+                ? `Tuning by hand… ${Math.ceil((OFFICE.active.tuning.slowMs - (c.slowTuneMs ?? 0)) / 1000)} s`
+                : cooling
+                  ? 'Missed. Let the gauge settle…'
+                  : c.lastTune === 'hit'
+                    ? 'Set. The band narrows.'
+                    : 'Stop the needle inside the band.'}
+            </span>
+            <div className="row">
+              <button className="btn small" disabled={cooling || slow} onClick={set}>
+                Set the die <span className="kbd">T</span>
+              </button>
+              <button className="btn small ghost" disabled={slow} onClick={() => act({ type: 'c01/tuneSlow' })} title="Always works; takes 20 seconds">
+                Tune by hand · 20 s
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

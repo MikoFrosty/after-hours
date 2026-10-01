@@ -32,8 +32,40 @@ export function speedOf(c: C01State) {
   return OFFICE.lineSpeeds.find((x) => x.id === c.lineSpeed) ?? OFFICE.lineSpeeds[0];
 }
 
-/** Machine output in milli-clips per second (gross, before ruined clips). */
-export function machineRate(c: C01State): number {
+const ACTIVE = OFFICE.active;
+
+/** Practice: every 150 hand presses, each press tends the line half again as much. */
+export function handLevel(c: C01State): number {
+  return Math.min(ACTIVE.practice.maxExtra, Math.floor(c.handBends / ACTIVE.practice.bendsPerLevel));
+}
+
+export const glintActive = (s: CampaignState) => cs(s).glintUntilMs > s.simMs;
+export const cleanRunActive = (s: CampaignState) => cs(s).cleanRunUntilMs > s.simMs;
+
+/** Machine bonus from tending, in thousandths (0–400). */
+export function tendingBonus(c: C01State): number {
+  return Math.floor((c.tending * ACTIVE.tending.maxBonus) / 100_000);
+}
+
+/** The gauge band for the next tuning attempt, in needle units 0–100. */
+export function tuneBand(c: C01State): { center: number; width: number } {
+  const width = Math.max(8, ACTIVE.tuning.bandWidth - c.tuneLevel * ACTIVE.tuning.bandShrink);
+  const center = 15 + ((c.tuneAttempts * 37 + 11) % 70);
+  return { center, width };
+}
+
+/** Machine output in milli-clips per second (gross, before ruined clips), with every active bonus. */
+export function machineRate(s: CampaignState): number {
+  const c = cs(s);
+  let r = baseRate(c);
+  if (r <= 0) return 0;
+  r = mulMilli(r, 1000 + tendingBonus(c));
+  r = mulMilli(r, 1000 + c.tuneLevel * ACTIVE.tuning.bonusPerLevel);
+  if (cleanRunActive(s)) r = mulMilli(r, ACTIVE.trueWire.multiplier);
+  return r;
+}
+
+function baseRate(c: C01State): number {
   if (c.jammed || c.capped) return 0;
   let bender = 0;
   let benderMult = 1000;
@@ -50,9 +82,9 @@ export function machineRate(c: C01State): number {
 }
 
 /** Good clips per second after ruined clips, for display. */
-export function goodRate(c: C01State): number {
-  const r = machineRate(c);
-  return r - Math.floor((r * speedOf(c).rejectPpm) / 1_000_000);
+export function goodRate(s: CampaignState): number {
+  const r = machineRate(s);
+  return r - Math.floor((r * speedOf(cs(s)).rejectPpm) / 1_000_000);
 }
 
 export function unlocked(c: C01State, p: OfficeProject): boolean {
@@ -142,8 +174,6 @@ function finishInstall(s: CampaignState, id: OfficeProjectId) {
   if (id === 'feeder') {
     s.projects.feeder = 'complete';
     c.jammed = false;
-    // The routine part of the night can now be accelerated.
-    s.flags['c01.pace'] = true;
   }
   if (id === 'jig') s.projects.jig = 'complete';
   emit({ type: 'sound', id: 'install' });
@@ -175,7 +205,44 @@ export const c01: Controller = {
       if (c.installing.ms >= project(c.installing.id).installMs) finishInstall(s, c.installing.id);
     }
 
-    const rate = machineRate(c);
+    // Tending drains when the hands stop.
+    c.tending = Math.max(0, c.tending - Math.floor((ACTIVE.tending.decayPerSecond * dt) / 1000));
+
+    // True wire: once the bender runs, light catches the wire now and then.
+    if (owns(c, 'calibrate')) {
+      if (c.nextGlintMs === 0) c.nextGlintMs = s.simMs + ACTIVE.trueWire.firstAfterMs;
+      if (c.glintUntilMs !== 0 && s.simMs >= c.glintUntilMs) {
+        c.glintUntilMs = 0;
+        bump(s);
+      }
+      if (c.glintUntilMs === 0 && s.simMs >= c.nextGlintMs) {
+        c.glintUntilMs = s.simMs + ACTIVE.trueWire.windowMs;
+        const n = c.glintsCaught + Math.floor(s.simMs / 1000);
+        c.nextGlintMs = c.glintUntilMs + ACTIVE.trueWire.intervalMs + ((n * 7919) % (ACTIVE.trueWire.spreadMs / 1000)) * 1000;
+        emit({ type: 'sound', id: 'glint' });
+        bump(s);
+      }
+    }
+    if (c.cleanRunUntilMs !== 0 && s.simMs >= c.cleanRunUntilMs) {
+      c.cleanRunUntilMs = 0;
+      emit({ type: 'sound', id: 'cleanEnd' });
+      bump(s);
+    }
+
+    // Careful tuning by hand always succeeds; it just takes time.
+    if (c.slowTuneMs !== null) {
+      c.slowTuneMs += dt;
+      if (c.slowTuneMs >= ACTIVE.tuning.slowMs) {
+        c.slowTuneMs = null;
+        c.tuneLevel = Math.min(ACTIVE.tuning.levels, c.tuneLevel + 1);
+        c.tuneAttempts += 1;
+        c.lastTune = 'hit';
+        emit({ type: 'sound', id: 'tuneHit' });
+        bump(s);
+      }
+    }
+
+    const rate = machineRate(s);
     if (rate > 0) {
       // rate (milli-clips/s) × dt (ms) is exactly micro-clips.
       c.rateResidue += rate * dt;
@@ -290,8 +357,60 @@ export const c01: Controller = {
     switch (a.type) {
       case 'c01/make': {
         if (c.capped) return 'The order is complete.';
-        if (!bend(s, 1)) return 'There is no wire left on the coil.';
-        emit({ type: 'sound', id: 'bend' });
+        const before = handLevel(c);
+        // Before the feeder, hands bend clips. After it, the feeder owns the wire and hands tend the line.
+        if (!owns(c, 'feeder')) {
+          if (!bend(s, 1)) return 'There is no wire left on the coil.';
+          emit({ type: 'sound', id: 'bend' });
+        } else {
+          emit({ type: 'sound', id: 'tend' });
+        }
+        c.handBends += 1;
+        const gain = Math.floor((ACTIVE.tending.perBend * (2 + before)) / 2);
+        c.tending = Math.min(100_000, c.tending + gain);
+        if (handLevel(c) > before) {
+          log(s, { id: `c01.practice.${handLevel(c)}`, kind: 'system', title: 'Practice', text: 'Your hands have the feel of the line now. Each press tends it further.' });
+          emit({ type: 'sound', id: 'handLevel' });
+          bump(s);
+        }
+        return null;
+      }
+      case 'c01/catch': {
+        if (!glintActive(s)) return 'The light has moved off the wire.';
+        c.glintUntilMs = 0;
+        c.cleanRunUntilMs = s.simMs + ACTIVE.trueWire.runMs;
+        c.glintsCaught += 1;
+        c.jammed = false;
+        emit({ type: 'sound', id: 'catch' });
+        bump(s);
+        return null;
+      }
+      case 'c01/tune': {
+        if (!owns(c, 'feeder')) return 'Needs the wire feeder.';
+        if (c.tuneLevel >= ACTIVE.tuning.levels) return 'The die is tuned as far as it will go.';
+        if (c.slowTuneMs !== null) return 'Tuning by hand is under way.';
+        if (s.simMs < c.tuneCooldownUntilMs) return 'Let the gauge settle.';
+        const needle = Math.max(0, Math.min(100, a.needle));
+        const band = tuneBand(c);
+        c.tuneAttempts += 1;
+        if (Math.abs(needle - band.center) <= band.width / 2) {
+          c.tuneLevel += 1;
+          c.lastTune = 'hit';
+          emit({ type: 'sound', id: 'tuneHit' });
+          bump(s);
+        } else {
+          c.lastTune = 'miss';
+          c.tuneCooldownUntilMs = s.simMs + ACTIVE.tuning.cooldownMs;
+          emit({ type: 'sound', id: 'tuneMiss' });
+        }
+        return null;
+      }
+      case 'c01/tuneSlow': {
+        if (!owns(c, 'feeder')) return 'Needs the wire feeder.';
+        if (c.tuneLevel >= ACTIVE.tuning.levels) return 'The die is tuned as far as it will go.';
+        if (c.slowTuneMs !== null) return null;
+        c.slowTuneMs = 0;
+        emit({ type: 'sound', id: 'startInstall' });
         return null;
       }
       case 'c01/project': {

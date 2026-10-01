@@ -19,7 +19,7 @@ Headphones recommended. All sound is synthesized in the browser; it is optional 
 
 | Key | Action |
 |---|---|
-| B / F | Bend a clip by hand / free the caught wire (office) |
+| B / F / C / T | Office: bend or tend / free the caught wire / catch the true wire / set the die |
 | Space / Enter | Press the focused button; key repeat is ignored |
 | P | Pause / resume |
 | 1 / 4 | Normal pace / routine pace |

@@ -188,6 +188,27 @@ class AudioEngine {
         // A hand-formed clip: a soft snap of wire, varied so rapid clicking never sounds mechanical.
         this.click(t, 2400 + Math.random() * 1600, 0.12, 0.012);
         return this.click(t + 0.03, 900 + Math.random() * 300, 0.06, 0.03);
+      case 'tend':
+        // A light hand on the feed: a soft tap, pitched a little differently each time.
+        return this.click(t, 1100 + Math.random() * 500, 0.06, 0.02);
+      case 'glint':
+        // Light running along the wire: a quick rising shimmer.
+        for (let i = 0; i < 5; i++) this.bell(t + i * 0.05, 1760 * Math.pow(1.122, i), 0.018, 0.9, true, -0.2 + i * 0.1);
+        return;
+      case 'catch':
+        this.bell(t, 880, 0.05, 1.4, true);
+        this.bell(t + 0.06, 1318.5, 0.04, 1.6, true);
+        return this.bell(t + 0.12, 1760, 0.03, 1.8, true);
+      case 'cleanEnd':
+        return this.bell(t, 1318.5, 0.02, 0.8, true);
+      case 'tuneHit':
+        this.click(t, 3000, 0.15, 0.015);
+        return this.bell(t + 0.02, 1174.7, 0.05, 1.2, true);
+      case 'tuneMiss':
+        return this.tone(t, 196, 0.05, 0.25, 'triangle');
+      case 'handLevel':
+        this.bell(t, 659.3, 0.04, 1.2, true);
+        return this.bell(t + 0.12, 987.8, 0.035, 1.4, true);
       case 'jam':
         this.noiseHit(t, 1600, 0.12, 0.08, 'bandpass');
         return this.sweep(t, 520, 180, 0.05, 0.5);
@@ -359,7 +380,7 @@ class AudioEngine {
     const c = s.chapterState as C01State;
     const now = ctx.currentTime;
     const horizon = now + 0.3;
-    const rate = c.capped || c.jammed ? 0 : goodRate(c) / 1000;
+    const rate = c.capped || c.jammed ? 0 : goodRate(s) / 1000;
     if (rate > 0) {
       if (this.nextClack < now) this.nextClack = now + 0.05;
       // One soft clack per clip up to a few per second; above that it blurs into a steady patter.
