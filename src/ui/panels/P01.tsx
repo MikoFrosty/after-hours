@@ -375,8 +375,12 @@ function ActionDock() {
               {vanGone ? `${c.vanCartons} went on the ${VAN_LABEL} van` : `van at ${VAN_LABEL}, the rest go at 7:00`}
             </span>
             {!c.capped && (
-              <button className={`btn small ${full250 ? 'primary' : ''}`} disabled={!full250 && (deskClips < OFFICE.boxSize || c.sealed >= CARTONS)} onClick={() => act({ type: 'c01/pack' })}>
-                {full250 ? 'Seal the carton' : `Seal · ${OFFICE.boxSize}`} <span className="kbd">S</span>
+              <button
+                className={`btn small ${full250 ? 'primary' : ''}`}
+                disabled={!full250 && (owns(c, 'packer') || deskClips < OFFICE.boxSize || c.sealed >= CARTONS)}
+                onClick={() => act({ type: 'c01/pack' })}
+              >
+                {full250 ? 'Seal the carton' : owns(c, 'packer') ? `Packing · ${c.openBox}/${OFFICE.boxSize}` : `Seal · ${OFFICE.boxSize}`} <span className="kbd">S</span>
               </button>
             )}
           </div>
@@ -433,6 +437,16 @@ function AlertSlot() {
         <span>The packer’s carton is full. Tape it shut.</span>
         <button className="btn primary small" onClick={() => act({ type: 'c01/pack' })}>
           Seal it <span className="kbd">S</span>
+        </button>
+      </div>
+    );
+  }
+  if (c.wornAtMs > 0 && s.simMs - c.wornAtMs < 12_000 && c.slowTuneMs === null && c.tuneLevel < OFFICE.active.tuning.levels) {
+    return (
+      <div className="alert-slot worn" role="alert">
+        <span>The die has worn a level.</span>
+        <button className="btn small" onClick={() => act({ type: 'c01/tuneSlow' })} title="Or press T at the gauge">
+          Retune · 20 s
         </button>
       </div>
     );

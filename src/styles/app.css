@@ -1937,3 +1937,9 @@ details.exact .digits {
     animation: none;
   }
 }
+
+.alert-slot.worn {
+  border-color: color-mix(in srgb, var(--warn) 60%, transparent);
+  background: rgba(232, 194, 122, 0.08);
+  animation: slotin 0.25s ease;
+}

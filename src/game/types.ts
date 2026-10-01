@@ -325,6 +325,8 @@ export interface C01State {
   lastTune: 'hit' | 'miss' | null;
   /** Running brisk or hard wears the die; ms toward losing one tuning level. */
   wearMs: number;
+  /** When the die last lost a level to wear (simulated ms; 0 = never), for the dock's notice. */
+  wornAtMs: number;
   /** Careful tuning by hand: progress in ms, or null when not under way. */
   slowTuneMs: number | null;
   /** Terminal files that have appeared, and whether they have been opened. */

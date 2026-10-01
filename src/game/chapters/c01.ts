@@ -221,6 +221,7 @@ export function nextGoal(s: CampaignState): string {
     return `Seal ${n} more carton${n === 1 ? '' : 's'} to make room for the ${gated.name.toLowerCase()}.`;
   }
   if (!owns(c, 'packer') && l >= OFFICE.boxSize) return 'Seal a carton: 250 clips.';
+  if (owns(c, 'packer') && c.reserve > 0 && l > 0 && !nextProject(s)) return `Nothing left to buy: lower the packer’s reserve so it packs the ${l} clips on the desk.`;
   const extra = nextProject(s, true);
   if (extra) return `Optional: ${saving(extra).replace(/^./, (x) => x.toLowerCase())}`;
   return `Fill the order: ${c.sealed} of ${CARTONS} cartons sealed.`;
@@ -388,6 +389,7 @@ export const c01: Controller = {
         c.wearMs = 0;
         c.tuneLevel -= 1;
         c.lastTune = null;
+        c.wornAtMs = s.simMs;
         emit({ type: 'sound', id: 'wear' });
         bump(s);
       }
@@ -612,6 +614,8 @@ export const c01: Controller = {
           sealCarton(s);
           return null;
         }
+        // Once the packer is in, cartons are filled there; the hands only tape them shut.
+        if (owns(c, 'packer')) return `The packer is filling the carton: ${c.openBox} of ${OFFICE.boxSize}.`;
         if (loose(s) < OFFICE.boxSize) return `A carton needs ${OFFICE.boxSize} clips on the desk.`;
         sealCarton(s);
         return null;

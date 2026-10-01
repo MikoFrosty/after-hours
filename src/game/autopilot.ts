@@ -197,7 +197,7 @@ function officeNight(s: CampaignState, r: Route) {
   const reserve = pending.length ? nextCost + (eff ? 0 : 20) : 0;
   // Everyone seals the first carton by hand (that is what reveals the auto-packer).
   const wantsCarton = !eff || allBought || (c.sealed < 1 && owns(c, 'feeder'));
-  if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton && !boxFull(c)) dispatch(s, { type: 'c01/pack' });
+  if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton && !owns(c, 'packer')) dispatch(s, { type: 'c01/pack' });
 }
 
 export function act(s: CampaignState, r: Route): void {

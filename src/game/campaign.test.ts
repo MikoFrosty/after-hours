@@ -234,6 +234,7 @@ describe('chapter 01 office', () => {
     dispatch(s, { type: 'c01/speed', speed: 'hard' });
     run(s, OFFICE.active.wear.hardMs / 100 + 5);
     expect(c.tuneLevel).toBe(0);
+    expect(c.wornAtMs).toBeGreaterThan(0);
   });
 
   it('the auto-packer packs everything above the reserve', () => {
@@ -242,6 +243,8 @@ describe('chapter 01 office', () => {
     c.owned.push('calibrate', 'oil', 'feeder', 'packer');
     commit(s, { id: 'test.wire', from: 'office.wire', input: 400n * CLIP, outputs: [['clips', 400n * CLIP]] });
     expect(dispatch(s, { type: 'c01/reserve', reserve: 100 })).toBeNull();
+    // With the packer in, desk clips are not taped up by hand: the packer fills, the hands seal.
+    expect(dispatch(s, { type: 'c01/pack' })).not.toBeNull();
     step(s);
     // The packer fills the carton; a hand seals it.
     expect(c.openBox).toBe(250);

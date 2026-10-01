@@ -19,3 +19,21 @@ Hourly improvement passes on chapter 1, *The Night Desk*, run while the owner is
 
 **For the morning**
 - Nothing to decide from this pass.
+
+## Pass 2 · 2026-10-01 11:10 UTC · chapter 1
+
+**How it was checked.** Seeded the night to mid-shift with the relaxed simulated player (jig with three stations, the finish choice open), then played a minute by hand in a headless browser at 1440 and 390 px; a second run seeded to the moment the die wore a level.
+
+**Changed**
+- *Die wear was invisible from the dock.* Losing a tuning level only played a sound and changed a card further down the panel, so a player watching the bench would just lose output without knowing why. The dock's alert slot now says "The die has worn a level." for twelve seconds, with a one-press *Retune · 20 s* (the gauge's T key works too).
+- *Two ways to seal once the packer was in.* "Seal · 250" still taped up desk clips while the packer's own carton sat half full, so the carton strip jumped around and the reserve meant little. After the packer, the button now shows the packer's fill ("Packing · 99/250") and only tapes the packer's full carton; before the packer, sealing from the desk works as before.
+- *Finishing with a reserve set.* When nothing is left to buy but the packer is still holding clips back, the Next line now says to lower the reserve so the desk gets packed (otherwise a player could sit waiting with a full desk).
+
+**Numbers** (unchanged): relaxed 20.6 min with 9 cartons on the van, engaged 15.8 min with 12. 43 tests pass (the packer and wear tests now also cover these); no page errors at either width.
+
+**Considered and rejected**
+- Auto-retuning after wear as part of the governor: it would quietly undo the speed trade-off that made line speed a decision.
+- Moving the tuning gauge into the dock: the dock is already the tallest it should be on phones.
+
+**For the morning**
+- Nothing to decide. Chapter 1 has no known bugs left after this pass; the next pass will re-check it once and, if it holds, start the chapter 2 review.

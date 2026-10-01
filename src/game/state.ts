@@ -134,6 +134,7 @@ export function newOfficeState(): C01State {
     tuneCooldownUntilMs: 0,
     lastTune: null,
     wearMs: 0,
+    wornAtMs: 0,
     slowTuneMs: null,
     files: {},
     salvaged: { cabinet: false, lamp: false, frame: false },
