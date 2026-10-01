@@ -1,5 +1,5 @@
 import { clearingWork } from '../game/officeSalvage';
-import { OFFICE, PRESERVATION } from '../content/campaign';
+import { BUILDING, OFFICE, PRESERVATION } from '../content/campaign';
 import { CASE_EVIDENCE, CERTIFICATE_LINE, CHARTERS, EPILOGUES, FORK, LIVING_RELEASE, PRESERVATION_CERT, TERMINAL_AUTH, TERMINAL_SCRIPT } from '../content/narrative';
 import { ANCHOR_LABELS } from '../content/world';
 import { caseAccounts } from '../game/chapters/c04';
@@ -7,7 +7,7 @@ import { pathDelay } from '../game/chapters/c06';
 import { schedulePreview } from '../game/chapters/c08';
 import { mass } from '../game/ledger';
 import { fmtMass, fmtClips } from '../game/mass';
-import type { C01State, CampaignState, CaseId, PendingChoice } from '../game/types';
+import type { C01State, C02State, CampaignState, CaseId, PendingChoice } from '../game/types';
 
 export interface ChoiceOption {
   id: string;
@@ -88,10 +88,27 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
     }
     case 'c02/inspection': {
       const n = Number(c.data?.contract ?? 1);
+      const c2 = s.chapterState.kind === '02' ? (s.chapterState as C02State) : null;
+      const throttled = Number(c.data?.throttledSeconds ?? 0);
+      const facts: Array<[string, string]> = [];
+      if (c.data?.seconds !== undefined) {
+        facts.push(['Delivered in', `${c.data.seconds} s`]);
+        facts.push(['Peak heat', `${c.data.peakHeat} of 100${throttled > 0 ? ' · throttled' : ''}`]);
+        facts.push(['Time at 25% output', throttled > 0 ? `${throttled} s` : 'none']);
+      }
+      if (c2 && n < 3) facts.push(['Next contract', `${BUILDING.contracts[n] / 1000} work units`]);
       return {
         eyebrow: `Contract ${n} of 3`,
         title: n === 1 ? 'The lights stayed on without a night crew.' : `Contract ${n} delivered`,
-        body: ['Inspection passed. One improvement permit awarded. Permits buy station upgrades; they never spend material needed to continue.'],
+        body: [
+          'Inspection passed. One improvement permit awarded.',
+          n < 3
+            ? throttled > 0
+              ? 'The plant spent part of this contract throttled. Each permit row shows what it would do to throughput and heat.'
+              : 'Spend it where the plant is slowest: each permit row shows what it would do to throughput and heat.'
+            : 'Permits buy station upgrades; they never spend material needed to continue.',
+        ],
+        facts,
         options: [{ id: 'continue', label: 'Continue', tone: 'primary' }],
       };
     }

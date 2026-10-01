@@ -352,6 +352,10 @@ export interface C02State {
   permits: number;
   upgrades: { wireDraw: boolean; freight: boolean; roofCooling: boolean };
   awaitingInspection: boolean;
+  /** For the inspection report: when the current contract started, its peak heat and time throttled (older saves lack these). */
+  contractStartMs?: number;
+  peakHeatMilli?: number;
+  throttledMs?: number;
 }
 
 export interface C03State {

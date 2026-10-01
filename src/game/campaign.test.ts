@@ -317,6 +317,16 @@ describe('chapter 02 building', () => {
     expect(heatGainRate(c)).toBeLessThan(coolingRate(c));
   });
 
+  it('each inspection reports how the contract went', () => {
+    const s = seeded('02');
+    let guard = 0;
+    while (!s.choices.some((x) => x.kind === 'c02/inspection') && guard++ < 5000) step(s);
+    const insp = s.choices.find((x) => x.kind === 'c02/inspection')!;
+    expect(insp.data?.contract).toBe(1);
+    expect(Number(insp.data?.seconds)).toBeGreaterThan(30);
+    expect(insp.data?.throttledSeconds).toBe(0);
+  });
+
   it('the garden route finishes without demolition', () => {
     const s = autoplay(CANONICAL, '03');
     expect(s.anchors.garden.fidelity).toBe('original');

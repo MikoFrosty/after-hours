@@ -106,3 +106,21 @@ Checked at 1440 and 390 px after the first inspection with a permit waiting.
 
 **For the morning**
 - No new decisions; proposals A–D from pass 3 still stand, and C has become cheaper (see above).
+
+## Pass 6 · 2026-10-01 15:10 UTC · chapter 2
+
+**Focus.** The inspection after each contract is the chapter's recurring beat (it pauses the plant and awards the permit), but it said the same sentence every time, so it carried no information into the next decision.
+
+**Changed**
+- *The inspection is a short report on the contract just delivered*: how long it took, its peak heat, how long the plant ran throttled at 25%, and the size of the next contract. Its advice follows what happened: if the plant throttled, it says so and points at the permit rows' heat figures; otherwise it suggests spending where the plant is slowest. The third inspection keeps the original line about permits never spending material.
+- The plant now records each contract's start time, peak heat and throttled time for this report (new optional fields; saves from before simply report from the chapter's start).
+
+Checked in the browser at 1440 px (second inspection: 47 s, peak heat 26, no throttling, next contract 120 units). A new test checks the first inspection's report.
+
+**Numbers.** Chapter 2 unchanged (relaxed 165 s, engaged 126 s simulated). 45 tests pass; no page errors.
+
+**Considered and rejected**
+- A per-contract grade or star rating: the game deliberately has no grades (the ending says so), and a score would push toward optimizing rather than diagnosing.
+
+**For the morning**
+- No new decisions. Two passes remain tonight; they will stay on chapter 2 polish (likely the mobile schematic's small labels and chapter 2's sound against the spec) unless something more urgent turns up.

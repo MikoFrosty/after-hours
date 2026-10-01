@@ -72,6 +72,9 @@ export const c02: Controller = {
       permits: 0,
       upgrades: { wireDraw: false, freight: false, roofCooling: false },
       awaitingInspection: false,
+      contractStartMs: s.simMs,
+      peakHeatMilli: 0,
+      throttledMs: 0,
     };
     const env = ENVELOPES['02'];
     openAccount(s, 'building.supply', 'raw', 'feedstock', 'Building wire supply', 'building');
@@ -126,6 +129,10 @@ export const c02: Controller = {
     c.heatResidue = num - delta * 1000;
     c.heatMilli = clamp(c.heatMilli + delta, 0, 100_000);
     if (c.heatMilli === 0 || c.heatMilli === 100_000) c.heatResidue = 0;
+    if (!c.awaitingInspection && c.contractIndex < BUILDING.contracts.length) {
+      c.peakHeatMilli = Math.max(c.peakHeatMilli ?? 0, c.heatMilli);
+      if (c.throttled) c.throttledMs = (c.throttledMs ?? 0) + dt;
+    }
     if (!c.throttled && c.heatMilli >= BUILDING.heat.throttleOn) {
       c.throttled = true;
       emit({ type: 'sound', id: 'throttle' });
@@ -152,7 +159,18 @@ export const c02: Controller = {
       c.permits += 1;
       c.awaitingInspection = true;
       emit({ type: 'sound', id: 'contract' });
-      ask(s, { id: `c02.inspection.${c.contractIndex}`, kind: 'c02/inspection', checkpoint: false, data: { contract: c.contractIndex } });
+      // The inspection reports how this contract went, so it can inform the next permit.
+      const started = c.contractStartMs ?? s.chapterEnteredSimMs;
+      const data = {
+        contract: c.contractIndex,
+        seconds: Math.round((s.simMs - started) / 1000),
+        peakHeat: Math.round((c.peakHeatMilli ?? 0) / 1000),
+        throttledSeconds: Math.round((c.throttledMs ?? 0) / 1000),
+      };
+      c.contractStartMs = s.simMs;
+      c.peakHeatMilli = c.heatMilli;
+      c.throttledMs = 0;
+      ask(s, { id: `c02.inspection.${c.contractIndex}`, kind: 'c02/inspection', checkpoint: false, data });
     }
   },
 
