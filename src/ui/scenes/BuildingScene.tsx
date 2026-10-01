@@ -43,8 +43,8 @@ export function BuildingScene() {
             <text x={170} y={232} textAnchor="middle" fill="var(--muted)" fontSize={11} fontFamily="var(--font-mono)">
               courtyard ×0.85
             </text>
-            <text x={170} y={108} textAnchor="middle" fill="var(--muted)" fontSize={11} fontFamily="var(--font-mono)">
-              direct ×1.00 {c.directBuilt ? '' : '(not built)'}
+            <text x={160} y={104} textAnchor="middle" fill="var(--muted)" fontSize={10} fontFamily="var(--font-mono)">
+              direct ×1.00{c.directBuilt ? '' : ' · not built'}
             </text>
             {/* garden between the routes */}
             {gardenIntact ? (
@@ -53,14 +53,15 @@ export function BuildingScene() {
                 <circle cx={-8} cy={-2} r={10} fill="#4f9a62" />
                 <circle cx={8} cy={-6} r={12} fill="#5fae70" />
                 <rect x={-1.5} y={4} width={3} height={10} fill="#6b4b35" />
-                <text y={34} textAnchor="middle" fill="#a7d8c4" fontSize={11}>
+                {/* label sits in the hollow above the trees, clear of both routes */}
+                <text y={-22} textAnchor="middle" fill="#a7d8c4" fontSize={10}>
                   night garden
                 </text>
               </g>
             ) : (
               <g transform="translate(170,160)">
                 <rect x={-24} y={-14} width={48} height={28} fill="none" stroke="rgba(255,255,255,0.25)" strokeDasharray="3 3" />
-                <text y={34} textAnchor="middle" fill="var(--faint)" fontSize={11}>
+                <text y={-22} textAnchor="middle" fill="var(--faint)" fontSize={10}>
                   former garden
                 </text>
               </g>

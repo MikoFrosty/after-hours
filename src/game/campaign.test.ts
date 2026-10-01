@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CITY, OFFICE, SOLAR, TERMINAL, WORLD } from '../content/campaign';
+import { BUILDING, CITY, OFFICE, SOLAR, TERMINAL, WORLD } from '../content/campaign';
 import { autoplay, CANONICAL, EFFICIENT, seeded } from './autopilot';
 import { dispatch, onSignal, run, step } from './engine';
 import { byCategory, checkInvariant, commit, mass, nonClipMatter } from './ledger';
@@ -100,6 +100,18 @@ describe('chapter 01 office', () => {
     expect(s.anchors.lamp.fidelity).toBe('original');
     expect(s.anchors.frame.fidelity).toBe('original');
     expect(dispatch(newCampaign(), { type: 'request', kind: 'salvage', subject: 'cabinet' })).not.toBeNull();
+  });
+
+  it('clearing the whole 11th floor is a head start, not the first contract', () => {
+    const s = autoplay(CANONICAL, '02');
+    for (const id of ['cabinet', 'lamp', 'frame']) {
+      dispatch(s, { type: 'request', kind: 'salvage', subject: id });
+      dispatch(s, { type: 'choose', choiceId: s.choices[0].id, option: 'confirm' });
+    }
+    const c = s.chapterState as C02State;
+    expect(s.anchors.frame.fidelity).toBe('absent');
+    expect(c.contractIndex).toBe(0);
+    expect(c.contractWorkMilli).toBeLessThan(BUILDING.contracts[0] / 2);
   });
 
   it('clearing the 11th floor: remainders stay as raw scrap and the photograph is kept', () => {

@@ -11,8 +11,12 @@ import type { C02State, CampaignState } from './types';
 export type OfficeItem = 'cabinet' | 'lamp' | 'frame';
 export const OFFICE_ITEMS: OfficeItem[] = ['cabinet', 'lamp', 'frame'];
 
-/** The recovered metal is already drawn wire: it skips the drawing station. Work units, in milli. */
-export const CLEARING_WORK_PER_CLIP = 80; // 12.5 clips per work unit
+/**
+ * The recovered metal is already drawn wire, so it skips the drawing station: a small head start on
+ * the current contract, in milli-work. Kept well under the first contract (40 units) so clearing the
+ * whole floor still leaves the building to do the work.
+ */
+export const CLEARING_WORK: Record<OfficeItem, number> = { cabinet: 2_000, lamp: 4_000, frame: 8_000 };
 
 export function clearable(s: CampaignState, id: OfficeItem): boolean {
   if (s.chapter !== '02') return false;
@@ -22,7 +26,7 @@ export function clearable(s: CampaignState, id: OfficeItem): boolean {
 }
 
 export function clearingWork(id: OfficeItem): number {
-  return OFFICE.salvage.find((x) => x.id === id)!.yieldClips * CLEARING_WORK_PER_CLIP;
+  return CLEARING_WORK[id];
 }
 
 /** Send one office object to the line: its first usable batch becomes clips, the rest raw scrap. Irreversible. */

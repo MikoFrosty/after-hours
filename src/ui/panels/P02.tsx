@@ -61,6 +61,29 @@ export function P02() {
         </p>
       </div>
 
+      <div className={`card ${c.permits > 0 ? 'highlight-card' : ''}`}>
+        <h3>
+          Permits <span className="tag">{c.permits} available</span>
+        </h3>
+        <div className="list">
+          {UPGRADES.map((u) => (
+            <div key={u.id} className={`item ${c.upgrades[u.id] ? 'done' : ''}`}>
+              <div>
+                <div className="t">{u.name}</div>
+                <div className="d">{u.effect}</div>
+              </div>
+              {c.upgrades[u.id] ? (
+                <span className="pill ok">Installed</span>
+              ) : (
+                <button className="btn small" disabled={c.permits < 1} onClick={() => act({ type: 'c02/upgrade', id: u.id })}>
+                  1 permit
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {OFFICE_ITEMS.some((id) => clearable(s, id)) && (
         <div className="card">
           <h3>
@@ -143,29 +166,6 @@ export function P02() {
           Gains throughput × 0.8, cools {(coolingRate(c) / 1000).toFixed(1)}/s → net {net >= 0 ? '+' : ''}
           {net.toFixed(2)}/s. Above 80 output drops to 25% until it cools to 50. Heat never damages machinery; stop production to cool.
         </p>
-      </div>
-
-      <div className="card">
-        <h3>
-          Permits <span className="tag">{c.permits} available</span>
-        </h3>
-        <div className="list">
-          {UPGRADES.map((u) => (
-            <div key={u.id} className={`item ${c.upgrades[u.id] ? 'done' : ''}`}>
-              <div>
-                <div className="t">{u.name}</div>
-                <div className="d">{u.effect}</div>
-              </div>
-              {c.upgrades[u.id] ? (
-                <span className="pill ok">Installed</span>
-              ) : (
-                <button className="btn small" disabled={c.permits < 1} onClick={() => act({ type: 'c02/upgrade', id: u.id })}>
-                  1 permit
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
 
       {c.contractIndex >= 3 && !s.charters.maintenanceCharter && s.choices.length === 0 && (

@@ -407,6 +407,14 @@ function AlertSlot() {
   const s = useGameState();
   const c = s.chapterState as C01State;
   const left = (ms: number) => Math.max(0, Math.ceil((ms - s.simMs) / 1000));
+  if (c.capped) {
+    return (
+      <div className="alert-slot goal" role="status">
+        <span className="tiny muted">Done</span>
+        <span>The order is complete. The machines are off.</span>
+      </div>
+    );
+  }
   if (c.jammed) {
     return (
       <div className="alert-slot jam" role="alert">
