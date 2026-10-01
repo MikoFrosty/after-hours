@@ -1,7 +1,7 @@
 import { CONTENT_VERSION, OFFICE, SCHEMA_VERSION } from '../content/campaign';
 import { checkInvariant, mustCommit } from './ledger';
 import { CLIP } from './mass';
-import { newCampaign } from './state';
+import { newCampaign, newOfficeState } from './state';
 import type { C01State, CampaignState } from './types';
 import { CHAPTERS } from './types';
 
@@ -159,6 +159,7 @@ export function parse(text: string): LoadResult {
   } catch (e) {
     return { status: 'invalid', errors: [`Corrupt save: ${(e as Error).message}`], raw: text };
   }
+  migrateOffice(raw as CampaignState);
   const v = validate(raw);
   if (!v.ok) return { status: 'invalid', errors: v.errors, futureVersion: v.futureVersion, raw: text };
   return { status: 'ok', state: raw as CampaignState };
@@ -248,6 +249,46 @@ export function clearCheckpoints(): void {
   memoryCheckpoints = [];
 }
 
+// ---------- office night migration ----------
+
+/**
+ * Saves made before the office night was rebuilt store the three-machine office. Convert an
+ * in-progress office in place: keep its clips, salvage and machines, disclose the spare coil
+ * from the unreached allocation, and start packing from zero cartons. Other chapters only gain
+ * the two empty office accounts.
+ */
+export function migrateOffice(s: CampaignState): void {
+  if (!s || !s.ledger?.accounts || s.schemaVersion !== SCHEMA_VERSION) return;
+  const A = s.ledger.accounts;
+  const add = (id: string, label: string, kind: 'feedstock' | 'scrap') => {
+    if (!A[id]) A[id] = { id, cat: 'raw', kind, mass: 0n, label, region: 'office', protected: false, released: false };
+  };
+  const old = s.chapterState as unknown as { kind: string; upgrades?: { bender: boolean; feeder: boolean; jig: boolean } };
+  const needsSpare = old?.kind === '01' && !A['office.spare'];
+  add('office.spare', 'Spare wire coil (cabinet, bottom drawer)', 'feedstock');
+  add('office.rejects', 'Ruined clips', 'scrap');
+  if (needsSpare && A.unreached && A.unreached.mass >= OFFICE.spareWire) {
+    A.unreached.mass -= OFFICE.spareWire;
+    A['office.spare'].mass += OFFICE.spareWire;
+  }
+  if (old?.kind === '01' && old.upgrades) {
+    const prev = s.chapterState as unknown as { madeClips: number; salvaged: C01State['salvaged']; upgrades: { bender: boolean; feeder: boolean; jig: boolean } };
+    const next = newOfficeState();
+    next.madeClips = prev.madeClips;
+    next.salvaged = prev.salvaged;
+    if (prev.upgrades.bender) next.owned.push('calibrate');
+    if (prev.upgrades.feeder) next.owned.push('oil', 'feeder');
+    if (prev.upgrades.jig) next.owned.push('die2', 'jig');
+    if (next.owned.includes('feeder')) s.flags['c01.pace'] = true;
+    if (s.mode === 'choice') {
+      s.choices = s.choices.filter((c) => c.kind !== 'c01/report');
+      if (s.choices.length === 0) s.mode = 'playing';
+    }
+    s.consumedEventIds = s.consumedEventIds.filter((id) => id !== 'c01.report');
+    s.chapterState = next;
+  }
+}
+
 // ---------- v1 office import ----------
 
 export interface V1Save {
@@ -268,13 +309,13 @@ export function importV1(raw: unknown): { ok: true; state: CampaignState; summar
   if (!v || v.version !== 1) return { ok: false, errors: ['Not a version 1 office save.'] };
   const ints = [v.available, v.lifetime];
   if (!ints.every((n) => Number.isSafeInteger(n) && n >= 0)) errors.push('Counts must be non-negative integers.');
-  if (v.lifetime > OFFICE.quota) errors.push('Lifetime exceeds the 3,000 clip order.');
+  if (v.lifetime > OFFICE.quota) errors.push('Lifetime exceeds the 3,000 clip order of a version 1 save.');
   const order = ['bender', 'feeder', 'jig'] as const;
   order.forEach((id, i) => {
     if (v.upgrades?.[id] && i > 0 && !v.upgrades[order[i - 1]]) errors.push(`${id} purchased without its predecessor.`);
   });
   let spent = 0;
-  for (const u of OFFICE.upgrades) if (v.upgrades?.[u.id]) spent += u.costClips;
+  for (const u of OFFICE.legacyUpgrades) if (v.upgrades?.[u.id]) spent += u.costClips;
   let salvageYield = 0;
   for (const sv of OFFICE.salvage) {
     if (v.salvaged?.[sv.id]) {
@@ -301,13 +342,20 @@ export function importV1(raw: unknown): { ok: true; state: CampaignState; summar
     c.salvaged[sv.id] = true;
     Object.assign(s.anchors[sv.id], { fidelity: 'absent', protected: false, released: true, currentLocation: 'office scrap' });
   }
-  for (const u of OFFICE.upgrades) {
+  // The original three machines map onto the night's installations; their mass is what v1 actually spent.
+  const mapping: Record<'bender' | 'feeder' | 'jig', C01State['owned']> = {
+    bender: ['calibrate'],
+    feeder: ['oil', 'feeder'],
+    jig: ['die2', 'jig'],
+  };
+  for (const u of OFFICE.legacyUpgrades) {
     if (!v.upgrades[u.id]) continue;
     const m = BigInt(u.costClips) * CLIP;
     mustCommit(s, { id: `v1.buy.${u.id}`, from: 'clips', input: m, outputs: [['office.machines', m]] });
-    c.upgrades[u.id] = true;
+    c.owned.push(...mapping[u.id]);
     s.projects[u.id] = 'complete';
   }
+  if (c.owned.includes('feeder')) s.flags['c01.pace'] = true;
   c.madeClips = v.lifetime;
   s.clips.lifetimeMadeMicrograms = BigInt(v.lifetime) * CLIP;
   const inv = checkInvariant(s);

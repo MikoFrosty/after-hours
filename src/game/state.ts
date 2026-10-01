@@ -3,6 +3,7 @@ import { OFFICE_ACCOUNTS } from '../content/world';
 import { acct, createLedger, mustCommit } from './ledger';
 import type {
   AnchorId,
+  C01State,
   AnchorState,
   CampaignState,
   ChapterId,
@@ -103,6 +104,32 @@ export function emptyRegion(id: RegionId): RegionState {
   };
 }
 
+export function newOfficeState(): C01State {
+  return {
+    kind: '01',
+    madeClips: 0,
+    rateResidue: 0,
+    owned: [],
+    installing: null,
+    jammed: false,
+    sinceJam: 0,
+    jams: 0,
+    sealed: 0,
+    openBox: 0,
+    packShare: 0,
+    packCredit: 0,
+    lineSpeed: 'steady',
+    rejectCredit: 0,
+    rejects: 0,
+    straightenResidue: 0,
+    spareTaken: false,
+    files: {},
+    salvaged: { cabinet: false, lamp: false, frame: false },
+    capped: false,
+    reportShown: false,
+  };
+}
+
 /** A fresh campaign at 11:47 PM in the office. */
 export function newCampaign(): CampaignState {
   const s: CampaignState = {
@@ -115,15 +142,7 @@ export function newCampaign(): CampaignState {
     activePlayMs: 0,
     chapterEnteredSimMs: 0,
     chapterEnteredPlayMs: 0,
-    chapterState: {
-      kind: '01',
-      madeClips: 0,
-      rateResidue: 0,
-      upgrades: { bender: false, feeder: false, jig: false },
-      salvaged: { cabinet: false, lamp: false, frame: false },
-      capped: false,
-      reportShown: false,
-    },
+    chapterState: newOfficeState(),
     ledger: createLedger(WORLD.initial),
     clips: { currentMicrograms: 0n, lifetimeMadeMicrograms: 0n },
     anchors: {} as Record<AnchorId, AnchorState>,
@@ -166,6 +185,8 @@ export function newCampaign(): CampaignState {
     anchor: 'office',
   });
   A['office.scrap'] = acct('office.scrap', 'raw', 'scrap', 0n, 'Office scrap', 'office');
+  A['office.spare'] = acct('office.spare', 'raw', 'feedstock', 0n, 'Spare wire coil (cabinet, bottom drawer)', 'office');
+  A['office.rejects'] = acct('office.rejects', 'raw', 'scrap', 0n, 'Ruined clips', 'office');
   A['office.machines'] = acct('office.machines', 'capital', 'machine', 0n, 'Installed bending machines', 'office');
 
   mustCommit(s, {
@@ -173,6 +194,7 @@ export function newCampaign(): CampaignState {
     from: 'unreached',
     input:
       OFFICE_ACCOUNTS.wire +
+      OFFICE_ACCOUNTS.spare +
       OFFICE_ACCOUNTS.cabinet +
       OFFICE_ACCOUNTS.lamp +
       OFFICE_ACCOUNTS.frame +
@@ -180,6 +202,7 @@ export function newCampaign(): CampaignState {
       OFFICE_ACCOUNTS.equipment,
     outputs: [
       ['office.wire', OFFICE_ACCOUNTS.wire],
+      ['office.spare', OFFICE_ACCOUNTS.spare],
       ['office.cabinet', OFFICE_ACCOUNTS.cabinet],
       ['office.lamp', OFFICE_ACCOUNTS.lamp],
       ['office.frame', OFFICE_ACCOUNTS.frame],

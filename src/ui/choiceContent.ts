@@ -36,8 +36,7 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
     case 'c01/salvage': {
       const id = c.subject as 'cabinet' | 'lamp' | 'frame';
       const def = OFFICE.salvage.find((x) => x.id === id)!;
-      const made = (s.chapterState as C01State).madeClips;
-      const y = Math.min(def.yieldClips, OFFICE.quota - made);
+      const y = def.yieldClips;
       const name = ANCHOR_LABELS[id];
       return {
         eyebrow: 'Salvage · one time',
@@ -71,8 +70,9 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
         quote: EPILOGUES.office[variant],
         body: [CHARTERS.buildingLease.body],
         facts: [
-          ['Clips on hand', fmtClips(s.clips.currentMicrograms)],
-          ['Wire unprocessed', fmtMass(mass(s, 'office.wire'))],
+          ['Cartons sealed', '12 of 12'],
+          ['Clips left on the desk', fmtClips(s.clips.currentMicrograms - 3_000n * 1_000_000n)],
+          ['Wire unprocessed', fmtMass(mass(s, 'office.wire') + mass(s, 'office.spare'))],
           ['Retained', (['cabinet', 'lamp', 'frame'] as const).filter((k) => !c1.salvaged[k]).join(', ') || 'none'],
         ],
         options: [

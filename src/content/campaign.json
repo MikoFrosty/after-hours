@@ -20,25 +20,7 @@
   },
   "office": {
     "quotaClips": 3000,
-    "manualCooldownMs": 250,
     "wireMicrograms": "3000000000",
-    "upgrades": [
-      {
-        "id": "bender",
-        "costClips": 15,
-        "addedRate": 1
-      },
-      {
-        "id": "feeder",
-        "costClips": 100,
-        "addedRate": 3
-      },
-      {
-        "id": "jig",
-        "costClips": 400,
-        "addedRate": 6
-      }
-    ],
     "salvage": [
       {
         "id": "cabinet",
@@ -57,6 +39,197 @@
         "threshold": 600,
         "yieldClips": 300,
         "originalMicrograms": "400000000"
+      }
+    ],
+    "legacyUpgrades": [
+      {
+        "id": "bender",
+        "costClips": 15,
+        "addedRate": 1
+      },
+      {
+        "id": "feeder",
+        "costClips": 100,
+        "addedRate": 3
+      },
+      {
+        "id": "jig",
+        "costClips": 400,
+        "addedRate": 6
+      }
+    ],
+    "boxSize": 250,
+    "spareWireMicrograms": "2000000000",
+    "nightStorySeconds": 22980,
+    "jam": {
+      "intervalClips": 25,
+      "tensionedIntervalClips": 60
+    },
+    "lineSpeeds": [
+      {
+        "id": "steady",
+        "factor": 1.0,
+        "rejectPpm": 0
+      },
+      {
+        "id": "brisk",
+        "factor": 1.25,
+        "rejectPpm": 50000
+      },
+      {
+        "id": "hard",
+        "factor": 1.45,
+        "rejectPpm": 120000
+      }
+    ],
+    "straightenerGramsPerSecond": 0.5,
+    "projects": [
+      {
+        "id": "calibrate",
+        "name": "Calibrate the bender",
+        "costClips": 15,
+        "installSeconds": 8,
+        "group": "bender",
+        "addedRate": 0.4,
+        "unlock": {
+          "made": 10
+        }
+      },
+      {
+        "id": "oil",
+        "name": "Oil the die",
+        "costClips": 40,
+        "installSeconds": 10,
+        "group": "bender",
+        "multiplier": 1.5,
+        "unlock": {
+          "after": "calibrate",
+          "made": 50
+        }
+      },
+      {
+        "id": "tensioner",
+        "name": "Fit a spring tensioner",
+        "costClips": 60,
+        "installSeconds": 15,
+        "group": "bender",
+        "unlock": {
+          "after": "calibrate",
+          "jams": 3
+        }
+      },
+      {
+        "id": "feeder",
+        "name": "Wire feeder",
+        "costClips": 200,
+        "installSeconds": 25,
+        "group": "line",
+        "addedRate": 0.8,
+        "unlock": {
+          "after": "oil",
+          "made": 250
+        }
+      },
+      {
+        "id": "die2",
+        "name": "Second die",
+        "costClips": 150,
+        "installSeconds": 15,
+        "group": "bender",
+        "addedRate": 0.4,
+        "unlock": {
+          "after": "feeder"
+        }
+      },
+      {
+        "id": "packer",
+        "name": "Auto-packer",
+        "costClips": 120,
+        "installSeconds": 15,
+        "group": "none",
+        "unlock": {
+          "after": "feeder",
+          "boxes": 1
+        }
+      },
+      {
+        "id": "roller",
+        "name": "Guide roller",
+        "costClips": 90,
+        "installSeconds": 12,
+        "group": "line",
+        "addedRate": 0.3,
+        "unlock": {
+          "after": "packer"
+        }
+      },
+      {
+        "id": "fan",
+        "name": "Desk fan on the die",
+        "costClips": 130,
+        "installSeconds": 12,
+        "group": "line",
+        "addedRate": 0.3,
+        "unlock": {
+          "after": "roller",
+          "boxes": 2
+        }
+      },
+      {
+        "id": "jig",
+        "name": "Parallel jig",
+        "costClips": 400,
+        "installSeconds": 60,
+        "group": "line",
+        "addedRate": 1.6,
+        "unlock": {
+          "after": "die2",
+          "boxes": 3
+        }
+      },
+      {
+        "id": "head1",
+        "name": "Jig head",
+        "costClips": 100,
+        "installSeconds": 10,
+        "group": "line",
+        "addedRate": 0.3,
+        "unlock": {
+          "after": "jig"
+        }
+      },
+      {
+        "id": "head2",
+        "name": "Jig head",
+        "costClips": 150,
+        "installSeconds": 10,
+        "group": "line",
+        "addedRate": 0.3,
+        "unlock": {
+          "after": "head1"
+        }
+      },
+      {
+        "id": "head3",
+        "name": "Jig head",
+        "costClips": 220,
+        "installSeconds": 10,
+        "group": "line",
+        "addedRate": 0.3,
+        "unlock": {
+          "after": "head2"
+        }
+      },
+      {
+        "id": "straightener",
+        "name": "Wire straightener",
+        "costClips": 150,
+        "installSeconds": 20,
+        "group": "none",
+        "unlock": {
+          "after": "jig",
+          "rejects": 20
+        }
       }
     ]
   },

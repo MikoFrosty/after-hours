@@ -3,6 +3,7 @@
 
 export const OFFICE_ACCOUNTS = {
   wire: 3_000_000_000n, // 3 kg wire coil
+  spare: 2_000_000_000n, // 2 kg spare coil in the cabinet's bottom drawer
   cabinet: 10_000_000_000n, // 10 kg
   lamp: 2_000_000_000n, // 2 kg
   frame: 400_000_000n, // 400 g

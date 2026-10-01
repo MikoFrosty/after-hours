@@ -19,7 +19,8 @@ Headphones recommended. All sound is synthesized in the browser; it is optional 
 
 | Key | Action |
 |---|---|
-| Space / Enter | Press the focused button (e.g. *Make a clip*); key repeat is ignored |
+| B / F | Bend a clip by hand / free the caught wire (office) |
+| Space / Enter | Press the focused button; key repeat is ignored |
 | P | Pause / resume |
 | 1 / 4 | Normal pace / routine pace |
 | N | Advance to next event (only when no decision is pending) |
@@ -32,7 +33,7 @@ Progress saves locally (every 5 s, and on every decision, transition and visibil
 
 | | Chapter | Verb | What you manage |
 |---|---|---|---|
-| 01 | The Night Desk | Make and reinvest | A bending machine, a 3 kg wire coil, and whether to salvage the cabinet, lamp and frame |
+| 01 | The Night Desk | Make and reinvest | One night, twelve cartons: a bench bender that jams, a workshop of installations paid for in clips you must bend again, and whether to salvage the cabinet, lamp and frame |
 | 02 | The Building That Never Sleeps | Route and balance | A four-station pipeline, heat and throttling, and whether the night garden survives the loading route |
 | 03 | The City Without Want | Allocate and provide | Ten units of power across three districts and industry; public consultation or streamlined approval |
 | 04 | The Garden Under Glass | Interpret and preserve | Six preservation cases: original, lossless archive or reconstruction; a living habitat that can only be kept or moved |

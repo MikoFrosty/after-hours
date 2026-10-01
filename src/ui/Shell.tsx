@@ -3,7 +3,7 @@ import { game } from '../runtime/game';
 import { useGameState } from './hooks';
 import { metrics, storyClock, charterStatus, STORY_SPANS, STORY_SCALE_TEXT } from '../game/selectors';
 import { CHAPTER_META } from '../content/campaign';
-import type { C08State } from '../game/types';
+import type { C01State, C08State } from '../game/types';
 import { DecisionDialog } from './DecisionDialog';
 import { Drawer, type DrawerTab } from './drawer/Drawer';
 import { ChapterIntro } from './ChapterIntro';
@@ -23,6 +23,12 @@ export function Shell() {
   const computeGone = Boolean(c8?.tasksDone.includes('main_compute'));
   const choice = s.choices[0];
   const unread = s.log.filter((l) => l.kind === 'letter' || l.kind === 'note').length;
+  // In the office, faster pace and skipping arrive with the wire feeder, so the night cannot be fast-forwarded.
+  const paceOpen = s.chapter !== '01' || Boolean(s.flags['c01.pace']);
+  const inOffice = s.chapter === '01';
+  const c1 = inOffice ? (s.chapterState as C01State) : null;
+  const showLedger = !c1 || c1.owned.length > 0 || c1.sealed > 0;
+  const hasReflection = Object.keys(s.flags).some((k) => k.startsWith('reflection.')) || s.anchors.frame.fidelity === 'absent';
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -32,15 +38,15 @@ export function Shell() {
       if (s.choices.length || game.introChapter) return;
       if (e.key === 'p' || e.key === 'P') game.setPaused(!game.paused);
       else if (e.key === '1') game.setSpeed(1);
-      else if (e.key === '4') game.setSpeed(4);
-      else if ((e.key === 'n' || e.key === 'N') && s.mode === 'playing') void game.advanceToNextEvent();
+      else if (e.key === '4' && paceOpen) game.setSpeed(4);
+      else if ((e.key === 'n' || e.key === 'N') && s.mode === 'playing' && paceOpen) void game.advanceToNextEvent();
       else if ((e.key === 'l' || e.key === 'L') && !archiveGone) setTab((t) => (t === 'ledger' ? null : 'ledger'));
       else if ((e.key === 'o' || e.key === 'O') && !computeGone) setTab((t) => (t === 'office' ? null : 'office'));
       else if (e.key === 'Escape') setTab(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [s, archiveGone, computeGone]);
+  }, [s, archiveGone, computeGone, paceOpen]);
 
   if (s.mode === 'holding' || s.mode === 'ended') return <Ending />;
 
@@ -79,25 +85,29 @@ export function Shell() {
           <button className="btn icon" aria-pressed={game.paused} onClick={() => game.setPaused(!game.paused)} title="Pause (P)" aria-label={game.paused ? 'Resume' : 'Pause'}>
             {game.paused ? '▶' : '❚❚'}
           </button>
-          <button className="btn small" aria-pressed={game.speed === 1} onClick={() => game.setSpeed(1)} title="Normal pace (1)">
-            1×
-          </button>
-          <button className="btn small" aria-pressed={game.speed === 4} onClick={() => game.setSpeed(4)} title="Routine pace (4)" disabled={s.mode === 'terminal'}>
-            4×
-          </button>
-          {game.fastForward ? (
-            <button className="btn small" onClick={() => game.cancelAdvance()}>
-              Stop
-            </button>
-          ) : (
-            <button
-              className="btn small"
-              onClick={() => void game.advanceToNextEvent()}
-              disabled={s.choices.length > 0 || s.mode !== 'playing' || game.paused}
-              title="Advance to next event (N)"
-            >
-              Next event ⏭
-            </button>
+          {paceOpen && (
+            <>
+              <button className="btn small" aria-pressed={game.speed === 1} onClick={() => game.setSpeed(1)} title="Normal pace (1)">
+                1×
+              </button>
+              <button className="btn small" aria-pressed={game.speed === 4} onClick={() => game.setSpeed(4)} title="Routine pace (4)" disabled={s.mode === 'terminal'}>
+                4×
+              </button>
+              {game.fastForward ? (
+                <button className="btn small" onClick={() => game.cancelAdvance()}>
+                  Stop
+                </button>
+              ) : (
+                <button
+                  className="btn small"
+                  onClick={() => void game.advanceToNextEvent()}
+                  disabled={s.choices.length > 0 || s.mode !== 'playing' || game.paused}
+                  title="Advance to next event (N)"
+                >
+                  Next event ⏭
+                </button>
+              )}
+            </>
           )}
         </div>
       </header>
@@ -123,17 +133,17 @@ export function Shell() {
             Log {unread > 0 && <span className="dot" aria-label={`${unread} letters`} />}
           </button>
         )}
-        {!archiveGone && (
+        {!archiveGone && showLedger && (
           <button className="btn ghost" onClick={() => setTab('ledger')}>
             Ledger <span className="kbd">L</span>
           </button>
         )}
-        {!computeGone && (
+        {!computeGone && !inOffice && (
           <button className="btn ghost" onClick={() => setTab('office')}>
             Office <span className="kbd">O</span>
           </button>
         )}
-        {!archiveGone && (
+        {!archiveGone && hasReflection && (
           <button className="btn ghost" onClick={() => setTab('archive')}>
             Archive
           </button>

@@ -1,5 +1,6 @@
 import { memo, useEffect, useState } from 'react';
-import type { CampaignState, C01State } from '../../game/types';
+import type { CampaignState, C01State, OfficeProjectId } from '../../game/types';
+import { goodRate, loose } from '../../game/chapters/c01';
 import { mass } from '../../game/ledger';
 import { OFFICE } from '../../content/campaign';
 import { CLIP } from '../../game/mass';
@@ -23,6 +24,18 @@ export interface OfficeView {
   screen: string[];
   pulse: number;
   animate: boolean;
+  jammed: boolean;
+  /** Sealed cartons stacked by the cabinet (0–12). */
+  cartons: number;
+  /** Fill of the open carton under the auto-packer, 0–1; null when there is no packer. */
+  openBox: number | null;
+  tensioner: boolean;
+  die2: boolean;
+  heads: number;
+  straightener: boolean;
+  rejects: boolean;
+  /** Story minutes since 11:47 PM: lights go out, rain eases, dawn comes. */
+  minute: number;
 }
 
 // Isometric projection
@@ -133,15 +146,17 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
   const m: OfficeMode = officeFid === 'recorded' ? 'recorded' : officeFid === 'reconstructed' ? 'reconstructed' : 'live';
   const present = (id: 'cabinet' | 'lamp' | 'frame') => a[id].fidelity !== 'absent';
   const c1 = s.chapterState.kind === '01' ? (s.chapterState as C01State) : null;
-  const up = c1 ? c1.upgrades : { bender: true, feeder: true, jig: true };
-  const clips = Number(s.clips.currentMicrograms / CLIP > 1_000_000_000n ? 1_000_000_000n : s.clips.currentMicrograms / CLIP);
-  const clipsLevel = c1 ? Math.min(1, Math.log10(clips + 1) / Math.log10(3001)) : Math.min(1, 0.7 + Math.log10(clips + 1) / 200);
-  const wireFraction = Number((mass(s, 'office.wire') * 1000n) / OFFICE.wire) / 1000;
+  const has = (id: OfficeProjectId) => (c1 ? c1.owned.includes(id) : true);
+  const desk = c1 ? loose(s) : Number(s.clips.currentMicrograms / CLIP > 1_000_000_000n ? 1_000_000_000n : s.clips.currentMicrograms / CLIP);
+  const clipsLevel = c1 ? Math.min(1, Math.log10(desk + 1) / Math.log10(1001)) : Math.min(1, 0.7 + Math.log10(desk + 1) / 200);
+  const wireFraction = Math.min(1.5, Number((mass(s, 'office.wire') * 1000n) / OFFICE.wire) / 1000);
   const photoPresent = a.photograph.fidelity !== 'absent';
   const screen = c1
     ? c1.madeClips === 0
-      ? ['MARA: WIRE CATCHES IF', 'YOU PULL TOO HARD.', 'ORDER 0 / 3000', '>']
-      : [`ORDER ${c1.madeClips} / 3000`, `ON HAND ${clips}`, c1.capped ? 'ORDER COMPLETE' : `RATE ${(up.bender ? 1 : 0) + (up.feeder ? 3 : 0) + (up.jig ? 6 : 0)}/S`, '>']
+      ? ['MARA: WIRE CATCHES IF', 'YOU PULL TOO HARD.', 'ORDER 4471 · 0 / 12', '>']
+      : c1.capped
+        ? ['ORDER 4471 COMPLETE', '12 / 12 CARTONS', 'CONTRACT §9 ACTIVE', '>']
+        : [`CARTONS ${c1.sealed} / 12`, `ON DESK ${desk}`, c1.jammed ? 'WIRE CAUGHT · FREE IT' : `RATE ${(goodRate(c1) / 1000).toFixed(1)}/S`, '>']
     : ['PRODUCTION LOG', `CHAPTER ${s.chapter}`, 'OFFICE BOOKMARK', '>'];
   return {
     mode: m,
@@ -150,17 +165,35 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
     cabinet: present('cabinet'),
     frame: present('frame'),
     photo: !photoPresent ? 'none' : present('frame') ? 'frame' : 'desk',
-    bender: up.bender,
-    feeder: up.feeder,
-    jig: up.jig,
-    running: c1 ? !c1.capped && up.bender : false,
-    wireFraction: c1 ? wireFraction : Math.max(0, wireFraction),
+    bender: has('calibrate'),
+    feeder: has('feeder'),
+    jig: has('jig'),
+    running: c1 ? !c1.capped && has('calibrate') && !c1.jammed : false,
+    wireFraction,
     clipsLevel,
     screen,
     pulse,
     animate,
+    jammed: Boolean(c1?.jammed),
+    cartons: c1 ? c1.sealed : 0,
+    openBox: c1 && has('packer') && !c1.capped ? c1.openBox / OFFICE.boxSize : null,
+    tensioner: has('tensioner'),
+    die2: has('die2'),
+    heads: c1 ? ['head1', 'head2', 'head3'].filter((h) => has(h as OfficeProjectId)).length : 3,
+    straightener: has('straightener'),
+    rejects: c1 ? c1.rejects > 0 : false,
+    minute: c1 ? s.storySeconds / 60 : 0,
   };
 }
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+function mix(h1: string, h2: string, t: number): string {
+  const a = parseInt(h1.slice(1), 16);
+  const b = parseInt(h2.slice(1), 16);
+  const ch = (sh: number) => Math.round(lerp((a >> sh) & 255, (b >> sh) & 255, t));
+  return `#${((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)}`;
+}
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
 function Photo({ recorded }: { recorded: boolean }) {
   // A small landscape: evening sky, water, a tree. Drawn in local units (0..0.55 × 0..0.4).
@@ -183,6 +216,11 @@ function OfficeSvg({ v }: { v: OfficeView }) {
   const st: Style = { wire, dim: last ? 0.5 : lampOn ? 1 : 0.72, stroke: '#5ef2a4' };
   const detail = !recon;
   const anim = v.animate && !last;
+  // The night outside: floors go dark after 12:40, the rain eases after 3:50, dawn from 5:20.
+  const lightsOn = v.minute < 55 ? 1 : Math.max(0.12, 1 - (v.minute - 55) / 220);
+  const rainAmt = v.minute < 245 ? 1 : Math.max(0.15, 1 - (v.minute - 245) / 110);
+  const dawn = clamp01((v.minute - 330) / 55);
+  const vanPassing = v.minute >= 335 && v.minute < 350;
   const wallL = '#233034';
   const wallR = '#1c272a';
   const floor = '#2b2a27';
@@ -208,8 +246,8 @@ function OfficeSvg({ v }: { v: OfficeView }) {
           <stop offset="1" stopColor="#6dffb3" stopOpacity="0" />
         </radialGradient>
         <linearGradient id="night" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={wire ? '#021009' : '#0b1430'} />
-          <stop offset="1" stopColor={wire ? '#041a10' : '#28324f'} />
+          <stop offset="0" stopColor={wire ? '#021009' : mix('#0b1430', '#56688f', dawn)} />
+          <stop offset="1" stopColor={wire ? '#041a10' : mix('#28324f', '#d9a27e', dawn)} />
         </linearGradient>
         <radialGradient id="pile" cx="0.4" cy="0.35" r="0.7">
           <stop offset="0" stopColor="#f4f6f7" />
@@ -241,7 +279,7 @@ function OfficeSvg({ v }: { v: OfficeView }) {
       )}
       {/* moonlight from the window across the floor */}
       {!wire && !recon && (
-        <polygon points={pts([[0.02, 3.3, 0.02], [0.02, 6.3, 0.02], [3.6, 8.2, 0.02], [3.6, 5.2, 0.02]])} fill="#7f9ad8" opacity={last ? 0.03 : 0.07} />
+        <polygon points={pts([[0.02, 3.3, 0.02], [0.02, 6.3, 0.02], [3.6, 8.2, 0.02], [3.6, 5.2, 0.02]])} fill={mix('#7f9ad8', '#f2c49a', dawn)} opacity={last ? 0.03 : 0.07 + dawn * 0.1} />
       )}
       {/* rug */}
       {detail && <polygon points={pts([[1.2, 5.2, 0.01], [6.2, 5.2, 0.01], [6.2, 8.6, 0.01], [1.2, 8.6, 0.01]])} fill={wire ? 'none' : shade('#3b3a36', st.dim)} stroke={wire ? st.stroke : 'none'} strokeWidth={0.6} opacity={0.8} />}
@@ -280,8 +318,8 @@ function OfficeSvg({ v }: { v: OfficeView }) {
                         y={y + 0.12 + Math.floor(j / 3) * 0.28}
                         width={0.06}
                         height={0.09}
-                        fill={wire ? st.stroke : (i + j) % 4 === 0 ? '#f6c77a' : '#445072'}
-                        opacity={(i + j) % 4 === 0 ? 0.9 : 0.5}
+                        fill={wire ? st.stroke : (i + j) % 4 === 0 && ((i * 10 + j) * 37) % 100 < lightsOn * 100 ? '#f6c77a' : '#445072'}
+                        opacity={(i + j) % 4 === 0 && ((i * 10 + j) * 37) % 100 < lightsOn * 100 ? 0.9 : 0.5 - dawn * 0.3}
                       />
                     ))}
                 </g>
@@ -290,7 +328,7 @@ function OfficeSvg({ v }: { v: OfficeView }) {
           )}
           {anim && !recon && !wire && (
             <g opacity={0.35} stroke="#9fb4d8" strokeWidth={0.012}>
-              {Array.from({ length: 22 }, (_, i) => (
+              {Array.from({ length: Math.round(22 * rainAmt) }, (_, i) => (
                 <line
                   key={i}
                   className="rainline"
@@ -388,11 +426,52 @@ function OfficeSvg({ v }: { v: OfficeView }) {
       {v.jig && (
         <g>
           <Box at={[8.7, 0.3, 0]} size={[1.2, 1.9, 2.2]} color="#3d3f3f" st={st} />
-          {[0, 1, 2, 3, 4, 5].map((i) => (
+          {Array.from({ length: 3 + v.heads }, (_, i) => i).map((i) => (
             <g key={i}>
               <Box at={[8.85 + (i % 2) * 0.5, 0.45 + Math.floor(i / 2) * 0.55, 2.2]} size={[0.35, 0.35, 0.5]} color={metal} st={st} />
             </g>
           ))}
+        </g>
+      )}
+
+      {/* sealed cartons stacked by the cabinet */}
+      {Array.from({ length: Math.min(12, v.cartons) }, (_, n) => {
+        const layer = Math.floor(n / 6);
+        const row = Math.floor((n % 6) / 3);
+        const col = n % 3;
+        return { n, layer, row, col };
+      })
+        .sort((p, q) => p.layer - q.layer || p.row + p.col - (q.row + q.col))
+        .map(({ n, layer, row, col }) => {
+          const x = 7.1 + col * 0.82;
+          const y = 2.9 + row * 0.7;
+          const z = layer * 0.52;
+          return (
+            <g key={`carton${n}`}>
+              <Box at={[x, y, z]} size={[0.76, 0.64, 0.5]} color="#9a7650" st={st} />
+              {!wire && <polygon points={pts([[x + 0.34, y, z + 0.505], [x + 0.42, y, z + 0.505], [x + 0.42, y + 0.64, z + 0.505], [x + 0.34, y + 0.64, z + 0.505]])} fill="#e6d3a8" opacity={0.6 * st.dim} />}
+            </g>
+          );
+        })}
+      {/* the auto-packer and its open carton */}
+      {v.openBox !== null && (
+        <g>
+          <Box at={[6.75, 4.55, 0]} size={[0.76, 0.64, 0.42]} color="#8a6a48" st={st} />
+          {!wire && <polygon points={pts([[6.8, 4.6, 0.43], [7.46, 4.6, 0.43], [7.46, 5.14, 0.43], [6.8, 5.14, 0.43]])} fill="#2a2016" />}
+          {!wire && v.openBox > 0 && (
+            <polygon points={pts([[6.82, 4.62, 0.05 + 0.36 * v.openBox], [7.44, 4.62, 0.05 + 0.36 * v.openBox], [7.44, 5.12, 0.05 + 0.36 * v.openBox], [6.82, 5.12, 0.05 + 0.36 * v.openBox]])} fill="#c9d0d3" opacity={0.85} />
+          )}
+          <Box at={[6.55, 4.35, 0]} size={[0.2, 0.25, 1.3]} color="#4c5254" st={st} />
+          <Box at={[6.55, 4.35, 1.3]} size={[0.75, 0.2, 0.12]} color="#4c5254" st={st} />
+        </g>
+      )}
+      {/* rejects tray and straightener */}
+      {v.rejects && <Box at={[7.7, 6.2, 0]} size={[0.7, 0.5, 0.18]} color="#5b5f61" st={st} />}
+      {v.straightener && (
+        <g>
+          <Box at={[7.75, 5.55, 0]} size={[0.6, 0.45, 0.5]} color="#4a5052" st={st} />
+          <Cyl c={[7.95, 5.75]} r={0.12} z0={0.5} h={0.12} color="#a0a6a8" st={st} />
+          <Cyl c={[8.2, 5.75]} r={0.12} z0={0.5} h={0.12} color="#a0a6a8" st={st} />
         </g>
       )}
 
@@ -485,7 +564,7 @@ function OfficeSvg({ v }: { v: OfficeView }) {
       {(v.wireFraction > 0.001 || v.mode !== 'live') && (
         <g>
           <Cyl c={[5.6, 3.4]} r={0.62} z0={2.72} h={0.08} color="#4b3a2a" st={st} />
-          <Cyl c={[5.6, 3.4]} r={0.2 + 0.36 * Math.max(0.05, v.wireFraction)} z0={2.8} h={0.62} color="#b87333" st={st} top={wire ? undefined : '#d08a4a'} />
+          <Cyl c={[5.6, 3.4]} r={0.2 + 0.36 * Math.min(1, Math.max(0.05, v.wireFraction))} z0={2.8} h={0.62} color="#b87333" st={st} top={wire ? undefined : '#d08a4a'} />
           <Cyl c={[5.6, 3.4]} r={0.62} z0={3.42} h={0.06} color="#4b3a2a" st={st} />
           <Cyl c={[5.6, 3.4]} r={0.1} z0={3.48} h={0.08} color="#2a2a2a" st={st} />
         </g>
@@ -502,11 +581,31 @@ function OfficeSvg({ v }: { v: OfficeView }) {
       {v.bender && !wire && (
         <polyline points={[P(5.6, 3.4, 3.2), P(4.77, 3.02, 3.25), P(4.1, 3.1, 3.05)].map((p) => p.join(',')).join(' ')} fill="none" stroke="#c98a4b" strokeWidth={1.2} opacity={0.8} />
       )}
+      {/* spring tensioner on the wire path */}
+      {v.tensioner && !wire && (
+        <polyline
+          points={Array.from({ length: 9 }, (_, i) => P(5.15 - i * 0.04, 3.25, 3.25 + (i % 2 ? 0.1 : -0.06))).map((p) => p.join(',')).join(' ')}
+          fill="none"
+          stroke="#c7cdd0"
+          strokeWidth={1.4}
+        />
+      )}
       {/* bender */}
       {v.bender && (
         <g>
           <Box at={[3.35, 2.7, 2.72]} size={[0.9, 0.75, 0.32]} color="#6a5a44" st={st} />
           <Box at={[3.55, 2.85, 3.04]} size={[0.5, 0.45, 0.35]} color={metal} st={st} />
+          {v.die2 && <Box at={[3.38, 3.05, 3.04]} size={[0.18, 0.3, 0.26]} color="#8a9092" st={st} />}
+          {v.jammed &&
+            (() => {
+              const [jx, jy] = P(4.15, 3.1, 3.3);
+              return (
+                <g className={anim ? 'jamblink' : undefined}>
+                  <circle cx={jx} cy={jy} r={5} fill="#ff6a3d" opacity={0.9} />
+                  <circle cx={jx} cy={jy} r={14} fill="#ff6a3d" opacity={0.18} />
+                </g>
+              );
+            })()}
           {(() => {
             const [lx, ly] = P(3.95, 3.1, 3.39);
             return (
@@ -570,6 +669,12 @@ function OfficeSvg({ v }: { v: OfficeView }) {
       {/* wastebasket */}
       <Cyl c={[8.7, 6.9]} r={0.45} z0={0} h={1.0} color="#2e3232" st={st} top={wire ? undefined : '#141616'} />
 
+      {/* headlights sweeping the far wall as the van stops */}
+      {vanPassing && anim && !wire && (
+        <polygon className="sweep" points={pts([[1, 0.02, 1.5], [3.4, 0.02, 1.2], [3.4, 0.02, 4.4], [1, 0.02, 3.9]])} fill="#fff3d6" opacity={0} />
+      )}
+      {/* dawn reaching the room */}
+      {dawn > 0 && !wire && !last && <rect x={0} y={0} width={800} height={720} fill="#f3b588" opacity={dawn * 0.07} pointerEvents="none" />}
       {/* ambient darkness when the lamp is gone */}
       {!v.lamp && !wire && !last && <rect x={0} y={0} width={800} height={720} fill="#040810" opacity={0.18} pointerEvents="none" />}
       {wire && <rect x={0} y={0} width={800} height={720} fill="url(#scan)" pointerEvents="none" />}

@@ -17,7 +17,20 @@ Manifesto (fiction, arc, meaning) → implementation spec (simulation, accountin
 
 ## Chapter decisions
 
-**01.** Salvage requires a named confirmation and creates a predecision checkpoint. The three Mara messages are dated before 11:47 PM: they were left, not sent.
+**01. The office night (rebuilt at the owner's request).** The chapter is now a complete small game of 20+ minutes, replacing the spec's 5–10 minute office. Deliberate departures from the spec, approved by the project owner:
+
+- *The order counts sealed cartons, not lifetime clips.* 3,000 clips = 12 cartons of 250. Clips spent on machinery must be bent again, so every purchase is a trade between going faster later and finishing sooner. Lifetime production can exceed 3,000.
+- *A 2 kg spare coil* sits in the cabinet's bottom drawer (disclosed by the facilities inventory, or offered automatically when wire runs low). Total wire 5 kg covers the order plus every machine, so salvage stays optional. Taking the coil does not touch the cabinet.
+- *Hand bending has no speed limit* (the 250 ms cooldown is gone).
+- *Thirteen installations replace the three upgrades*, revealed one at a time, each paid from clips on the desk and taking a few seconds to install: calibrate, oil the die, spring tensioner, wire feeder, second die, auto-packer, guide roller, desk fan, parallel jig, three jig heads, wire straightener. Numbers live in `campaign.json` (`office.projects`).
+- *The wire catches* in the bender's guide every 25 machine clips (60 with the tensioner) until the feeder is installed; the line stops until the player frees it. This is Mara's first note made playable.
+- *Line speed* (after the jig): steady, brisk ×1.25 with ~5% ruined, hard ×1.45 with ~12% ruined. Ruined clips go to a rejects account, never lost; the straightener draws them back into wire.
+- *Pace controls* (4× and Next event) appear only once the feeder is installed.
+- *Story time follows the order*: the clock runs from 11:47 PM to 6:10 AM as cartons fill, so dawn comes with the last carton. Outside the window the floors go dark, a tram passes, the rain eases, a van stops, the sky turns grey. Birds start once the rain thins.
+- *Terminal files* (the order, the contract with its §9 continuation clause that activates on completion, the bender manual, the facilities inventory, a lamp ticket, a building memo that sets up chapter 2). Mara still leaves only her three messages.
+- The shift report waits six seconds after the last carton so the room can go quiet first.
+
+Measured with the simulated players in `autopilot.ts`: a reasonable player (about 2 clicks/s for two minutes, then 1/s, notices jams after ~2 s) takes about 25 minutes; an optimizing bot that clicks 5 times a second, never reads and runs the line hard takes about 17. Tests guard both bounds. Older saves in the office are migrated in place.
 
 **02.** The route starts on the courtyard. *Build* on the direct route is the only way to clear the garden and is the moment of loss. The building upgrades are permit-only (no mass). Every contract pauses for a one-button inspection.
 
@@ -42,7 +55,7 @@ Manifesto (fiction, arc, meaning) → implementation spec (simulation, accountin
 
 ## Pacing
 
-On automated play the seeds give roughly 27 minutes of simulated time at 1× (office ≈ 6, building ≈ 3, city ≈ 5, preservation ≈ 2, solar ≈ 2, distant offices ≈ 5, inventory ≈ 3, last desk ≈ 1.5), before reading and deciding. That is shorter than the manifesto's 90–150 minute hypothesis for chapters 4 and 5 in particular. The seeds were kept as given; the manifesto asks for tuning after observation rather than by adding currencies.
+On automated play the seeds give roughly 45 minutes of simulated time at 1× (office ≈ 25, building ≈ 3, city ≈ 5, preservation ≈ 2, solar ≈ 2, distant offices ≈ 5, inventory ≈ 3, last desk ≈ 1.5), before reading and deciding. That is shorter than the manifesto's 90–150 minute hypothesis for chapters 4 and 5 in particular. The seeds were kept as given; the manifesto asks for tuning after observation rather than by adding currencies.
 
 ## Not implemented / open questions
 

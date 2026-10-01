@@ -1461,3 +1461,87 @@ details.exact .digits {
 .intro:focus {
   outline: none;
 }
+
+/* ---------- chapter 01: the night desk ---------- */
+.reveal {
+  animation: reveal 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.card.jam {
+  border-color: color-mix(in srgb, var(--warn) 70%, transparent);
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+}
+.card.jam h3 {
+  color: var(--warn);
+}
+.card.highlight-card {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.make-btn .kbd {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+}
+.cartons {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 4px;
+}
+.carton {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  max-width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+.carton.sealed {
+  background: linear-gradient(180deg, #a77f52 0%, #8a6741 100%);
+  border-color: #c39a69;
+}
+.carton.sealed::after {
+  content: '';
+  position: absolute;
+  left: 45%;
+  width: 10%;
+  top: 0;
+  bottom: 0;
+  background: rgba(240, 225, 190, 0.55);
+}
+.carton.open i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: height 0.3s linear;
+}
+.office-svg .jamblink {
+  animation: jamblink 0.7s steps(2) infinite;
+}
+@keyframes jamblink {
+  50% {
+    opacity: 0.25;
+  }
+}
+.office-svg .sweep {
+  animation: sweep 6s ease-in-out infinite;
+}
+@keyframes sweep {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+  40%,
+  60% {
+    opacity: 0.12;
+    transform: translateX(40px);
+  }
+}

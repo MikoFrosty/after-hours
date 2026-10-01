@@ -31,11 +31,60 @@ export const WORLD = {
   terminalMachine: big(c.world.terminalMachineMicrograms),
 };
 
+export type OfficeProjectId =
+  | 'calibrate'
+  | 'oil'
+  | 'tensioner'
+  | 'feeder'
+  | 'die2'
+  | 'packer'
+  | 'roller'
+  | 'fan'
+  | 'jig'
+  | 'head1'
+  | 'head2'
+  | 'head3'
+  | 'straightener';
+
+export interface OfficeProject {
+  id: OfficeProjectId;
+  name: string;
+  costClips: number;
+  installMs: number;
+  group: 'bender' | 'line' | 'none';
+  /** Added machine rate in milli-clips per second. */
+  addedRate: number;
+  /** Multiplier on the bender group, in thousandths. */
+  multiplier: number;
+  unlock: { after?: OfficeProjectId; made?: number; jams?: number; boxes?: number; rejects?: number };
+}
+
+export type LineSpeed = 'steady' | 'brisk' | 'hard';
+
 export const OFFICE = {
   quota: c.office.quotaClips,
-  cooldownMs: c.office.manualCooldownMs,
+  boxSize: c.office.boxSize,
   wire: big(c.office.wireMicrograms),
-  upgrades: c.office.upgrades as Array<{ id: 'bender' | 'feeder' | 'jig'; costClips: number; addedRate: number }>,
+  spareWire: big(c.office.spareWireMicrograms),
+  nightStorySeconds: c.office.nightStorySeconds,
+  jamInterval: c.office.jam.intervalClips,
+  tensionedJamInterval: c.office.jam.tensionedIntervalClips,
+  lineSpeeds: c.office.lineSpeeds.map((x) => ({ id: x.id as LineSpeed, factor: milli(x.factor), rejectPpm: x.rejectPpm })),
+  straightenerRate: milli(c.office.straightenerGramsPerSecond),
+  projects: c.office.projects.map(
+    (p): OfficeProject => ({
+      id: p.id as OfficeProjectId,
+      name: p.name,
+      costClips: p.costClips,
+      installMs: p.installSeconds * 1000,
+      group: p.group as OfficeProject['group'],
+      addedRate: milli((p as { addedRate?: number }).addedRate ?? 0),
+      multiplier: milli((p as { multiplier?: number }).multiplier ?? 1),
+      unlock: p.unlock as OfficeProject['unlock'],
+    }),
+  ),
+  /** The original office upgrades, kept for importing version 1 office saves. */
+  legacyUpgrades: c.office.legacyUpgrades as Array<{ id: 'bender' | 'feeder' | 'jig'; costClips: number; addedRate: number }>,
   salvage: c.office.salvage.map((s) => ({
     id: s.id as 'cabinet' | 'lamp' | 'frame',
     threshold: s.threshold,

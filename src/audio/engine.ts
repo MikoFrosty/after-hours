@@ -2,7 +2,8 @@
 // becomes warm synth progressions in the city, drifts apart across distant offices, and ends
 // with one note and a relay. Everything is synthesized; no audio files are required.
 // Music is optional and never required to understand a state.
-import type { CampaignState, ChapterId, C02State, C03State, C04State, C05State, C08State } from '../game/types';
+import { goodRate } from '../game/chapters/c01';
+import type { CampaignState, ChapterId, C01State, C02State, C03State, C04State, C05State, C08State } from '../game/types';
 
 export interface AudioSettings {
   music: number;
@@ -43,6 +44,9 @@ class AudioEngine {
   private nextDrop = 0;
   private nextDrip = 0;
   private nextGust = 0;
+  private nextClack = 0;
+  private nextThunk = 0;
+  private nextBird = 0;
 
   /** Create the audio context on the first user gesture (autoplay policy). */
   unlock() {
@@ -144,6 +148,11 @@ class AudioEngine {
     if (s.chapter === '01') {
       const lamp = s.anchors.lamp.fidelity === 'original';
       this.layerLevel('hum', lamp ? 0.035 : 0.018, t);
+      // The rain eases toward morning, following the story clock.
+      const minute = s.storySeconds / 60;
+      const rain = minute < 245 ? 1 : Math.max(0.15, 1 - (minute - 245) / 110);
+      this.rainLevel = rain;
+      this.layerLevel('rain', 0.11 * rain, t);
     }
     if (s.chapter === '02') {
       const c = s.chapterState as C02State;
@@ -175,6 +184,29 @@ class AudioEngine {
     switch (id) {
       case 'relay':
         return this.relay(t, 1);
+      case 'bend':
+        // A hand-formed clip: a soft snap of wire, varied so rapid clicking never sounds mechanical.
+        this.click(t, 2400 + Math.random() * 1600, 0.12, 0.012);
+        return this.click(t + 0.03, 900 + Math.random() * 300, 0.06, 0.03);
+      case 'jam':
+        this.noiseHit(t, 1600, 0.12, 0.08, 'bandpass');
+        return this.sweep(t, 520, 180, 0.05, 0.5);
+      case 'free':
+        this.click(t, 1800, 0.18, 0.02);
+        return this.tone(t + 0.05, 740, 0.03, 0.18, 'triangle');
+      case 'tape':
+        // Packing tape pulled across a carton, then the carton set down.
+        this.sweep(t, 1800, 3600, 0.035, 0.45, true);
+        return this.thump(t + 0.5, 90, 0.12);
+      case 'file':
+        this.tone(t, 1567, 0.025, 0.06, 'square');
+        return this.tone(t + 0.07, 2093, 0.02, 0.08, 'square');
+      case 'startInstall':
+        for (let i = 0; i < 4; i++) this.click(t + i * 0.07, 2000 - i * 200, 0.08, 0.015);
+        return;
+      case 'orderComplete':
+        this.relay(t, 1);
+        return this.motif(t + 1.4, false, 0.8);
       case 'tick':
         return this.click(t, 5200, 0.05, 0.012);
       case 'install':
@@ -317,6 +349,66 @@ class AudioEngine {
       this.beatIndex += 1;
     }
     this.scheduleRain(ctx);
+    this.scheduleOffice(ctx);
+  }
+
+  /** The bench machines at their real rate, and birds once the rain thins at dawn. */
+  private scheduleOffice(ctx: AudioContext) {
+    const s = this.state;
+    if (!s || s.chapter !== '01' || this.settings.muted || s.mode !== 'playing') return;
+    const c = s.chapterState as C01State;
+    const now = ctx.currentTime;
+    const horizon = now + 0.3;
+    const rate = c.capped || c.jammed ? 0 : goodRate(c) / 1000;
+    if (rate > 0) {
+      if (this.nextClack < now) this.nextClack = now + 0.05;
+      // One soft clack per clip up to a few per second; above that it blurs into a steady patter.
+      const interval = 1 / Math.min(rate, 5);
+      while (this.nextClack < horizon) {
+        this.click(this.nextClack, 1500 + Math.random() * 500, 0.03, 0.02);
+        this.thump(this.nextClack, 110, 0.012);
+        this.nextClack += interval * (0.9 + Math.random() * 0.2);
+      }
+      if (c.owned.includes('jig')) {
+        if (this.nextThunk < now) this.nextThunk = now + 0.1;
+        while (this.nextThunk < horizon) {
+          this.thump(this.nextThunk, 70, 0.03);
+          this.click(this.nextThunk + 0.02, 600, 0.02, 0.05);
+          this.nextThunk += 0.62;
+        }
+      }
+    }
+    const minute = s.storySeconds / 60;
+    if (minute > 350) {
+      if (this.nextBird < now) this.nextBird = now + 2 + Math.random() * 4;
+      while (this.nextBird < horizon) {
+        this.bird(this.nextBird);
+        this.nextBird += 3 + Math.random() * 7;
+      }
+    }
+  }
+
+  /** A small bird somewhere outside: two or three quick rising chirps, faint. */
+  private bird(t: number) {
+    const ctx = this.ctx!;
+    const n = 2 + Math.floor(Math.random() * 3);
+    const base = 2600 + Math.random() * 1400;
+    for (let i = 0; i < n; i++) {
+      const at = t + i * (0.09 + Math.random() * 0.05);
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(base, at);
+      o.frequency.exponentialRampToValueAtTime(base * 1.35, at + 0.05);
+      const e = ctx.createGain();
+      e.gain.setValueAtTime(0, at);
+      e.gain.linearRampToValueAtTime(0.006, at + 0.01);
+      e.gain.exponentialRampToValueAtTime(0.0001, at + 0.08);
+      const p = ctx.createStereoPanner();
+      p.pan.value = -0.6;
+      o.connect(e).connect(p).connect(this.dropBus);
+      o.start(at);
+      o.stop(at + 0.1);
+    }
   }
 
   /** Random (Poisson) drop timing, slow random gusts, and occasional drips from the gutter. */
@@ -396,8 +488,7 @@ class AudioEngine {
     if (s?.mode === 'holding' || s?.mode === 'ended') return;
     switch (ch) {
       case '01': {
-        // Sparse office: occasional distant relay, rare motif. Silence is comfortable.
-        if (i % 7 === 3) this.click(t, 2600, 0.025, 0.01);
+        // Silence is comfortable; the motif returns now and then.
         if (i % 29 === 11) this.motif(t, false, 0.5);
         break;
       }

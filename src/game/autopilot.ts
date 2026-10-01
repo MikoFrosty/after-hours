@@ -2,7 +2,8 @@
 // It only dispatches ordinary player actions; it never mutates state directly.
 import { COSMIC, PRESERVATION } from '../content/campaign';
 import { dispatch, step } from './engine';
-import { canBuy, salvageAvailable } from './chapters/c01';
+import { canStart, loose, offeredProjects, owns, salvageAvailable, spareOffered } from './chapters/c01';
+import { OFFICE } from '../content/campaign';
 import { allowedTreatments, slotsInUse } from './chapters/c04';
 import { adriftKits } from './chapters/c06';
 import { canRecover, protectedLines, recovered, slotsUsed, surveyed } from './chapters/c07';
@@ -34,6 +35,8 @@ export interface Route {
   policy: Policy;
   /** Answer the last choices with holds instead of acceptance. */
   holdAt?: ChapterId;
+  /** How the office night is played: a reasonable person, or someone optimizing hard. */
+  player?: 'reasonable' | 'efficient';
 }
 
 export const CANONICAL: Route = {
@@ -44,6 +47,7 @@ export const CANONICAL: Route = {
   star: 'defer',
   fork: 'ratify',
   policy: 'steward',
+  player: 'reasonable',
 };
 
 export const EFFICIENT: Route = {
@@ -54,6 +58,7 @@ export const EFFICIENT: Route = {
   star: 'relocate',
   fork: 'supersede',
   policy: 'extractor',
+  player: 'efficient',
 };
 
 export function answer(s: CampaignState, r: Route): void {
@@ -114,15 +119,59 @@ export function answer(s: CampaignState, r: Route): void {
 }
 
 let tick = 0;
+let clickCredit = 0;
+let jamSteps = 0;
+
+/**
+ * A simulated player for the office night. Steps are 100 ms.
+ * Reasonable: clicks about 3 times a second until the feeder, notices a jam after ~2 s, keeps a
+ * small reserve, packs cartons when nothing is affordable soon. Efficient: clicks 6 times a second,
+ * frees jams at once, buys the moment it can, runs the line hard and packs only at the end.
+ */
+function officeNight(s: CampaignState, r: Route) {
+  const c = s.chapterState as C01State;
+  const eff = r.player === 'efficient';
+  for (const f of Object.keys(c.files)) if (c.files[f] === 'unread') dispatch(s, { type: 'c01/read', file: f });
+  if (spareOffered(s)) dispatch(s, { type: 'c01/takeSpare' });
+  if (c.jammed) {
+    jamSteps += 1;
+    if (eff || jamSteps >= 20) {
+      dispatch(s, { type: 'c01/free' });
+      jamSteps = 0;
+    }
+  }
+  // Clicking by hand while it still matters.
+  if (!owns(c, 'feeder')) {
+    // People click hard at first, then settle: ~2/s for two minutes, then ~1/s. Efficient: 5/s throughout.
+    const minutes = s.simMs / 60000;
+    clickCredit += eff ? 0.5 : minutes < 2 ? 0.2 : 0.1;
+    while (clickCredit >= 1) {
+      clickCredit -= 1;
+      dispatch(s, { type: 'c01/make' });
+    }
+  }
+  const offered = offeredProjects(s);
+  for (const p of offered) if (!canStart(s, p.id)) dispatch(s, { type: 'c01/project', id: p.id });
+  if (r.salvage) for (const id of ['cabinet', 'lamp', 'frame'] as const) if (salvageAvailable(c, id)) dispatch(s, { type: 'request', kind: 'salvage', subject: id });
+  const pending = offeredProjects(s);
+  const nextCost = pending.length ? Math.min(...pending.map((p) => p.costClips)) : 0;
+  const allBought = OFFICE.projects.every((p) => owns(c, p.id) || p.id === 'straightener' || p.id === 'tensioner');
+  if (owns(c, 'packer')) {
+    const share = allBought ? 100 : eff ? 0 : 50;
+    if (c.packShare !== share) dispatch(s, { type: 'c01/packShare', share });
+  }
+  if (owns(c, 'jig') && c.lineSpeed !== (eff ? 'hard' : 'brisk')) dispatch(s, { type: 'c01/speed', speed: eff ? 'hard' : 'brisk' });
+  const reserve = pending.length ? nextCost + (eff ? 0 : 20) : 0;
+  // Everyone seals the first carton by hand (that is what reveals the auto-packer).
+  const wantsCarton = !eff || allBought || (c.sealed < 3 && owns(c, 'die2'));
+  if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton) dispatch(s, { type: 'c01/pack' });
+}
 
 export function act(s: CampaignState, r: Route): void {
   tick += 1;
   switch (s.chapter) {
     case '01': {
-      const c = s.chapterState as C01State;
-      for (const id of ['bender', 'feeder', 'jig'] as const) if (canBuy(s, id)) dispatch(s, { type: 'c01/buy', id });
-      if (!c.upgrades.feeder && tick % 3 === 0) dispatch(s, { type: 'c01/make' });
-      if (r.salvage) for (const id of ['cabinet', 'lamp', 'frame'] as const) if (salvageAvailable(c, id)) dispatch(s, { type: 'request', kind: 'salvage', subject: id });
+      officeNight(s, r);
       return;
     }
     case '02': {
@@ -230,6 +279,8 @@ export function act(s: CampaignState, r: Route): void {
 export function autoplay(route: Route = CANONICAL, until: ChapterId | 'end' = 'end', start?: CampaignState, maxSteps = 200_000): CampaignState {
   const s = start ?? newCampaign();
   tick = 0;
+  clickCredit = 0;
+  jamSteps = 0;
   for (let i = 0; i < maxSteps; i++) {
     if (until !== 'end' && s.chapter === until && s.choices.length === 0) return s;
     if (s.mode === 'ended' || s.mode === 'holding') return s;

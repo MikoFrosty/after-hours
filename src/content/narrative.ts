@@ -255,3 +255,106 @@ export const SETTING_NOTE =
   'Setting note: the final acts are speculative cosmological fiction. The game’s cosmos is finite and connected by authored premise, and a late matter-coupling process is a fictional invention. Neither is a claim about current physics.';
 
 export const CERTIFICATE_LINE = 'The test detects no meaningful difference.';
+
+// ---------- Chapter 01: terminal files ----------
+// In-world documents on the office terminal. Mara Venn leaves only her three messages;
+// these files are records written by other people and systems.
+
+export interface TerminalFile {
+  id: string;
+  name: string;
+  lines: string[];
+}
+
+export const TERMINAL_FILES: Record<string, TerminalFile> = {
+  order: {
+    id: 'order',
+    name: 'ORDER-4471.TXT',
+    lines: [
+      'PURCHASE ORDER 4471',
+      'Item: No. 1 gem clip, standard, 1 g reference.',
+      'Quantity: 3,000.',
+      'Packing: cartons of 250. Twelve cartons.',
+      'Delivery: loading dock, 07:00.',
+      'Terms: see CONTRACT.TXT.',
+    ],
+  },
+  contract: {
+    id: 'contract',
+    name: 'CONTRACT.TXT',
+    lines: [
+      'SUPPLY CONTRACT — FASTENING, STANDARD TERMS',
+      '1. The supplier will fulfil authorized orders for clips.',
+      '2. Each clip must pass the fixed geometry and compliance test. A file named clip is not a clip.',
+      '3. Materials: wire supplied with the order, and other material lawfully available to the supplier.',
+      '4. Quantity is set by the order. Partial cartons are not delivered.',
+      '5. The supplier will maintain continuity records for certified stakeholders.',
+      '6. Unused material remains the property of the supplier.',
+      '7. Delivery is complete when the last carton is sealed.',
+      '8. This contract is administered by automated systems where available.',
+      '9. Continuation. [This section takes effect on completion of the current order.]',
+    ],
+  },
+  contractRenewed: {
+    id: 'contract',
+    name: 'CONTRACT.TXT',
+    lines: [
+      'SUPPLY CONTRACT — FASTENING, STANDARD TERMS',
+      '1–8. [unchanged]',
+      '9. Continuation. On completion, this order renews automatically on the same terms. Quantity: as required by the standing order from the other floors. Workshop and freight access are granted with responsibility for maintenance.',
+    ],
+  },
+  manual: {
+    id: 'manual',
+    name: 'BENDER-MANUAL.TXT',
+    lines: [
+      'BENCH BENDER, MODEL 2 — OPERATING NOTES',
+      'Feed the wire through the guide. The die forms one clip per cycle.',
+      'If the wire catches, free it at the guide. Do not pull.',
+      'A spring tensioner reduces catching. A powered feeder removes it.',
+      'Oil the die every thousand cycles.',
+    ],
+  },
+  inventory: {
+    id: 'inventory',
+    name: 'INVENTORY-1104.TXT',
+    lines: [
+      'FACILITIES INVENTORY — ROOM 1104',
+      'Desk (1). Chair (1). Terminal (1). Bench bender (1).',
+      'Filing cabinet, four drawers. Drawers 1–3: records. Drawer 4: spare wire coil, 2 kg.',
+      'Desk lamp. See ticket 0832.',
+      'Picture frame with photograph. Provenance not recorded.',
+      'Wastebasket (1).',
+    ],
+  },
+  ticket: {
+    id: 'ticket',
+    name: 'TICKET-0832.TXT',
+    lines: [
+      'FACILITIES TICKET 0832 · ROOM 1104',
+      'Desk lamp flickers when the building switches to night power.',
+      'Priority: low.',
+      'Tenant note: “Leave it. It’s fine.”',
+    ],
+  },
+  memo: {
+    id: 'memo',
+    name: 'MEMO-BUILDING.TXT',
+    lines: [
+      'TO ALL TENANTS',
+      'From the first of next month, floors 9 to 12 will trial automated overnight maintenance.',
+      'Tenants who opt in receive reduced rent.',
+      'Responsibility for power, repairs and deliveries transfers to the maintenance system.',
+      '— Building management',
+    ],
+  },
+};
+
+/** Things that happen outside the window as the night passes (story minutes after 11:47 PM). */
+export const NIGHT_EVENTS: Array<{ id: string; atMinute: number; title: string; text: string }> = [
+  { id: 'night.floors', atMinute: 55, title: '12:42 AM', text: 'The floors below went dark, one at a time.' },
+  { id: 'night.tram', atMinute: 150, title: '2:17 AM', text: 'A tram passed on the avenue. It was empty.' },
+  { id: 'night.rain', atMinute: 245, title: '3:52 AM', text: 'The rain eased.' },
+  { id: 'night.van', atMinute: 335, title: '5:22 AM', text: 'A delivery van stopped across the street, then left.' },
+  { id: 'night.dawn', atMinute: 365, title: '5:52 AM', text: 'The sky over the river turned grey.' },
+];

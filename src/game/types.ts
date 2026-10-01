@@ -258,11 +258,49 @@ export interface EndingState {
 
 // ---------- Chapter state variants ----------
 
+export type OfficeProjectId =
+  | 'calibrate'
+  | 'oil'
+  | 'tensioner'
+  | 'feeder'
+  | 'die2'
+  | 'packer'
+  | 'roller'
+  | 'fan'
+  | 'jig'
+  | 'head1'
+  | 'head2'
+  | 'head3'
+  | 'straightener';
+
+export type LineSpeed = 'steady' | 'brisk' | 'hard';
+
 export interface C01State {
   kind: '01';
+  /** Good clips formed this night (by hand, by machine, or from salvage). A statistic. */
   madeClips: number;
+  /** Machine output in milli-clips carried between steps. */
   rateResidue: number;
-  upgrades: { bender: boolean; feeder: boolean; jig: boolean };
+  owned: OfficeProjectId[];
+  installing: { id: OfficeProjectId; ms: number } | null;
+  /** The wire catches in the bender's guide until a feeder is installed. */
+  jammed: boolean;
+  sinceJam: number;
+  jams: number;
+  /** Sealed cartons of 250 clips. The order is complete at 12. */
+  sealed: number;
+  /** Clips in the open carton filled by the auto-packer. */
+  openBox: number;
+  /** Share of new clips the auto-packer routes into the open carton, in percent. */
+  packShare: number;
+  packCredit: number;
+  lineSpeed: LineSpeed;
+  rejectCredit: number;
+  rejects: number;
+  straightenResidue: number;
+  spareTaken: boolean;
+  /** Terminal files that have appeared, and whether they have been opened. */
+  files: Record<string, 'unread' | 'read'>;
   salvaged: { cabinet: boolean; lamp: boolean; frame: boolean };
   capped: boolean;
   reportShown: boolean;
@@ -433,7 +471,13 @@ export type Action =
   | { type: 'choose'; choiceId: string; option: string }
   | { type: 'request'; kind: string; subject?: string; data?: Record<string, string | number | boolean> }
   | { type: 'c01/make' }
-  | { type: 'c01/buy'; id: 'bender' | 'feeder' | 'jig' }
+  | { type: 'c01/project'; id: OfficeProjectId }
+  | { type: 'c01/free' }
+  | { type: 'c01/pack' }
+  | { type: 'c01/packShare'; share: number }
+  | { type: 'c01/speed'; speed: LineSpeed }
+  | { type: 'c01/read'; file: string }
+  | { type: 'c01/takeSpare' }
   | { type: 'c02/run'; running: boolean }
   | { type: 'c02/route'; route: 'courtyard' | 'direct' }
   | { type: 'c02/upgrade'; id: 'wireDraw' | 'freight' | 'roofCooling' }

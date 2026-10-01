@@ -49,40 +49,83 @@ describe('ledger', () => {
 });
 
 describe('chapter 01 office', () => {
-  it('reinvestment lowers current clips while lifetime is unchanged', () => {
+  const night = (s: CampaignState) => s.chapterState as C01State;
+
+  it('reinvestment spends clips that must be made again; lifetime is unchanged', () => {
     const s = newCampaign();
     for (let i = 0; i < 15; i++) dispatch(s, { type: 'c01/make' });
     const life = s.clips.lifetimeMadeMicrograms;
-    dispatch(s, { type: 'c01/buy', id: 'bender' });
+    expect(dispatch(s, { type: 'c01/project', id: 'calibrate' })).toBeNull();
     expect(s.clips.currentMicrograms).toBe(0n);
     expect(s.clips.lifetimeMadeMicrograms).toBe(life);
     expect(mass(s, 'office.machines')).toBe(15n * CLIP);
     expect(checkInvariant(s)).toBeNull();
   });
 
-  it('caps at 3,000 and keeps salvage remainders as raw scrap', () => {
+  it('hand bending has no speed limit', () => {
+    const s = newCampaign();
+    for (let i = 0; i < 200; i++) expect(dispatch(s, { type: 'c01/make' })).toBeNull();
+    expect(night(s).madeClips).toBe(200);
+  });
+
+  it('the wire catches until a feeder is installed, and freeing it resumes the bender', () => {
+    const s = newCampaign();
+    for (let i = 0; i < 15; i++) dispatch(s, { type: 'c01/make' });
+    dispatch(s, { type: 'c01/project', id: 'calibrate' });
+    let guard = 0;
+    while (!night(s).jammed && guard++ < 5000) step(s);
+    expect(night(s).jammed).toBe(true);
+    const made = night(s).madeClips;
+    run(s, 50);
+    expect(night(s).madeClips).toBe(made);
+    dispatch(s, { type: 'c01/free' });
+    run(s, 50);
+    expect(night(s).madeClips).toBeGreaterThan(made);
+  });
+
+  it('sealed cartons cannot be spent', () => {
+    const s = newCampaign();
+    for (let i = 0; i < 260; i++) dispatch(s, { type: 'c01/make' });
+    expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
+    expect(night(s).sealed).toBe(1);
+    // 260 clips exist, but only 10 are loose: the 15-clip calibration cannot be paid from the carton.
+    expect(dispatch(s, { type: 'c01/project', id: 'calibrate' })).not.toBeNull();
+    expect(s.clips.currentMicrograms).toBe(260n * CLIP);
+  });
+
+  it('salvage remainders stay as raw scrap and the photograph is kept', () => {
     const s = autoplay({ ...EFFICIENT }, '02');
-    expect(s.summaries['01']).toBeDefined();
     expect(mass(s, 'office.scrap')).toBe(10_000_000_000n + 2_000_000_000n + 400_000_000n - 525n * CLIP);
     expect(mass(s, 'office.photograph')).toBe(5_000_000n);
     expect(s.anchors.photograph.fidelity).toBe('original');
     expect(s.anchors.frame.fidelity).toBe('absent');
-    // 3000 lifetime: 525 from salvage, 2475 from wire, 525 g of wire left unprocessed.
-    expect(mass(s, 'office.wire')).toBe(525n * CLIP);
+    expect(checkInvariant(s)).toBeNull();
   });
 
-  it('no-salvage route uses exactly the wire coil', () => {
+  it('the order is twelve sealed cartons and needs no salvage', () => {
     const s = autoplay(CANONICAL, '02');
-    expect(mass(s, 'office.wire')).toBe(0n);
     expect(s.anchors.lamp.fidelity).toBe('original');
-    expect((s.clips.lifetimeMadeMicrograms >= BigInt(OFFICE.quota) * CLIP)).toBe(true);
+    expect(s.anchors.cabinet.fidelity).toBe('original');
+    expect(s.clips.currentMicrograms >= BigInt(OFFICE.quota) * CLIP).toBe(true);
+  });
+
+  it('the night lasts: about 20+ minutes for a reasonable player, over a quarter hour even when optimized', () => {
+    const reasonable = autoplay(CANONICAL, '02').summaries['01']!.simMs / 60000;
+    const efficient = autoplay(EFFICIENT, '02').summaries['01']!.simMs / 60000;
+    expect(reasonable).toBeGreaterThanOrEqual(20);
+    expect(efficient).toBeGreaterThanOrEqual(16);
+  });
+
+  it('story time reaches dawn as the order completes', () => {
+    const s = autoplay({ ...CANONICAL, holdAt: '01' });
+    expect(s.storySeconds).toBe(OFFICE.nightStorySeconds);
   });
 
   it('declining the lease is an honest holding ending', () => {
     const s = autoplay({ ...CANONICAL, holdAt: '01' });
     expect(s.mode).toBe('holding');
     expect(s.ending?.kind).toBe('office');
-    expect((s.chapterState as C01State).madeClips).toBe(3000);
+    expect(night(s).sealed).toBe(12);
   });
 });
 
@@ -272,5 +315,35 @@ describe('terminal audit', () => {
     // Query the audit directly: the office's protected capital must be listed among originals.
     c.auditRun = true;
     expect(protectedLines(s).some((l) => l.account.id === 'office.equipment' && l.group === 'original')).toBe(true);
+  });
+});
+
+describe('office migration', () => {
+  it('converts a save from the three-machine office without breaking conservation', () => {
+    const s = newCampaign() as unknown as Record<string, unknown>;
+    const st = s as unknown as CampaignState;
+    // Rebuild the earlier shape: no spare coil or rejects account, and the old chapter state.
+    st.ledger.accounts.unreached.mass += st.ledger.accounts['office.spare'].mass;
+    delete st.ledger.accounts['office.spare'];
+    delete st.ledger.accounts['office.rejects'];
+    for (let i = 0; i < 20; i++) dispatch(st, { type: 'c01/make' });
+    (st as unknown as { chapterState: unknown }).chapterState = {
+      kind: '01',
+      madeClips: 20,
+      rateResidue: 0,
+      upgrades: { bender: true, feeder: false, jig: false },
+      salvaged: { cabinet: false, lamp: false, frame: false },
+      capped: false,
+      reportShown: false,
+    };
+    const r = parse(serialize(st));
+    expect(r.status).toBe('ok');
+    if (r.status === 'ok') {
+      const c = r.state.chapterState as C01State;
+      expect(c.owned).toEqual(['calibrate']);
+      expect(c.madeClips).toBe(20);
+      expect(mass(r.state, 'office.spare')).toBe(2_000_000_000n);
+      expect(checkInvariant(r.state)).toBeNull();
+    }
   });
 });
