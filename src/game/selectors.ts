@@ -1,6 +1,6 @@
 import { BUILDING, CHAPTER_META, CITY, COSMIC, PRESERVATION, SOLAR, TERMINAL } from '../content/campaign';
 import { DISTRICTS } from '../content/world';
-import { CARTONS, goodRate, loose, owns, project, wireGrams } from './chapters/c01';
+import { CARTONS, loose, officeStatus, wireGrams } from './chapters/c01';
 import { bottleneck as c02Bottleneck, throughput } from './chapters/c02';
 import { met, reserveRate } from './chapters/c03';
 import { currentOverhead, resolvedCount, slotsInUse } from './chapters/c04';
@@ -40,7 +40,7 @@ export const STORY_SPANS: Record<ChapterId, string> = {
 };
 
 export const STORY_SCALE_TEXT: Record<ChapterId, string> = {
-  '01': '1 simulated second = 1 story minute',
+  '01': '1 simulated second ≈ 17 story seconds; dawn waits for the last carton',
   '02': '1 simulated second = 12 story hours',
   '03': '1 simulated second = 20 story days',
   '04': '1 simulated second = 1 story year',
@@ -88,12 +88,7 @@ export function metrics(s: CampaignState): { items: Metric[]; bottleneck: string
     case '01': {
       const c = s.chapterState as C01State;
       const deskClips: Metric = { label: 'Clips on the desk', value: loose(s).toLocaleString(), hint: 'Loose clips. Only these can be spent on machines or packed.' };
-      let b = 'Bending by hand';
-      if (c.capped) b = 'Order complete';
-      else if (c.jammed) b = 'Wire caught';
-      else if (c.installing) b = `Installing: ${project(c.installing.id).name}`;
-      else if (wireGrams(s) < 50) b = 'Wire coil empty';
-      else if (owns(c, 'calibrate')) b = `${(goodRate(s) / 1000).toFixed(1)} clips/s`;
+      const b = wireGrams(s) < 1 && !c.capped ? 'Wire coil empty' : officeStatus(s);
       const items: Metric[] = [deskClips];
       if (c.files.order) items.push({ label: 'Cartons', value: `${c.sealed} / ${CARTONS}`, hint: 'The order is twelve sealed cartons of 250.' });
       return { items, bottleneck: b };

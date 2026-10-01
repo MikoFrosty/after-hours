@@ -171,20 +171,23 @@ function officeNight(s: CampaignState, r: Route) {
       dispatch(s, { type: 'c01/tune', needle: hit ? band.center : band.center + band.width });
     }
   }
-  const offered = offeredProjects(s);
+  // Forks. Reasonable: the smooth die, the governor and the careful finish (a calm line).
+  // Engaged: the high-tension die, the foot pedal and overdrive (a line played hard).
+  const prefers = eff ? ['dieHigh', 'pedal', 'overdrive'] : ['dieSmooth', 'governor', 'careful'];
+  const offered = offeredProjects(s).filter((p) => !p.exclusive || prefers.includes(p.id));
   for (const p of offered) if (!canStart(s, p.id)) dispatch(s, { type: 'c01/project', id: p.id });
   if (r.salvage) for (const id of ['cabinet', 'lamp', 'frame'] as const) if (salvageAvailable(c, id)) dispatch(s, { type: 'request', kind: 'salvage', subject: id });
-  const pending = offeredProjects(s);
+  const pending = offeredProjects(s).filter((p) => (!p.exclusive || prefers.includes(p.id)) && p.id !== 'straightener' && p.id !== 'tensioner');
   const nextCost = pending.length ? Math.min(...pending.map((p) => p.costClips)) : 0;
-  const allBought = OFFICE.projects.every((p) => owns(c, p.id) || p.id === 'straightener' || p.id === 'tensioner');
+  const allBought = pending.length === 0 && !c.installing && owns(c, 'station6');
   if (owns(c, 'packer')) {
-    const share = allBought ? 100 : eff ? 0 : 50;
-    if (c.packShare !== share) dispatch(s, { type: 'c01/packShare', share });
+    const want = allBought ? 0 : (OFFICE.packerReserves.find((x) => x >= nextCost + (eff ? 0 : 20)) ?? 500);
+    if (c.reserve !== want) dispatch(s, { type: 'c01/reserve', reserve: want });
   }
   if (owns(c, 'jig') && c.lineSpeed !== (eff ? 'hard' : 'brisk')) dispatch(s, { type: 'c01/speed', speed: eff ? 'hard' : 'brisk' });
   const reserve = pending.length ? nextCost + (eff ? 0 : 20) : 0;
   // Everyone seals the first carton by hand (that is what reveals the auto-packer).
-  const wantsCarton = !eff || allBought || (c.sealed < 3 && owns(c, 'die2'));
+  const wantsCarton = !eff || allBought || (c.sealed < 1 && owns(c, 'feeder'));
   if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton) dispatch(s, { type: 'c01/pack' });
 }
 

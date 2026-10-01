@@ -36,14 +36,23 @@ export type OfficeProjectId =
   | 'oil'
   | 'tensioner'
   | 'feeder'
+  | 'dieHigh'
+  | 'dieSmooth'
   | 'die2'
   | 'packer'
   | 'roller'
+  | 'pedal'
+  | 'governor'
   | 'fan'
   | 'jig'
-  | 'head1'
-  | 'head2'
-  | 'head3'
+  | 'station1'
+  | 'station2'
+  | 'station3'
+  | 'station4'
+  | 'station5'
+  | 'station6'
+  | 'overdrive'
+  | 'careful'
   | 'straightener';
 
 export interface OfficeProject {
@@ -56,6 +65,10 @@ export interface OfficeProject {
   addedRate: number;
   /** Multiplier on the bender group, in thousandths. */
   multiplier: number;
+  /** Multiplier on the whole machine rate, in thousandths. */
+  lineMultiplier: number;
+  /** Either/or installations: buying one member of a group removes the others. */
+  exclusive?: 'die' | 'hands' | 'finish';
   unlock: { after?: OfficeProjectId; made?: number; jams?: number; boxes?: number; rejects?: number };
 }
 
@@ -69,6 +82,13 @@ export const OFFICE = {
   nightStorySeconds: c.office.nightStorySeconds,
   jamInterval: c.office.jam.intervalClips,
   tensionedJamInterval: c.office.jam.tensionedIntervalClips,
+  highTensionJamInterval: c.office.jam.highTensionIntervalClips,
+  hardSpeedJamInterval: c.office.jam.hardSpeedIntervalClips,
+  packerReserves: c.office.packerReserves,
+  storyPerSecond: milli(c.office.storySecondsPerSecond),
+  vanMinute: c.office.vanMinute,
+  overdriveRejectPpm: c.office.overdriveRejectPpm,
+  carefulRunMs: c.office.carefulRunSeconds * 1000,
   lineSpeeds: c.office.lineSpeeds.map((x) => ({ id: x.id as LineSpeed, factor: milli(x.factor), rejectPpm: x.rejectPpm })),
   straightenerRate: milli(c.office.straightenerGramsPerSecond),
   projects: c.office.projects.map(
@@ -80,6 +100,8 @@ export const OFFICE = {
       group: p.group as OfficeProject['group'],
       addedRate: milli((p as { addedRate?: number }).addedRate ?? 0),
       multiplier: milli((p as { multiplier?: number }).multiplier ?? 1),
+      lineMultiplier: milli((p as { lineMultiplier?: number }).lineMultiplier ?? 1),
+      exclusive: (p as { exclusive?: string }).exclusive as OfficeProject['exclusive'],
       unlock: p.unlock as OfficeProject['unlock'],
     }),
   ),
@@ -88,6 +110,7 @@ export const OFFICE = {
       perBend: c.office.active.tending.perBendMilli,
       decayPerSecond: c.office.active.tending.decayPerSecondMilli,
       maxBonus: milli(c.office.active.tending.maxBonus),
+      pedalMaxBonus: milli(c.office.active.tending.pedalMaxBonus),
     },
     trueWire: {
       firstAfterMs: c.office.active.trueWire.firstAfterSeconds * 1000,

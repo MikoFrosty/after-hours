@@ -69,7 +69,7 @@ export function Shell() {
             </div>
           ))}
           <div className="metric bottleneck">
-            <div className="k">Bottleneck</div>
+            <div className="k">{s.chapter === '01' ? 'Now' : 'Bottleneck'}</div>
             <div className="v">{m.bottleneck}</div>
           </div>
           <div className="metric" title="The most recent charter signed">

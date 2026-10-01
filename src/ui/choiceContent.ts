@@ -71,6 +71,8 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
         body: [CHARTERS.buildingLease.body],
         facts: [
           ['Cartons sealed', '12 of 12'],
+          ['On the 5:22 van', `${c1.vanCartons ?? 12} of 12`],
+          ['For the 7:00 van', `${12 - (c1.vanCartons ?? 12)}`],
           ['Clips left on the desk', fmtClips(s.clips.currentMicrograms - 3_000n * 1_000_000n)],
           ['Wire unprocessed', fmtMass(mass(s, 'office.wire') + mass(s, 'office.spare'))],
           ['Retained', (['cabinet', 'lamp', 'frame'] as const).filter((k) => !c1.salvaged[k]).join(', ') || 'none'],

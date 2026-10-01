@@ -12,7 +12,7 @@ import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
 import { schedulePreview } from './chapters/c08';
 import { protectedLines } from './chapters/c07';
-import { glintActive, machineRate, tendingBonus, tuneBand } from './chapters/c01';
+import { glintActive, jamInterval, loose, machineRate, nextGoal, offeredProjects, tendingBonus, tuneBand } from './chapters/c01';
 import type { C01State, C02State, C03State, C05State, C07State, C08State, CampaignState } from './types';
 
 function invariantEveryStep(s: CampaignState, steps: number) {
@@ -170,6 +170,81 @@ describe('chapter 01 office', () => {
   it('story time reaches dawn as the order completes', () => {
     const s = autoplay({ ...CANONICAL, holdAt: '01' });
     expect(s.storySeconds).toBe(OFFICE.nightStorySeconds);
+  });
+
+  it('either/or installations: choosing one removes the other', () => {
+    const s = newCampaign();
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder');
+    s.clips.currentMicrograms = 0n;
+    commit(s, { id: 'test.wire', from: 'office.wire', input: 500n * CLIP, outputs: [['clips', 500n * CLIP]] });
+    expect(offeredProjects(s).map((p) => p.id)).toEqual(expect.arrayContaining(['dieHigh', 'dieSmooth']));
+    expect(dispatch(s, { type: 'c01/project', id: 'dieSmooth' })).toBeNull();
+    expect(offeredProjects(s).map((p) => p.id)).not.toContain('dieHigh');
+    run(s, 200);
+    expect(c.owned).toContain('dieSmooth');
+    expect(dispatch(s, { type: 'c01/project', id: 'dieHigh' })).not.toBeNull();
+    expect(checkInvariant(s)).toBeNull();
+  });
+
+  it('the high-tension die catches the wire again; hard speed does until the straightener', () => {
+    const c = newCampaign().chapterState as C01State;
+    c.owned.push('calibrate', 'oil', 'feeder');
+    expect(jamInterval(c)).toBe(0);
+    c.lineSpeed = 'hard';
+    expect(jamInterval(c)).toBe(OFFICE.hardSpeedJamInterval);
+    c.owned.push('dieHigh');
+    expect(jamInterval(c)).toBe(Math.min(OFFICE.highTensionJamInterval, OFFICE.hardSpeedJamInterval));
+    c.owned.push('straightener');
+    expect(jamInterval(c)).toBe(OFFICE.highTensionJamInterval);
+    c.lineSpeed = 'steady';
+    c.owned = ['calibrate', 'oil', 'feeder', 'dieSmooth'];
+    expect(jamInterval(c)).toBe(0);
+  });
+
+  it('the governor holds the line without hands; the pedal doubles what tending can add', () => {
+    const s = newCampaign();
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder', 'pedal');
+    for (let i = 0; i < 20; i++) dispatch(s, { type: 'c01/make' });
+    expect(tendingBonus(c)).toBe(400);
+    c.owned = ['calibrate', 'oil', 'feeder', 'governor'];
+    expect(tendingBonus(c)).toBe(0);
+    expect(dispatch(s, { type: 'c01/make' })).not.toBeNull();
+  });
+
+  it('the auto-packer packs everything above the reserve', () => {
+    const s = newCampaign();
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder', 'packer');
+    commit(s, { id: 'test.wire', from: 'office.wire', input: 400n * CLIP, outputs: [['clips', 400n * CLIP]] });
+    expect(dispatch(s, { type: 'c01/reserve', reserve: 100 })).toBeNull();
+    step(s);
+    step(s);
+    expect(c.sealed).toBe(1);
+    expect(c.openBox).toBe(50);
+    expect(loose(s)).toBe(100);
+    expect(dispatch(s, { type: 'c01/reserve', reserve: 37 })).not.toBeNull();
+    expect(checkInvariant(s)).toBeNull();
+  });
+
+  it('the 5:22 van takes what is sealed; the shift report says how many', () => {
+    const s = autoplay({ ...CANONICAL, holdAt: '01' });
+    const c = night(s);
+    expect(c.vanCartons).not.toBeNull();
+    expect(c.vanCartons!).toBeGreaterThanOrEqual(0);
+    expect(c.vanCartons!).toBeLessThanOrEqual(12);
+    const fast = autoplay({ ...EFFICIENT, holdAt: '01' });
+    expect(night(fast).vanCartons).toBe(12);
+  });
+
+  it('a wait on sealed cartons is named as a goal', () => {
+    const s = newCampaign();
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder', 'dieSmooth', 'die2', 'packer', 'roller', 'governor', 'fan');
+    c.sealed = 1;
+    c.madeClips = 600;
+    expect(nextGoal(s)).toMatch(/1 more carton .* jig frame/);
   });
 
   it('declining the lease is an honest holding ending', () => {
@@ -393,8 +468,27 @@ describe('office migration', () => {
       const c = r.state.chapterState as C01State;
       expect(c.owned).toEqual(['calibrate']);
       expect(c.madeClips).toBe(20);
-      expect(mass(r.state, 'office.spare')).toBe(2_000_000_000n);
+      expect(mass(r.state, 'office.spare')).toBe(OFFICE.spareWire);
       expect(checkInvariant(r.state)).toBeNull();
+    }
+  });
+
+  it('maps the packer share and the single jig of an interim save', () => {
+    const st = newCampaign();
+    const c = st.chapterState as unknown as Record<string, unknown>;
+    delete c.reserve;
+    delete c.vanCartons;
+    c.packShare = 50;
+    c.packCredit = 0;
+    c.owned = ['calibrate', 'oil', 'feeder', 'die2', 'packer', 'roller', 'fan', 'jig', 'head1'];
+    const r = parse(serialize(st));
+    expect(r.status).toBe('ok');
+    if (r.status === 'ok') {
+      const n = r.state.chapterState as C01State;
+      expect(n.reserve).toBe(100);
+      expect(n.vanCartons).toBeNull();
+      expect(n.owned.filter((id) => id.startsWith('station')).length).toBe(5);
+      expect(n.owned.some((id) => (id as string).startsWith('head'))).toBe(false);
     }
   });
 });

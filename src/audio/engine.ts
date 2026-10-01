@@ -11,7 +11,7 @@ export interface AudioSettings {
   muted: boolean;
 }
 
-type Layer = { gain: GainNode; stop: () => void };
+type Layer = { gain: GainNode; stop: () => void; filter?: BiquadFilterNode };
 
 // Motif: A4 → D5 (resolves upward to the tonic). The last desk plays only the A.
 const MOTIF = [440, 587.33];
@@ -46,6 +46,7 @@ class AudioEngine {
   private nextGust = 0;
   private nextClack = 0;
   private nextThunk = 0;
+  private jigStep = 0;
   private nextBird = 0;
 
   /** Create the audio context on the first user gesture (autoplay policy). */
@@ -153,6 +154,19 @@ class AudioEngine {
       const rain = minute < 245 ? 1 : Math.max(0.15, 1 - (minute - 245) / 110);
       this.rainLevel = rain;
       this.layerLevel('rain', 0.11 * rain, t);
+      // Past two in the morning a low pad comes in under the rain, opening up toward dawn.
+      const c = s.chapterState as C01State;
+      const night = c.capped ? 1 : Math.max(0, Math.min(1, (minute - 135) / 90));
+      const dawn = Math.max(0, Math.min(1, (minute - 300) / 80));
+      this.layerLevel('night', 0.028 * night * (s.mode === 'playing' || c.capped ? 1 : 0.5), t);
+      const pad = this.layers.get('night');
+      if (pad?.filter) pad.filter.frequency.setTargetAtTime(420 + 1500 * dawn, t, 2);
+      // The machines: separate clicks at a slow rate blend into a soft running texture as the line speeds up.
+      const rate = c.capped || c.jammed ? 0 : goodRate(s) / 1000;
+      const blend = Math.max(0, Math.min(1, (rate - 2.5) / 6));
+      this.layerLevel('machine', s.mode === 'playing' ? 0.05 * blend : 0, t);
+      const m = this.layers.get('machine');
+      if (m?.filter) m.filter.frequency.setTargetAtTime(900 + 900 * blend, t, 1);
     }
     if (s.chapter === '02') {
       const c = s.chapterState as C02State;
@@ -216,9 +230,20 @@ class AudioEngine {
         this.click(t, 1800, 0.18, 0.02);
         return this.tone(t + 0.05, 740, 0.03, 0.18, 'triangle');
       case 'tape':
-        // Packing tape pulled across a carton, then the carton set down.
+        // Packing tape pulled across a carton, then the carton set down on the stack.
         this.sweep(t, 1800, 3600, 0.035, 0.45, true);
-        return this.thump(t + 0.5, 90, 0.12);
+        this.thump(t + 0.55, 82, 0.13);
+        return this.noiseHit(t + 0.55, 380, 0.07, 0.12, 'lowpass');
+      case 'ready':
+        // Something in the workshop can be afforded now: a soft, short ping.
+        return this.bell(t, 1567.98, 0.028, 0.9, false, 0.25);
+      case 'fullSpeed':
+        // Every station on the jig: the line swells to full speed.
+        this.sweep(t, 140, 420, 0.035, 1.6);
+        return this.chord(t + 0.4, [62, 66, 69, 74], 3.2, 0.03);
+      case 'van':
+        // A van idling across the street, then pulling away.
+        return this.sweep(t, 55, 95, 0.05, 3.2, true);
       case 'file':
         this.tone(t, 1567, 0.025, 0.06, 'square');
         return this.tone(t + 0.07, 2093, 0.02, 0.08, 'square');
@@ -313,6 +338,8 @@ class AudioEngine {
       case '01':
         add('rain', this.rainLayer(0.11));
         add('hum', this.humLayer(120, 0.035));
+        add('night', this.nightPadLayer());
+        add('machine', this.machineLayer());
         this.tempo = 2.2;
         break;
       case '02':
@@ -383,19 +410,26 @@ class AudioEngine {
     const rate = c.capped || c.jammed ? 0 : goodRate(s) / 1000;
     if (rate > 0) {
       if (this.nextClack < now) this.nextClack = now + 0.05;
-      // One soft clack per clip up to a few per second; above that it blurs into a steady patter.
+      // One clack per clip at a slow rate, each a little different. As the line speeds up the
+      // clacks thin and soften while the running texture (the 'machine' layer) takes over.
+      const blend = Math.max(0, Math.min(1, (rate - 2.5) / 6));
       const interval = 1 / Math.min(rate, 5);
+      const g = 0.03 * (1 - 0.6 * blend);
       while (this.nextClack < horizon) {
-        this.click(this.nextClack, 1500 + Math.random() * 500, 0.03, 0.02);
-        this.thump(this.nextClack, 110, 0.012);
-        this.nextClack += interval * (0.9 + Math.random() * 0.2);
+        const accent = Math.random() < 0.15;
+        this.click(this.nextClack, 1300 + Math.random() * 900, accent ? g * 1.5 : g, 0.015 + Math.random() * 0.01);
+        if (blend < 0.7) this.thump(this.nextClack, 100 + Math.random() * 30, 0.012 * (1 - blend));
+        this.nextClack += interval * (0.8 + Math.random() * 0.4);
       }
       if (c.owned.includes('jig')) {
+        // The jig's stations strike in an uneven rhythm: one long, two short, never quite even.
         if (this.nextThunk < now) this.nextThunk = now + 0.1;
-        while (this.nextThunk < horizon) {
-          this.thump(this.nextThunk, 70, 0.03);
-          this.click(this.nextThunk + 0.02, 600, 0.02, 0.05);
-          this.nextThunk += 0.62;
+        const stations = c.owned.filter((id) => id.startsWith('station')).length;
+        while (this.nextThunk < horizon && stations > 0) {
+          this.thump(this.nextThunk, 64 + Math.random() * 14, 0.022 + stations * 0.003);
+          this.click(this.nextThunk + 0.02, 520 + Math.random() * 200, 0.018, 0.05);
+          this.jigStep = (this.jigStep + 1) % 3;
+          this.nextThunk += (this.jigStep === 0 ? 0.78 : 0.36) * (0.9 + Math.random() * 0.25) * (1.2 - stations * 0.05);
         }
       }
     }
@@ -508,11 +542,9 @@ class AudioEngine {
     const s = this.state;
     if (s?.mode === 'holding' || s?.mode === 'ended') return;
     switch (ch) {
-      case '01': {
-        // Silence is comfortable; the motif returns now and then.
-        if (i % 29 === 11) this.motif(t, false, 0.5);
+      case '01':
+        // Silence is comfortable. The motif marks only the night's turning points (see 'motif' cues).
         break;
-      }
       case '02': {
         // The relay becomes a soft mechanical rhythm.
         const c = s?.chapterState.kind === '02' ? (s.chapterState as C02State) : null;
@@ -896,6 +928,81 @@ class AudioEngine {
       stop: () => {
         src.stop();
         mod.stop();
+      },
+    };
+  }
+
+  /** A low, soft chord for the small hours: triangle voices behind a lowpass that opens at dawn. */
+  private nightPadLayer(): Layer {
+    const ctx = this.ctx!;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 420;
+    lp.Q.value = 0.4;
+    const oscs: OscillatorNode[] = [];
+    for (const [n, d] of [
+      [50, -4],
+      [57, 3],
+      [62, -2],
+      [64, 5],
+      [69, -6],
+    ] as const) {
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = midi(n - 12);
+      o.detune.value = d;
+      const og = ctx.createGain();
+      og.gain.value = 0.16;
+      // Each voice breathes at its own slow rate.
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.03 + Math.random() * 0.05;
+      const lg = ctx.createGain();
+      lg.gain.value = 0.07;
+      lfo.connect(lg).connect(og.gain);
+      o.connect(og).connect(lp);
+      o.start();
+      lfo.start();
+      oscs.push(o, lfo);
+    }
+    lp.connect(gain);
+    gain.connect(this.musicBus);
+    const w = ctx.createGain();
+    w.gain.value = 0.6;
+    gain.connect(w).connect(this.reverbSend);
+    return { gain, filter: lp, stop: () => oscs.forEach((o) => o.stop()) };
+  }
+
+  /** The line at speed: a soft, filtered rattle whose level and brightness follow the rate. */
+  private machineLayer(): Layer {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 900;
+    bp.Q.value = 1.4;
+    // A fast flutter so it reads as many small strikes rather than hiss.
+    const am = ctx.createGain();
+    am.gain.value = 0.6;
+    const flutter = ctx.createOscillator();
+    flutter.frequency.value = 11;
+    const fg = ctx.createGain();
+    fg.gain.value = 0.4;
+    flutter.connect(fg).connect(am.gain);
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    src.connect(bp).connect(am).connect(gain).connect(this.musicBus);
+    src.start();
+    flutter.start();
+    return {
+      gain,
+      filter: bp,
+      stop: () => {
+        src.stop();
+        flutter.stop();
       },
     };
   }

@@ -1624,3 +1624,313 @@ details.exact .digits {
     opacity: 0.55;
   }
 }
+
+/* ---------- office night: action dock ---------- */
+.action-dock {
+  position: sticky;
+  top: -16px;
+  z-index: 4;
+  margin-top: -2px;
+  background: color-mix(in srgb, var(--bg-2) 94%, #000);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.alert-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 0.92em;
+  line-height: 1.3;
+}
+.alert-slot.goal {
+  justify-content: flex-start;
+}
+.alert-slot.goal .tiny {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  flex: none;
+}
+.alert-slot.jam {
+  border-color: color-mix(in srgb, var(--danger, #e0735e) 70%, transparent);
+  background: rgba(224, 115, 94, 0.1);
+  animation: slotin 0.25s ease;
+}
+.alert-slot.truewire {
+  border-color: color-mix(in srgb, #f6e2a8 70%, transparent);
+  background: linear-gradient(120deg, rgba(246, 226, 168, 0.16), rgba(246, 226, 168, 0.03));
+  color: #f6e2a8;
+  box-shadow: 0 0 22px rgba(246, 226, 168, 0.12);
+  animation: slotin 0.25s ease;
+}
+.alert-slot.clean {
+  color: #f6e2a8;
+  background: rgba(246, 226, 168, 0.08);
+}
+.alert-slot.installing .slot-bar {
+  flex: 0 0 34%;
+}
+.alert-slot .btn {
+  flex: none;
+}
+@keyframes slotin {
+  from {
+    transform: translateY(-3px);
+    opacity: 0.4;
+  }
+}
+.dock-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: stretch;
+}
+.dock-stats {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 96px;
+  text-align: right;
+}
+.dock-stats .stat {
+  display: flex;
+  flex-direction: column;
+}
+.dock-stats .big {
+  font-size: 1.5em;
+  line-height: 1.1;
+}
+.make-btn.press-0 {
+  animation: press0 0.16s ease;
+}
+.make-btn.press-1 {
+  animation: press1 0.16s ease;
+}
+@keyframes press0 {
+  40% {
+    transform: scale(0.975);
+    filter: brightness(1.15);
+  }
+}
+@keyframes press1 {
+  40% {
+    transform: scale(0.975);
+    filter: brightness(1.15);
+  }
+}
+.make-wrap {
+  position: relative;
+}
+.make-btn.idle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--line-strong);
+  color: var(--muted);
+  height: 100%;
+}
+.make-btn.idle .spin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-top-color: transparent;
+  animation: spin 1.6s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.make-wrap .floater {
+  position: absolute;
+  top: 6px;
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: #fff6e6;
+  pointer-events: none;
+  animation: floatup 0.9s ease-out forwards;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+@keyframes floatup {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+.tending .bar {
+  transition: box-shadow 0.4s ease;
+}
+.tending.full .bar {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.tending.full .bar i {
+  background: linear-gradient(90deg, var(--accent), #ffe2b0);
+}
+.dock-order .reserve .btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.carton.just {
+  animation: cartondrop 0.7s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+@keyframes cartondrop {
+  0% {
+    transform: translateY(-10px);
+    filter: brightness(1.8);
+  }
+  60% {
+    filter: brightness(1.3);
+  }
+}
+.card.slim {
+  padding: 8px 12px;
+}
+.card.fork {
+  border-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
+}
+.fork-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.fork-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.fork-option.highlight {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.fork-option .t {
+  font-weight: 600;
+}
+.fork-option .d {
+  color: var(--muted);
+  font-size: 0.86em;
+}
+.fork-option .btn {
+  margin-top: auto;
+}
+.note-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 12px;
+  width: 100%;
+}
+.note-line .note-from {
+  opacity: 0.6;
+}
+.note-line .note-text {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-line.open .note-text {
+  white-space: normal;
+}
+.note-line .note-date {
+  flex-basis: 100%;
+  opacity: 0.6;
+}
+/* Story captions in the office sit in a strip at the top of the scene, clear of the desk. */
+.beat.top {
+  top: 52px;
+  width: min(92%, 640px);
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.25));
+}
+.beat.top .bx {
+  font-size: clamp(16px, 1.6vw, 21px);
+}
+@media (max-width: 520px) {
+  .fork-options {
+    grid-template-columns: 1fr;
+  }
+  .action-dock {
+    top: 0;
+  }
+  .dock-stats {
+    min-width: 76px;
+  }
+}
+@media (max-width: 980px) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panel {
+    overflow: visible;
+    min-width: 0;
+  }
+}
+.office-svg .cartonin {
+  animation: cartonin 0.55s cubic-bezier(0.35, 1.5, 0.55, 1);
+}
+@keyframes cartonin {
+  from {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+  45% {
+    opacity: 1;
+  }
+}
+.office-svg .stationin {
+  animation: stationin 0.6s ease-out;
+}
+@keyframes stationin {
+  from {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+}
+.office-svg .gainfloat {
+  animation: gainfloat 1.4s ease-out forwards;
+}
+@keyframes gainfloat {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.95;
+  }
+  to {
+    transform: translateY(-22px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .office-svg .cartonin,
+  .office-svg .stationin,
+  .office-svg .gainfloat,
+  .make-wrap .floater,
+  .make-btn.idle .spin,
+  .carton.just {
+    animation: none;
+  }
+}

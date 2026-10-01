@@ -59,11 +59,13 @@
       }
     ],
     "boxSize": 250,
-    "spareWireMicrograms": "2000000000",
+    "spareWireMicrograms": "3000000000",
     "nightStorySeconds": 22980,
     "jam": {
       "intervalClips": 25,
-      "tensionedIntervalClips": 60
+      "tensionedIntervalClips": 60,
+      "highTensionIntervalClips": 150,
+      "hardSpeedIntervalClips": 200
     },
     "lineSpeeds": [
       {
@@ -90,10 +92,10 @@
         "costClips": 15,
         "installSeconds": 8,
         "group": "bender",
-        "addedRate": 0.32,
         "unlock": {
           "made": 10
-        }
+        },
+        "addedRate": 0.32
       },
       {
         "id": "oil",
@@ -101,18 +103,18 @@
         "costClips": 40,
         "installSeconds": 10,
         "group": "bender",
-        "multiplier": 1.5,
         "unlock": {
           "after": "calibrate",
           "made": 50
-        }
+        },
+        "multiplier": 1.5
       },
       {
         "id": "tensioner",
         "name": "Fit a spring tensioner",
         "costClips": 60,
         "installSeconds": 15,
-        "group": "bender",
+        "group": "none",
         "unlock": {
           "after": "calibrate",
           "jams": 3
@@ -124,11 +126,35 @@
         "costClips": 200,
         "installSeconds": 25,
         "group": "line",
-        "addedRate": 0.64,
         "unlock": {
           "after": "oil",
           "made": 250
-        }
+        },
+        "addedRate": 0.64
+      },
+      {
+        "id": "dieHigh",
+        "name": "High-tension die",
+        "costClips": 80,
+        "installSeconds": 12,
+        "group": "bender",
+        "unlock": {
+          "after": "feeder"
+        },
+        "multiplier": 1.35,
+        "exclusive": "die"
+      },
+      {
+        "id": "dieSmooth",
+        "name": "Smooth die",
+        "costClips": 80,
+        "installSeconds": 12,
+        "group": "bender",
+        "unlock": {
+          "after": "feeder"
+        },
+        "multiplier": 1.15,
+        "exclusive": "die"
       },
       {
         "id": "die2",
@@ -136,10 +162,10 @@
         "costClips": 150,
         "installSeconds": 15,
         "group": "bender",
-        "addedRate": 0.32,
         "unlock": {
           "after": "feeder"
-        }
+        },
+        "addedRate": 0.32
       },
       {
         "id": "packer",
@@ -158,10 +184,33 @@
         "costClips": 90,
         "installSeconds": 12,
         "group": "line",
-        "addedRate": 0.24,
         "unlock": {
           "after": "packer"
-        }
+        },
+        "addedRate": 0.24
+      },
+      {
+        "id": "pedal",
+        "name": "Foot pedal",
+        "costClips": 90,
+        "installSeconds": 10,
+        "group": "none",
+        "unlock": {
+          "after": "roller"
+        },
+        "exclusive": "hands"
+      },
+      {
+        "id": "governor",
+        "name": "Governor",
+        "costClips": 90,
+        "installSeconds": 10,
+        "group": "line",
+        "unlock": {
+          "after": "roller"
+        },
+        "addedRate": 0.35,
+        "exclusive": "hands"
       },
       {
         "id": "fan",
@@ -169,56 +218,114 @@
         "costClips": 130,
         "installSeconds": 12,
         "group": "line",
-        "addedRate": 0.24,
         "unlock": {
-          "after": "roller",
-          "boxes": 2
-        }
+          "after": "roller"
+        },
+        "addedRate": 0.2
       },
       {
         "id": "jig",
-        "name": "Parallel jig",
-        "costClips": 400,
-        "installSeconds": 60,
+        "name": "Jig frame",
+        "costClips": 200,
+        "installSeconds": 30,
         "group": "line",
-        "addedRate": 1.28,
         "unlock": {
           "after": "die2",
-          "boxes": 3
-        }
+          "boxes": 2
+        },
+        "addedRate": 0
       },
       {
-        "id": "head1",
-        "name": "Jig head",
-        "costClips": 100,
-        "installSeconds": 10,
+        "id": "station1",
+        "name": "Jig station 1",
+        "costClips": 90,
+        "installSeconds": 12,
         "group": "line",
-        "addedRate": 0.24,
         "unlock": {
           "after": "jig"
-        }
+        },
+        "addedRate": 0.22
       },
       {
-        "id": "head2",
-        "name": "Jig head",
+        "id": "station2",
+        "name": "Jig station 2",
+        "costClips": 110,
+        "installSeconds": 12,
+        "group": "line",
+        "unlock": {
+          "after": "station1"
+        },
+        "addedRate": 0.22
+      },
+      {
+        "id": "station3",
+        "name": "Jig station 3",
+        "costClips": 130,
+        "installSeconds": 12,
+        "group": "line",
+        "unlock": {
+          "after": "station2"
+        },
+        "addedRate": 0.22
+      },
+      {
+        "id": "station4",
+        "name": "Jig station 4",
         "costClips": 150,
-        "installSeconds": 10,
+        "installSeconds": 12,
         "group": "line",
-        "addedRate": 0.24,
         "unlock": {
-          "after": "head1"
-        }
+          "after": "station3",
+          "boxes": 5
+        },
+        "addedRate": 0.22
       },
       {
-        "id": "head3",
-        "name": "Jig head",
-        "costClips": 220,
-        "installSeconds": 10,
+        "id": "station5",
+        "name": "Jig station 5",
+        "costClips": 175,
+        "installSeconds": 12,
         "group": "line",
-        "addedRate": 0.24,
         "unlock": {
-          "after": "head2"
-        }
+          "after": "station4",
+          "boxes": 7
+        },
+        "addedRate": 0.22
+      },
+      {
+        "id": "station6",
+        "name": "Jig station 6",
+        "costClips": 200,
+        "installSeconds": 12,
+        "group": "line",
+        "unlock": {
+          "after": "station5",
+          "boxes": 9
+        },
+        "addedRate": 0.22
+      },
+      {
+        "id": "overdrive",
+        "name": "Overdrive the line",
+        "costClips": 120,
+        "installSeconds": 12,
+        "group": "none",
+        "unlock": {
+          "after": "station3"
+        },
+        "lineMultiplier": 1.2,
+        "exclusive": "finish"
+      },
+      {
+        "id": "careful",
+        "name": "Careful finish",
+        "costClips": 120,
+        "installSeconds": 12,
+        "group": "none",
+        "unlock": {
+          "after": "station3"
+        },
+        "exclusive": "finish"
       },
       {
         "id": "straightener",
@@ -234,9 +341,10 @@
     ],
     "active": {
       "tending": {
-        "perBendMilli": 8000,
-        "decayPerSecondMilli": 12000,
-        "maxBonus": 0.25
+        "perBendMilli": 5000,
+        "decayPerSecondMilli": 4000,
+        "maxBonus": 0.25,
+        "pedalMaxBonus": 0.4
       },
       "trueWire": {
         "firstAfterSeconds": 40,
@@ -259,7 +367,17 @@
         "bendsPerLevel": 150,
         "maxExtra": 3
       }
-    }
+    },
+    "packerReserves": [
+      0,
+      100,
+      250,
+      500
+    ],
+    "storySecondsPerSecond": 17.4,
+    "vanMinute": 335,
+    "overdriveRejectPpm": 60000,
+    "carefulRunSeconds": 30
   },
   "building": {
     "stations": {

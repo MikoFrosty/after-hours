@@ -1,6 +1,6 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { CampaignState, C01State, OfficeProjectId } from '../../game/types';
-import { cleanRunActive, glintActive, goodRate, loose } from '../../game/chapters/c01';
+import { cleanRunActive, glintActive, goodRate, loose, project } from '../../game/chapters/c01';
 import { mass } from '../../game/ledger';
 import { OFFICE } from '../../content/campaign';
 import { CLIP } from '../../game/mass';
@@ -31,7 +31,8 @@ export interface OfficeView {
   openBox: number | null;
   tensioner: boolean;
   die2: boolean;
-  heads: number;
+  /** Forming stations on the jig frame (0–6). */
+  stations: number;
   straightener: boolean;
   rejects: boolean;
   /** Story minutes since 11:47 PM: lights go out, rain eases, dawn comes. */
@@ -39,6 +40,10 @@ export interface OfficeView {
   /** The wire is running true (a catchable moment), and a clean run is under way. */
   glint: boolean;
   cleanRun: boolean;
+  /** An installation under way: how far along, and where in the room it is going. */
+  installing: { fraction: number; at: 'bender' | 'jig' | 'packer' | 'desk' } | null;
+  /** Clips the machines added in recent seconds, floated over the tray. */
+  gains?: Array<{ id: number; n: number }>;
 }
 
 // Isometric projection
@@ -182,13 +187,27 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
     openBox: c1 && has('packer') && !c1.capped ? c1.openBox / OFFICE.boxSize : null,
     tensioner: has('tensioner'),
     die2: has('die2'),
-    heads: c1 ? ['head1', 'head2', 'head3'].filter((h) => has(h as OfficeProjectId)).length : 3,
+    stations: c1 ? c1.owned.filter((id) => id.startsWith('station')).length : 6,
     straightener: has('straightener'),
     rejects: c1 ? c1.rejects > 0 : false,
     minute: c1 ? s.storySeconds / 60 : 0,
     glint: c1 ? glintActive(s) : false,
     cleanRun: c1 ? cleanRunActive(s) : false,
+    installing:
+      c1 && c1.installing
+        ? {
+            fraction: Math.min(1, c1.installing.ms / project(c1.installing.id).installMs),
+            at: installSite(c1.installing.id),
+          }
+        : null,
   };
+}
+
+function installSite(id: OfficeProjectId): 'bender' | 'jig' | 'packer' | 'desk' {
+  if (id === 'jig' || id.startsWith('station') || id === 'overdrive' || id === 'careful' || id === 'straightener') return 'jig';
+  if (id === 'packer') return 'packer';
+  if (id === 'fan' || id === 'governor' || id === 'pedal') return 'desk';
+  return 'bender';
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -431,8 +450,17 @@ function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
       {v.jig && (
         <g>
           <Box at={[8.7, 0.3, 0]} size={[1.2, 1.9, 2.2]} color="#3d3f3f" st={st} />
-          {Array.from({ length: 3 + v.heads }, (_, i) => i).map((i) => (
-            <g key={i}>
+          {/* the frame's six sockets; each installed station stands in one */}
+          {!wire &&
+            Array.from({ length: 6 }, (_, i) => i)
+              .filter((i) => i >= v.stations)
+              .map((i) => {
+                const x = 8.85 + (i % 2) * 0.5;
+                const y = 0.45 + Math.floor(i / 2) * 0.55;
+                return <polygon key={`socket${i}`} points={pts([[x, y, 2.21], [x + 0.35, y, 2.21], [x + 0.35, y + 0.35, 2.21], [x, y + 0.35, 2.21]])} fill="none" stroke="#7d8486" strokeWidth={0.8} strokeDasharray="2 2" opacity={0.6 * st.dim} />;
+              })}
+          {Array.from({ length: v.stations }, (_, i) => i).map((i) => (
+            <g key={i} className={anim ? 'stationin' : undefined}>
               <Box at={[8.85 + (i % 2) * 0.5, 0.45 + Math.floor(i / 2) * 0.55, 2.2]} size={[0.35, 0.35, 0.5]} color={metal} st={st} />
             </g>
           ))}
@@ -452,7 +480,7 @@ function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
           const y = 2.9 + row * 0.7;
           const z = layer * 0.52;
           return (
-            <g key={`carton${n}`}>
+            <g key={`carton${n}`} className={anim ? 'cartonin' : undefined}>
               <Box at={[x, y, z]} size={[0.76, 0.64, 0.5]} color="#9a7650" st={st} />
               {!wire && <polygon points={pts([[x + 0.34, y, z + 0.505], [x + 0.42, y, z + 0.505], [x + 0.42, y + 0.64, z + 0.505], [x + 0.34, y + 0.64, z + 0.505]])} fill="#e6d3a8" opacity={0.6 * st.dim} />}
             </g>
@@ -674,6 +702,28 @@ function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
       {/* wastebasket */}
       <Cyl c={[8.7, 6.9]} r={0.45} z0={0} h={1.0} color="#2e3232" st={st} top={wire ? undefined : '#141616'} />
 
+      {/* an installation under way: a progress ring where the work is happening */}
+      {v.installing && !wire && !last &&
+        (() => {
+          const site = { bender: P(3.8, 3.0, 3.9), jig: P(9.3, 1.2, 3.2), packer: P(7.1, 4.9, 1.0), desk: P(5.4, 3.6, 3.6) }[v.installing.at];
+          const r = 13;
+          const circ = 2 * Math.PI * r;
+          return (
+            <g transform={`translate(${site[0]},${site[1]})`} pointerEvents="none">
+              <circle r={r + 5} fill="rgba(8,10,12,0.55)" />
+              <circle r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={3} />
+              <circle r={r} fill="none" stroke="#e8c48f" strokeWidth={3} strokeLinecap="round" strokeDasharray={`${circ * v.installing.fraction} ${circ}`} transform="rotate(-90)" />
+              <path d="M-4,3 L3,-4 M1,-6 L5,-2" stroke="#e8c48f" strokeWidth={1.6} strokeLinecap="round" />
+            </g>
+          );
+        })()}
+      {/* what the machines just added, floating up off the tray */}
+      {anim && !wire &&
+        v.gains?.map((g, i) => (
+          <text key={g.id} className="gainfloat" x={px + 18 + (i % 2) * 10} y={py - 26} fill="#f3ead8" fontSize={11} fontFamily="var(--font-mono)" pointerEvents="none">
+            +{g.n}
+          </text>
+        ))}
       {/* a clean run: warm light over the machines */}
       {v.cleanRun && !wire && !last && (
         <ellipse className={anim ? 'cleanglow' : undefined} cx={P(4.6, 3.2, 3.2)[0]} cy={P(4.6, 3.2, 3.2)[1]} rx={120} ry={60} fill="url(#lampglow)" opacity={0.9} pointerEvents="none" />
@@ -731,8 +781,8 @@ export function describeOffice(v: OfficeView): string {
     v.lamp ? 'The desk lamp is on the desk.' : 'The lamp is gone; the room is darker.',
     v.cabinet ? 'The filing cabinet stands against the wall.' : 'Where the cabinet stood there is a clean rectangle on the floor.',
     v.frame ? 'The picture frame holds the photograph.' : v.photo === 'desk' ? 'The frame is gone; the photograph lies on the desk.' : 'There is no photograph.',
-    [v.bender && 'bender', v.feeder && 'wire feeder', v.jig && 'parallel jig'].filter(Boolean).length
-      ? `Installed: ${[v.bender && 'bender', v.feeder && 'wire feeder', v.jig && 'parallel jig'].filter(Boolean).join(', ')}.`
+    [v.bender && 'bender', v.feeder && 'wire feeder', v.jig && 'jig'].filter(Boolean).length
+      ? `Installed: ${[v.bender && 'bender', v.feeder && 'wire feeder', v.jig && `jig with ${v.stations} of 6 stations`].filter(Boolean).join(', ')}.`
       : 'No machines installed yet.',
   ];
   return parts.join(' ');
@@ -741,7 +791,26 @@ export function describeOffice(v: OfficeView): string {
 export const OfficeScene = memo(function OfficeScene({ view, label, onGlint }: { view: OfficeView; label?: string; onGlint?: () => void }) {
   const [pulse, setPulse] = useState(0);
   useEffect(() => setPulse(view.pulse), [view.pulse]);
-  const v = { ...view, pulse };
+  // Once a second, float what the machines added over the tray.
+  const made = useRef(view.pulse);
+  made.current = view.pulse;
+  const [gains, setGains] = useState<Array<{ id: number; n: number }>>([]);
+  const live = view.animate && view.running && view.mode === 'live' && !view.frozen;
+  useEffect(() => {
+    if (!live) return;
+    let last = made.current;
+    let id = 0;
+    const t = setInterval(() => {
+      const n = made.current - last;
+      last = made.current;
+      if (n <= 0) return;
+      const gid = ++id;
+      setGains((g) => [...g.slice(-2), { id: gid, n }]);
+      setTimeout(() => setGains((g) => g.filter((x) => x.id !== gid)), 1400);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [live]);
+  const v = { ...view, pulse, gains };
   return (
     <div className={`office-frame ${view.mode} ${view.frozen ? 'last' : ''} ${view.frozen || view.mode === 'recorded' ? 'grain' : ''}`}>
       {label && <div className="scene-label">{label}</div>}

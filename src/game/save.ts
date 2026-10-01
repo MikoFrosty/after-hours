@@ -282,7 +282,7 @@ export function migrateOffice(s: CampaignState): void {
     next.salvaged = prev.salvaged;
     if (prev.upgrades.bender) next.owned.push('calibrate');
     if (prev.upgrades.feeder) next.owned.push('oil', 'feeder');
-    if (prev.upgrades.jig) next.owned.push('die2', 'jig');
+    if (prev.upgrades.jig) next.owned.push('die2', 'jig', 'station1', 'station2', 'station3', 'station4');
     if (s.mode === 'choice') {
       s.choices = s.choices.filter((c) => c.kind !== 'c01/report');
       if (s.choices.length === 0) s.mode = 'playing';
@@ -290,6 +290,26 @@ export function migrateOffice(s: CampaignState): void {
     s.consumedEventIds = s.consumedEventIds.filter((id) => id !== 'c01.report');
     s.chapterState = next;
   }
+  if (old?.kind === '01') migrateOfficeV3(s.chapterState as C01State);
+}
+
+/**
+ * The third office night replaced the packer's share dial with a reserve and the single
+ * jig with a frame and six stations. Map an interim save onto the nearest equivalent.
+ */
+function migrateOfficeV3(c: C01State): void {
+  const prev = c as unknown as { packShare?: number; packCredit?: number; owned: string[] };
+  if (prev.packShare === undefined) return;
+  c.reserve = prev.packShare >= 100 ? 0 : prev.packShare > 0 ? 100 : 250;
+  c.vanCartons = null;
+  delete prev.packShare;
+  delete prev.packCredit;
+  // The old jig was worth four stations; each later head adds the next.
+  const owned = prev.owned.filter((id) => !id.startsWith('head'));
+  const stations = (owned.includes('jig') ? 4 : 0) + ['head1', 'head2', 'head3'].filter((h) => prev.owned.includes(h)).length;
+  for (let i = 1; i <= Math.min(6, stations); i++) owned.push(`station${i}`);
+  c.owned = owned as C01State['owned'];
+  if (c.installing && !OFFICE.projects.some((p) => p.id === c.installing!.id)) c.installing = null;
 }
 
 // ---------- v1 office import ----------
@@ -349,7 +369,7 @@ export function importV1(raw: unknown): { ok: true; state: CampaignState; summar
   const mapping: Record<'bender' | 'feeder' | 'jig', C01State['owned']> = {
     bender: ['calibrate'],
     feeder: ['oil', 'feeder'],
-    jig: ['die2', 'jig'],
+    jig: ['die2', 'jig', 'station1', 'station2', 'station3', 'station4'],
   };
   for (const u of OFFICE.legacyUpgrades) {
     if (!v.upgrades[u.id]) continue;

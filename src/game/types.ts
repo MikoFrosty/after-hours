@@ -263,14 +263,23 @@ export type OfficeProjectId =
   | 'oil'
   | 'tensioner'
   | 'feeder'
+  | 'dieHigh'
+  | 'dieSmooth'
   | 'die2'
   | 'packer'
   | 'roller'
+  | 'pedal'
+  | 'governor'
   | 'fan'
   | 'jig'
-  | 'head1'
-  | 'head2'
-  | 'head3'
+  | 'station1'
+  | 'station2'
+  | 'station3'
+  | 'station4'
+  | 'station5'
+  | 'station6'
+  | 'overdrive'
+  | 'careful'
   | 'straightener';
 
 export type LineSpeed = 'steady' | 'brisk' | 'hard';
@@ -291,9 +300,10 @@ export interface C01State {
   sealed: number;
   /** Clips in the open carton filled by the auto-packer. */
   openBox: number;
-  /** Share of new clips the auto-packer routes into the open carton, in percent. */
-  packShare: number;
-  packCredit: number;
+  /** The auto-packer packs every clip above this many on the desk. */
+  reserve: number;
+  /** Cartons sealed when the 5:22 van left; null until it has come. */
+  vanCartons: number | null;
   lineSpeed: LineSpeed;
   rejectCredit: number;
   rejects: number;
@@ -490,7 +500,7 @@ export type Action =
   | { type: 'c01/project'; id: OfficeProjectId }
   | { type: 'c01/free' }
   | { type: 'c01/pack' }
-  | { type: 'c01/packShare'; share: number }
+  | { type: 'c01/reserve'; reserve: number }
   | { type: 'c01/speed'; speed: LineSpeed }
   | { type: 'c01/read'; file: string }
   | { type: 'c01/takeSpare' }
