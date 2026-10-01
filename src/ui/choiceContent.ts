@@ -99,14 +99,14 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
       if (c2 && n < 3) facts.push(['Next contract', `${BUILDING.contracts[n] / 1000} work units`]);
       return {
         eyebrow: `Contract ${n} of 3`,
-        title: n === 1 ? 'The lights stayed on without a night crew.' : `Contract ${n} delivered`,
+        title: n === 1 ? 'The lights stayed on without a night crew.' : n === 3 ? 'All three contracts delivered' : `Contract ${n} delivered`,
         body: [
-          'Inspection passed. One improvement permit awarded.',
+          n < 3 ? 'Inspection passed. One improvement permit awarded.' : 'Inspection passed. The building has met every contract it was given.',
           n < 3
             ? throttled > 0
               ? 'The plant spent part of this contract throttled. Each permit row shows what it would do to throughput and heat.'
               : 'Spend it where the plant is slowest: each permit row shows what it would do to throughput and heat.'
-            : 'Permits buy station upgrades; they never spend material needed to continue.',
+            : 'What comes next is not another contract but an agreement about who looks after the building.',
         ],
         facts,
         options: [{ id: 'continue', label: 'Continue', tone: 'primary' }],

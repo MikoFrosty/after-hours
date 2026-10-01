@@ -2,6 +2,21 @@
 
 Hourly improvement passes on chapter 1, *The Night Desk*, run while the owner is away. Each entry records what changed and why, before/after numbers, what was considered and rejected, and anything to decide in the morning. The routine stops itself after eight passes.
 
+
+## Morning summary
+
+Eight passes ran between 10:10 and 17:10 UTC; each was built, tested (now 46 tests), paced and checked in a browser at desktop and phone widths before being pushed and republished. The routine has switched itself off.
+
+**Chapter 1, The Night Desk** (passes 1–3): now in a good spot. Fixes were all about what the screen tells you while you play: an honest status line from the first clip, quieter press feedback that never covers the button text, die wear announced in the dock with a one-press retune, one clear way to seal once the packer is in, a nudge to lower the packer's reserve when nothing is left to buy, and a quiet dock after the last carton. Pacing unchanged: relaxed about 21 min (9 cartons on the 5:22 van), engaged about 16 (all 12).
+
+**Chapter 2, The Building That Never Sleeps** (passes 3–8): reviewed (see pass 3), then polished: office clearing rebalanced so it is a head start rather than the first contract, permits moved under Contracts with each option showing its effect on throughput and heat, a heat forecast and throttle explanation where the player is looking, a time-to-go on each contract, inspections that report how the contract went, "Keep them all" for the old office, cleaner schematic labels, a fitting phone records bar, and a final inspection that no longer offers a permit with nothing left to buy.
+
+**Waiting on you** (from pass 3, with pass 4's correction):
+- **A.** Make heat matter on every route (it already bites players who skip cooling).
+- **B.** Lengthen chapter 2 toward the spec's 8–15 minutes (it runs about 2–3) with more contracts, each with one new wrinkle.
+- **C.** Stop labelling the bottleneck and let the permit rows reveal it (cheap and safe since pass 5).
+- **D.** Keep one hands-on verb in the building, e.g. loading the freight lift by hand until the scheduler.
+
 ## Pass 1 · 2026-10-01 10:10 UTC · chapter 1
 
 **How it was checked.** Besides the simulated players, this pass played the opening 100 seconds in real time in a headless browser (about four presses a second, buying what was ready, catching the true wire), at 1440 px and 390 px, with screenshots every few seconds. That shows what the simulations can't: what the screen says while you are actually pressing.
@@ -143,3 +158,19 @@ Checked at 1440 and 390 px: keep, the folded line, reconsider, and the card retu
 
 **For the morning**
 - No new decisions. One pass remains tonight (17:06 UTC); it will be the eighth and will switch the routine off.
+
+## Pass 8 · 2026-10-01 17:10 UTC · chapter 2 (final pass)
+
+**Focus.** The end of the chapter, which no earlier pass had looked at: the third inspection, the maintenance charter, the city tender and the handover into chapter 3, at 1440 and 390 px.
+
+**What held up.** Both charters read clearly with their decline options intact; chapter 3 opens cleanly with no leftover captions, and the kept night garden appears there as a city landmark.
+
+**Changed**
+- *The third inspection* said "One improvement permit awarded. Permits buy station upgrades…" when every contract was already done and there was nothing left to spend it on. It now reads "All three contracts delivered", says the building has met every contract it was given, and points to what comes next (an agreement about who looks after the building) instead of a purchase. Its report (time, peak heat, time throttled) stays.
+
+**Numbers.** Chapter 2 unchanged (relaxed 165 s, engaged 126 s simulated). 46 tests pass; no page errors at either width.
+
+**Considered and rejected**
+- Not awarding the third permit at all: the permit count is part of the specified contract rules, and it is harmless now that the copy no longer points at it.
+
+**Routine.** This was the eighth pass; the routine has been switched off (disabled, not deleted, so it can be turned back on from the Routines list).
