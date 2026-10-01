@@ -183,6 +183,8 @@ export function officeStatus(s: CampaignState): string {
   if (next && loose(s) < next.costClips) return `Saving for ${goalName(next)}`;
   if (next) return `Ready: ${goalName(next)}`;
   if (stations(c) >= 6) return 'Line at full speed';
+  const made = madeGated(c);
+  if (made) return `Working toward ${goalName(made)}`;
   if (!owns(c, 'calibrate')) return 'Bending by hand';
   if (cartonGated(c)) return 'Filling cartons';
   const extra = nextProject(s, true);

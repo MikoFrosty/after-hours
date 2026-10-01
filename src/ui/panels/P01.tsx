@@ -280,11 +280,14 @@ function ActionDock() {
     const err = act({ type: 'c01/make' });
     if (err) return;
     const c1 = game.state!.chapterState as C01State;
-    const text = c1.madeClips > made0 ? `+${c1.madeClips - made0}` : c1.tending > tend0 ? `+${Math.round((c1.tending - tend0) / 1000)}%` : 'full';
-    const id = ++floaterSeq;
-    setFloaters((f) => [...f.slice(-6), { id, text, x: 30 + ((id * 37) % 40) }]);
-    setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 900);
+    // Bending shows the clip; tending shows how far the meter rose (nothing once it is topped up: the glowing meter says so).
+    const gain = Math.round((c1.tending - tend0) / 1000);
+    const text = c1.madeClips > made0 ? `+${c1.madeClips - made0}` : gain >= 3 ? `+${gain}%` : null;
     setPressed((p) => p + 1);
+    if (!text) return;
+    const id = ++floaterSeq;
+    setFloaters((f) => [...f.slice(-6), { id, text, x: 80 + ((id * 37) % 8) }]);
+    setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 900);
   };
   const pressRef = useRef(press);
   pressRef.current = press;

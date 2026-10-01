@@ -1731,7 +1731,7 @@ details.exact .digits {
 }
 .make-wrap .floater {
   position: absolute;
-  top: 6px;
+  top: 62%;
   z-index: 2;
   font-family: var(--font-mono);
   font-size: 0.85em;
@@ -1746,7 +1746,7 @@ details.exact .digits {
     opacity: 1;
   }
   to {
-    transform: translateY(-34px);
+    transform: translateY(-26px);
     opacity: 0;
   }
 }
