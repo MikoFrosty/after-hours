@@ -1,3 +1,4 @@
+import { clearingWork } from '../game/officeSalvage';
 import { OFFICE, PRESERVATION } from '../content/campaign';
 import { CASE_EVIDENCE, CERTIFICATE_LINE, CHARTERS, EPILOGUES, FORK, LIVING_RELEASE, PRESERVATION_CERT, TERMINAL_AUTH, TERMINAL_SCRIPT } from '../content/narrative';
 import { ANCHOR_LABELS } from '../content/world';
@@ -33,30 +34,32 @@ const RESIDENTS: Record<string, string> = {
 
 export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
   switch (c.kind) {
-    case 'c01/salvage': {
+    case 'office/salvage': {
       const id = c.subject as 'cabinet' | 'lamp' | 'frame';
       const def = OFFICE.salvage.find((x) => x.id === id)!;
       const y = def.yieldClips;
       const name = ANCHOR_LABELS[id];
       return {
-        eyebrow: 'Salvage · one time',
-        title: `Salvage the ${name.toLowerCase()}?`,
+        eyebrow: 'Clearing the 11th floor · one time',
+        title: `Send the ${name.toLowerCase()} to the line?`,
         body: [
           id === 'frame'
-            ? 'Recover the metal from the frame. The photograph is not consumed: it stays on the desk and is tracked separately.'
+            ? 'Recover the metal from the frame. The photograph is not consumed: it stays with the desk and is tracked separately.'
             : id === 'lamp'
-              ? 'Recover the metal from the desk lamp. The room will be darker afterwards.'
-              : 'Recover the metal from the filing cabinet that stands against the wall.',
+              ? 'Recover the metal from the desk lamp. The office will be darker afterwards, wherever it is kept.'
+              : 'Recover the metal from the filing cabinet that stood against the office wall.',
+          'Its first usable batch is already drawn wire, so it skips the drawing station.',
         ],
         facts: [
           ['Clips formed now', `${y}`],
+          ['Contract work', `+${clearingWork(id) / 1000} units`],
           ['Remaining material', `${fmtMass(def.original - BigInt(y) * 1_000_000n)} to raw scrap`],
           ['Original', `${fmtMass(def.original)} · will not return`],
         ],
         irreversible: true,
         options: [
           { id: 'cancel', label: `Keep the ${name.toLowerCase()}` },
-          { id: 'confirm', label: `Salvage the ${name.toLowerCase()}`, tone: 'danger' },
+          { id: 'confirm', label: `Send it to the line`, tone: 'danger' },
         ],
       };
     }
@@ -75,7 +78,6 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
           ['For the 7:00 van', `${12 - (c1.vanCartons ?? 12)}`],
           ['Clips left on the desk', fmtClips(s.clips.currentMicrograms - 3_000n * 1_000_000n)],
           ['Wire unprocessed', fmtMass(mass(s, 'office.wire') + mass(s, 'office.spare'))],
-          ['Retained', (['cabinet', 'lamp', 'frame'] as const).filter((k) => !c1.salvaged[k]).join(', ') || 'none'],
         ],
         options: [
           { id: 'decline', label: CHARTERS.buildingLease.decline },

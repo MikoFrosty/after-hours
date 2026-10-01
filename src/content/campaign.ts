@@ -111,6 +111,8 @@ export const OFFICE = {
       decayPerSecond: c.office.active.tending.decayPerSecondMilli,
       maxBonus: milli(c.office.active.tending.maxBonus),
       pedalMaxBonus: milli(c.office.active.tending.pedalMaxBonus),
+      /** With the governor, tending never drains below this share of the meter (thousandths). */
+      governorFloor: milli(c.office.active.tending.governorFloor),
     },
     trueWire: {
       firstAfterMs: c.office.active.trueWire.firstAfterSeconds * 1000,
@@ -128,6 +130,12 @@ export const OFFICE = {
       cooldownMs: c.office.active.tuning.cooldownSeconds * 1000,
       periodMs: c.office.active.tuning.periodSeconds * 1000,
       slowMs: c.office.active.tuning.slowSeconds * 1000,
+      settleMs: c.office.active.tuning.settleSeconds * 1000,
+    },
+    /** Running brisk or hard wears the die: one tuning level per this long. */
+    wear: {
+      briskMs: c.office.active.wear.briskSeconds * 1000,
+      hardMs: c.office.active.wear.hardSeconds * 1000,
     },
     practice: {
       bendsPerLevel: c.office.active.practice.bendsPerLevel,

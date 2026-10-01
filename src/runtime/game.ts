@@ -323,6 +323,7 @@ class GameRuntime {
         break;
       case 'transition':
         this.introChapter = sig.chapter;
+        this.toast = null;
         if (s) audio.setChapter(sig.chapter, s);
         break;
       case 'error':

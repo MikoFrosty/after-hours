@@ -94,8 +94,16 @@ describe('chapter 01 office', () => {
     expect(s.clips.currentMicrograms).toBe(260n * CLIP);
   });
 
-  it('salvage remainders stay as raw scrap and the photograph is kept', () => {
+  it('the night offers no salvage: the office objects arrive in chapter 2 untouched', () => {
     const s = autoplay({ ...EFFICIENT }, '02');
+    expect(s.anchors.cabinet.fidelity).toBe('original');
+    expect(s.anchors.lamp.fidelity).toBe('original');
+    expect(s.anchors.frame.fidelity).toBe('original');
+    expect(dispatch(newCampaign(), { type: 'request', kind: 'salvage', subject: 'cabinet' })).not.toBeNull();
+  });
+
+  it('clearing the 11th floor: remainders stay as raw scrap and the photograph is kept', () => {
+    const s = autoplay({ ...EFFICIENT }, '03');
     expect(mass(s, 'office.scrap')).toBe(10_000_000_000n + 2_000_000_000n + 400_000_000n - 525n * CLIP);
     expect(mass(s, 'office.photograph')).toBe(5_000_000n);
     expect(s.anchors.photograph.fidelity).toBe('original');
@@ -202,15 +210,30 @@ describe('chapter 01 office', () => {
     expect(jamInterval(c)).toBe(0);
   });
 
-  it('the governor holds the line without hands; the pedal doubles what tending can add', () => {
+  it('the pedal raises what tending can add; the governor keeps the meter from falling below half', () => {
     const s = newCampaign();
     const c = night(s);
     c.owned.push('calibrate', 'oil', 'feeder', 'pedal');
     for (let i = 0; i < 20; i++) dispatch(s, { type: 'c01/make' });
     expect(tendingBonus(c)).toBe(400);
     c.owned = ['calibrate', 'oil', 'feeder', 'governor'];
-    expect(tendingBonus(c)).toBe(0);
-    expect(dispatch(s, { type: 'c01/make' })).not.toBeNull();
+    run(s, 600);
+    expect(c.tending).toBe(50_000);
+    expect(tendingBonus(c)).toBe(125);
+    expect(dispatch(s, { type: 'c01/make' })).toBeNull();
+    expect(c.tending).toBeGreaterThan(50_000);
+  });
+
+  it('running fast wears the die; a new setting has to run in', () => {
+    const s = newCampaign();
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder', 'jig', 'straightener');
+    dispatch(s, { type: 'c01/tune', needle: tuneBand(c).center });
+    expect(c.tuneLevel).toBe(1);
+    expect(dispatch(s, { type: 'c01/tune', needle: tuneBand(c).center })).not.toBeNull();
+    dispatch(s, { type: 'c01/speed', speed: 'hard' });
+    run(s, OFFICE.active.wear.hardMs / 100 + 5);
+    expect(c.tuneLevel).toBe(0);
   });
 
   it('the auto-packer packs everything above the reserve', () => {
@@ -220,8 +243,14 @@ describe('chapter 01 office', () => {
     commit(s, { id: 'test.wire', from: 'office.wire', input: 400n * CLIP, outputs: [['clips', 400n * CLIP]] });
     expect(dispatch(s, { type: 'c01/reserve', reserve: 100 })).toBeNull();
     step(s);
+    // The packer fills the carton; a hand seals it.
+    expect(c.openBox).toBe(250);
+    expect(c.sealed).toBe(0);
     step(s);
+    expect(c.openBox).toBe(250);
+    expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
     expect(c.sealed).toBe(1);
+    step(s);
     expect(c.openBox).toBe(50);
     expect(loose(s)).toBe(100);
     expect(dispatch(s, { type: 'c01/reserve', reserve: 37 })).not.toBeNull();
@@ -236,6 +265,12 @@ describe('chapter 01 office', () => {
     expect(c.vanCartons!).toBeLessThanOrEqual(12);
     const fast = autoplay({ ...EFFICIENT, holdAt: '01' });
     expect(night(fast).vanCartons).toBe(12);
+  });
+
+  it('the first goal names the first installation, not the whole order', () => {
+    const s = newCampaign();
+    dispatch(s, { type: 'c01/make' });
+    expect(nextGoal(s)).toMatch(/Bend 9 more clips: calibrate the bender/);
   });
 
   it('a wait on sealed cartons is named as a goal', () => {

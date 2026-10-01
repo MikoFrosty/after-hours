@@ -7,6 +7,7 @@ import { log, once } from '../state';
 import type { Controller } from '../engine';
 import { ask, beatNow, bump, emit, hold } from '../engine';
 import type { C02State, CampaignState } from '../types';
+import { clearable, salvageOfficeItem, type OfficeItem } from '../officeSalvage';
 
 const cs = (s: CampaignState) => s.chapterState as C02State;
 
@@ -95,6 +96,12 @@ export const c02: Controller = {
     g.protected = true;
     g.evidence = ['disclosed Act 2'];
     // Office inventory remains in its accounts and joins building stock.
+    log(s, {
+      id: 'c02.clearing',
+      kind: 'system',
+      title: 'The 11th floor',
+      text: 'The office is being cleared for the lease. The desk, the terminal and the bench come along. The cabinet, the lamp and the frame can come too, or go to the line.',
+    });
     log(s, {
       id: 'c02.intro',
       kind: 'system',
@@ -189,6 +196,12 @@ export const c02: Controller = {
         return null;
       }
       case 'request':
+        if (a.kind === 'salvage') {
+          const id = a.subject as OfficeItem;
+          if (!clearable(s, id)) return 'Not available.';
+          ask(s, { id: `office.salvage.${id}`, kind: 'office/salvage', subject: id, checkpoint: true, data: { checkpointLabel: `Before: send the ${id} to the line` } });
+          return null;
+        }
         if (a.kind === 'clearGarden') {
           if (c.directBuilt) return 'Already built.';
           ask(s, { id: 'c02.clearGarden', kind: 'c02/clearGarden', subject: 'garden', checkpoint: true, data: { checkpointLabel: 'Before: clear the garden' } });
@@ -212,6 +225,11 @@ export const c02: Controller = {
     const c = cs(s);
     if (choice.kind === 'c02/inspection') {
       c.awaitingInspection = false;
+      return;
+    }
+    if (choice.kind === 'office/salvage') {
+      const id = choice.subject as OfficeItem;
+      if (option === 'confirm' && clearable(s, id)) salvageOfficeItem(s, id);
       return;
     }
     if (choice.kind === 'c02/clearGarden') {

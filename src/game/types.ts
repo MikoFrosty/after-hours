@@ -323,6 +323,8 @@ export interface C01State {
   tuneAttempts: number;
   tuneCooldownUntilMs: number;
   lastTune: 'hit' | 'miss' | null;
+  /** Running brisk or hard wears the die; ms toward losing one tuning level. */
+  wearMs: number;
   /** Careful tuning by hand: progress in ms, or null when not under way. */
   slowTuneMs: number | null;
   /** Terminal files that have appeared, and whether they have been opened. */

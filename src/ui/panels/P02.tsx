@@ -5,6 +5,14 @@ import { baseThroughput, bottleneck, coolingRate, heatGainRate, stationRates, ST
 import { mass } from '../../game/ledger';
 import { fmtMass } from '../../game/mass';
 import { Bar } from './Panel';
+import { OFFICE } from '../../content/campaign';
+import { clearable, clearingWork, OFFICE_ITEMS } from '../../game/officeSalvage';
+
+const CLEARING_COPY = {
+  cabinet: { name: 'Filing cabinet', text: 'Ten kilograms of steel. Its records go to storage either way.' },
+  lamp: { name: 'Desk lamp', text: 'The only warm light in the old office.' },
+  frame: { name: 'Picture frame', text: 'The photograph would stay with the desk.' },
+} as const;
 
 const NAMES = { dock: 'Loading dock', drawing: 'Wire drawing', bender: 'Bender', dispatch: 'Dispatch' } as const;
 const UPGRADES = [
@@ -52,6 +60,36 @@ export function P02() {
           Supply: {fmtMass(mass(s, 'building.supply'))} disclosed and finite. Each work unit schedules a 10 kg batch.
         </p>
       </div>
+
+      {OFFICE_ITEMS.some((id) => clearable(s, id)) && (
+        <div className="card">
+          <h3>
+            Clearing the 11th floor <span className="tag">optional · one time each</span>
+          </h3>
+          <p className="small muted" style={{ margin: '0 0 10px' }}>
+            The desk, the terminal and the bench come along to the building. These can come too, or go to the line.
+          </p>
+          <div className="list">
+            {OFFICE_ITEMS.filter((id) => clearable(s, id)).map((id) => {
+              const def = OFFICE.salvage.find((x) => x.id === id)!;
+              return (
+                <div className="item" key={id}>
+                  <div>
+                    <div className="t">{CLEARING_COPY[id].name}</div>
+                    <div className="d">{CLEARING_COPY[id].text}</div>
+                    <div className="d mono tiny">
+                      +{def.yieldClips} clips · +{clearingWork(id) / 1000} contract work
+                    </div>
+                  </div>
+                  <button className="btn small" onClick={() => act({ type: 'request', kind: 'salvage', subject: id })}>
+                    Send to the line…
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h3>Route</h3>

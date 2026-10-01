@@ -2,7 +2,8 @@
 // It only dispatches ordinary player actions; it never mutates state directly.
 import { COSMIC, PRESERVATION } from '../content/campaign';
 import { dispatch, step } from './engine';
-import { canStart, glintActive, loose, offeredProjects, owns, salvageAvailable, spareOffered, tuneBand } from './chapters/c01';
+import { boxFull, canStart, glintActive, loose, offeredProjects, owns, spareOffered, tuneBand } from './chapters/c01';
+import { clearable, OFFICE_ITEMS } from './officeSalvage';
 import { OFFICE } from '../content/campaign';
 import { allowedTreatments, slotsInUse } from './chapters/c04';
 import { adriftKits } from './chapters/c06';
@@ -67,7 +68,7 @@ export function answer(s: CampaignState, r: Route): void {
   const hold = r.holdAt === s.chapter;
   let option = 'confirm';
   switch (c.kind) {
-    case 'c01/salvage':
+    case 'office/salvage':
       option = 'confirm';
       break;
     case 'c01/report':
@@ -123,6 +124,7 @@ let clickCredit = 0;
 let jamSteps = 0;
 let glintSeen = 0;
 let glintDecided = 0;
+let fullSteps = 0;
 
 /**
  * A simulated player for the office night. Steps are 100 ms. The "efficient" route models an
@@ -176,7 +178,6 @@ function officeNight(s: CampaignState, r: Route) {
   const prefers = eff ? ['dieHigh', 'pedal', 'overdrive'] : ['dieSmooth', 'governor', 'careful'];
   const offered = offeredProjects(s).filter((p) => !p.exclusive || prefers.includes(p.id));
   for (const p of offered) if (!canStart(s, p.id)) dispatch(s, { type: 'c01/project', id: p.id });
-  if (r.salvage) for (const id of ['cabinet', 'lamp', 'frame'] as const) if (salvageAvailable(c, id)) dispatch(s, { type: 'request', kind: 'salvage', subject: id });
   const pending = offeredProjects(s).filter((p) => (!p.exclusive || prefers.includes(p.id)) && p.id !== 'straightener' && p.id !== 'tensioner');
   const nextCost = pending.length ? Math.min(...pending.map((p) => p.costClips)) : 0;
   const allBought = pending.length === 0 && !c.installing && owns(c, 'station6');
@@ -185,10 +186,18 @@ function officeNight(s: CampaignState, r: Route) {
     if (c.reserve !== want) dispatch(s, { type: 'c01/reserve', reserve: want });
   }
   if (owns(c, 'jig') && c.lineSpeed !== (eff ? 'hard' : 'brisk')) dispatch(s, { type: 'c01/speed', speed: eff ? 'hard' : 'brisk' });
+  // The packer's full carton waits for a hand to seal it. Reasonable: notices after ~4 s. Engaged: ~1 s.
+  if (boxFull(c)) {
+    fullSteps += 1;
+    if (fullSteps >= (eff ? 10 : 40)) {
+      dispatch(s, { type: 'c01/pack' });
+      fullSteps = 0;
+    }
+  } else fullSteps = 0;
   const reserve = pending.length ? nextCost + (eff ? 0 : 20) : 0;
   // Everyone seals the first carton by hand (that is what reveals the auto-packer).
   const wantsCarton = !eff || allBought || (c.sealed < 1 && owns(c, 'feeder'));
-  if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton) dispatch(s, { type: 'c01/pack' });
+  if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton && !boxFull(c)) dispatch(s, { type: 'c01/pack' });
 }
 
 export function act(s: CampaignState, r: Route): void {
@@ -201,6 +210,7 @@ export function act(s: CampaignState, r: Route): void {
     case '02': {
       const c = s.chapterState as C02State;
       if (r.clearGarden && !c.directBuilt) dispatch(s, { type: 'request', kind: 'clearGarden' });
+      if (r.salvage) for (const id of OFFICE_ITEMS) if (clearable(s, id)) dispatch(s, { type: 'request', kind: 'salvage', subject: id });
       if (c.permits > 0) {
         const next = (['wireDraw', 'roofCooling', 'freight'] as const).find((u) => !c.upgrades[u]);
         if (next) dispatch(s, { type: 'c02/upgrade', id: next });
@@ -307,6 +317,7 @@ export function autoplay(route: Route = CANONICAL, until: ChapterId | 'end' = 'e
   jamSteps = 0;
   glintSeen = 0;
   glintDecided = 0;
+  fullSteps = 0;
   for (let i = 0; i < maxSteps; i++) {
     if (until !== 'end' && s.chapter === until && s.choices.length === 0) return s;
     if (s.mode === 'ended' || s.mode === 'holding') return s;

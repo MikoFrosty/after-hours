@@ -16,10 +16,11 @@ import {
   offeredProjects,
   owns,
   project,
-  salvageAvailable,
   spareOffered,
   tendingBonus,
   tendsLine,
+  wearLeftMs,
+  boxFull,
   tuneBand,
   wireGrams,
 } from '../../game/chapters/c01';
@@ -32,13 +33,13 @@ const EFFECT: Record<OfficeProjectId, string> = {
   oil: 'The die runs half again as fast.',
   tensioner: 'The wire catches less often: every 60 clips instead of every 25.',
   feeder: 'A powered feeder adds its own output, and the wire stops catching.',
-  dieHigh: 'Bends ×1.35 faster, but the wire starts catching again every 150 clips.',
+  dieHigh: 'Bends ×1.35 faster, but the wire starts catching again every 300 clips.',
   dieSmooth: 'Bends ×1.15 faster and never catches. Tending drains half as fast.',
   die2: 'A second die on the bender adds output.',
   packer: 'Packs every clip above a reserve you choose straight into the open carton.',
   roller: 'A second roller keeps the wire straight into the die. Adds output.',
-  pedal: 'Tending can add up to +40% instead of +25%. Your hands stay on the line.',
-  governor: 'Adds steady output and holds the line by itself. Hands are no longer needed.',
+  pedal: 'Tending can add up to +40% instead of +25%. Rewards keeping your hands on the line.',
+  governor: 'Tending never drains below half. Forgives stepping away; tending still tops it up.',
   fan: 'Keeps the die cool through the long run. Adds output.',
   jig: 'A frame on the side table, now clear of cartons, with room for six stations. Adds a line-speed control.',
   station1: 'A forming station on the jig. Adds output.',
@@ -47,7 +48,7 @@ const EFFECT: Record<OfficeProjectId, string> = {
   station4: 'A fourth station. The jig is half full.',
   station5: 'A fifth station.',
   station6: 'The last station the jig will take: the line at full speed.',
-  overdrive: 'The whole line runs ×1.2 faster, and about 1 in 16 more clips are ruined at every speed.',
+  overdrive: 'The whole line runs ×1.2 faster, and about 1 in 25 more clips are ruined at every speed.',
   careful: 'No clip is ruined at any speed, and a clean run lasts 30 seconds.',
   straightener: 'Draws ruined clips back into usable wire, slowly, and keeps hard running from catching the wire.',
 };
@@ -57,12 +58,6 @@ const FORKS: Record<string, string> = {
   hands: 'Choose what your hands do',
   finish: 'Choose a finish',
 };
-
-const SALVAGE_COPY = {
-  cabinet: { name: 'Filing cabinet', text: 'Ten kilograms of steel against the wall. The spare coil is yours either way.' },
-  lamp: { name: 'Desk lamp', text: 'The only warm light in the room.' },
-  frame: { name: 'Picture frame', text: 'The photograph would stay on the desk.' },
-} as const;
 
 const SPEEDS: Array<{ id: LineSpeed; name: string; text: string }> = [
   { id: 'steady', name: 'Steady', text: 'Every clip passes.' },
@@ -91,7 +86,6 @@ export function P01() {
   const forks = [...new Set(offered.filter((p) => p.exclusive).map((p) => p.exclusive!))];
   const files = Object.keys(c.files);
   const unread = files.filter((f) => c.files[f] === 'unread').length;
-  const salvageable = OFFICE.salvage.filter((sv) => salvageAvailable(c, sv.id));
 
   return (
     <>
@@ -174,29 +168,6 @@ export function P01() {
           <p className="tiny faint" style={{ margin: '8px 0 0' }}>
             Ruined clips go to the rejects tray as wire, not lost. {owns(c, 'straightener') ? `The straightener is drawing ${fmtMass(mass(s, 'office.rejects'))} back into wire.` : ''}
           </p>
-        </div>
-      )}
-
-      {salvageable.length > 0 && (
-        <div className="card reveal">
-          <h3>
-            Salvage <span className="tag">optional · one time each</span>
-          </h3>
-          <div className="list">
-            {salvageable.map((sv) => (
-              <div className="item" key={sv.id}>
-                <div>
-                  <div className="t">
-                    {SALVAGE_COPY[sv.id].name} <span className="mono tiny faint">+{sv.yieldClips} clips</span>
-                  </div>
-                  <div className="d">{SALVAGE_COPY[sv.id].text}</div>
-                </div>
-                <button className="btn small" onClick={() => act({ type: 'request', kind: 'salvage', subject: sv.id })}>
-                  Salvage…
-                </button>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
@@ -289,6 +260,7 @@ function ActionDock() {
   const glint = glintActive(s);
   const tends = tendsLine(c);
   const governed = owns(c, 'governor');
+  const full250 = boxFull(c);
   const [justSealed, setJustSealed] = useState(-1);
   const sealedRef = useRef(c.sealed);
 
@@ -326,6 +298,7 @@ function ActionDock() {
       if (e.key === 'b' || e.key === 'B') pressRef.current();
       if ((e.key === 'f' || e.key === 'F') && c.jammed) act({ type: 'c01/free' });
       if ((e.key === 'c' || e.key === 'C') && glint) act({ type: 'c01/catch' });
+      if (e.key === 's' || e.key === 'S') act({ type: 'c01/pack' });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -347,17 +320,10 @@ function ActionDock() {
       <AlertSlot />
       <div className="dock-main">
         <div className="make-wrap">
-          {governed && !c.capped ? (
-            <div className="make-btn idle" role="status">
-              <span className="spin" aria-hidden />
-              The governor holds the line
-            </div>
-          ) : (
-            <button className={`btn primary make-btn ${pressed ? `press-${pressed % 2}` : ''}`} onClick={press} disabled={c.capped || (!tends && !owns(c, 'feeder') && wire === 0)}>
-              {label}
-              {!c.capped && <span className="kbd">B</span>}
-            </button>
-          )}
+          <button className={`btn primary make-btn ${pressed ? `press-${pressed % 2}` : ''}`} onClick={press} disabled={c.capped || (!tends && wire === 0)}>
+            {label}
+            {!c.capped && <span className="kbd">B</span>}
+          </button>
           {floaters.map((f) => (
             <span key={f.id} className="floater" style={{ left: `${f.x}%` }} aria-hidden>
               {f.text}
@@ -377,11 +343,12 @@ function ActionDock() {
           )}
         </div>
       </div>
-      {owns(c, 'calibrate') && !c.capped && !governed && (
+      {owns(c, 'calibrate') && !c.capped && (
         <div className={`tending ${full ? 'full' : ''}`}>
           <div className="row between tiny">
             <span className="muted">
               {tends ? 'Tending the feeder' : 'Tending the bender'}
+              {governed && ' · the governor holds half'}
               {handLevel(c) > 0 && ` · practice ${handLevel(c)} of 3`}
               {c.tending > 50_000 && ' · light comes sooner'}
             </span>
@@ -394,7 +361,7 @@ function ActionDock() {
         <div className="dock-order">
           <div className="cartons" role="img" aria-label={`${c.sealed} of ${CARTONS} cartons sealed`}>
             {Array.from({ length: CARTONS }, (_, i) => (
-              <span key={i} className={`carton ${i < c.sealed ? 'sealed' : i === c.sealed && c.openBox > 0 ? 'open' : ''} ${i === justSealed ? 'just' : ''}`}>
+              <span key={i} className={`carton ${i < c.sealed ? 'sealed' : i === c.sealed && c.openBox > 0 ? 'open' : ''} ${i === c.sealed && full250 ? 'waiting' : ''} ${i === justSealed ? 'just' : ''}`}>
                 {i === c.sealed && c.openBox > 0 && <i style={{ height: `${(c.openBox / OFFICE.boxSize) * 100}%` }} />}
               </span>
             ))}
@@ -405,8 +372,8 @@ function ActionDock() {
               {vanGone ? `${c.vanCartons} went on the ${VAN_LABEL} van` : `van at ${VAN_LABEL}, the rest go at 7:00`}
             </span>
             {!c.capped && (
-              <button className="btn small" disabled={deskClips < OFFICE.boxSize || c.sealed >= CARTONS} onClick={() => act({ type: 'c01/pack' })}>
-                Seal · {OFFICE.boxSize}
+              <button className={`btn small ${full250 ? 'primary' : ''}`} disabled={!full250 && (deskClips < OFFICE.boxSize || c.sealed >= CARTONS)} onClick={() => act({ type: 'c01/pack' })}>
+                {full250 ? 'Seal the carton' : `Seal · ${OFFICE.boxSize}`} <span className="kbd">S</span>
               </button>
             )}
           </div>
@@ -453,6 +420,16 @@ function AlertSlot() {
         </span>
         <button className="btn primary small" onClick={() => act({ type: 'c01/catch' })}>
           Catch it <span className="kbd">C</span>
+        </button>
+      </div>
+    );
+  }
+  if (boxFull(c)) {
+    return (
+      <div className="alert-slot sealme" role="alert">
+        <span>The packer’s carton is full. Tape it shut.</span>
+        <button className="btn primary small" onClick={() => act({ type: 'c01/pack' })}>
+          Seal it <span className="kbd">S</span>
         </button>
       </div>
     );
@@ -531,6 +508,9 @@ function TuningCard() {
   const needleRef = useRef(50);
   const done = c.tuneLevel >= max;
   const cooling = s.simMs < c.tuneCooldownUntilMs;
+  const coolLeft = Math.ceil((c.tuneCooldownUntilMs - s.simMs) / 1000);
+  const wear = wearLeftMs(s);
+  const wearText = wear !== null ? `Running ${c.lineSpeed} wears the die: −1 level in ${Math.ceil(wear / 1000)} s` : null;
   const slow = c.slowTuneMs !== null;
 
   useEffect(() => {
@@ -561,9 +541,12 @@ function TuningCard() {
 
   if (done) {
     return (
-      <div className="card slim row between small">
-        <span className="muted">Die tuned as far as it will go</span>
-        <span className="mono">+{(max * OFFICE.active.tuning.bonusPerLevel) / 10}%</span>
+      <div className="card slim small">
+        <div className="row between">
+          <span className="muted">Die tuned as far as it will go</span>
+          <span className="mono">+{(max * OFFICE.active.tuning.bonusPerLevel) / 10}%</span>
+        </div>
+        {wearText && <div className="tiny faint">{wearText}</div>}
       </div>
     );
   }
@@ -585,7 +568,9 @@ function TuningCard() {
             <span className="small muted" role="status">
               {slow
                 ? `Tuning by hand… ${Math.ceil((OFFICE.active.tuning.slowMs - (c.slowTuneMs ?? 0)) / 1000)} s`
-                : cooling
+                : cooling && c.lastTune === 'hit'
+                  ? `Set. Let it run in… ${coolLeft} s`
+                  : cooling
                   ? 'Missed. Let the gauge settle…'
                   : c.lastTune === 'hit'
                     ? 'Set. The band narrows.'
@@ -600,6 +585,7 @@ function TuningCard() {
               </button>
             </div>
           </div>
+          {wearText && <div className="tiny faint" style={{ marginTop: 6 }}>{wearText}</div>}
         </>
       )}
     </div>

@@ -291,6 +291,13 @@ export function migrateOffice(s: CampaignState): void {
     s.chapterState = next;
   }
   if (old?.kind === '01') migrateOfficeV3(s.chapterState as C01State);
+  // Fields added since the save was written take their defaults.
+  if (s.chapterState?.kind === '01') s.chapterState = { ...newOfficeState(), ...(s.chapterState as C01State) };
+  // Salvage moved to chapter 2: an office save waiting on a salvage decision simply continues.
+  if (s.choices?.some((c) => c.kind === 'c01/salvage')) {
+    s.choices = s.choices.filter((c) => c.kind !== 'c01/salvage');
+    if (s.choices.length === 0 && s.mode === 'choice') s.mode = 'playing';
+  }
 }
 
 /**

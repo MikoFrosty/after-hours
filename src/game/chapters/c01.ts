@@ -42,15 +42,25 @@ export function handLevel(c: C01State): number {
 export const glintActive = (s: CampaignState) => cs(s).glintUntilMs > s.simMs;
 export const cleanRunActive = (s: CampaignState) => cs(s).cleanRunUntilMs > s.simMs;
 
-/** Whether hand presses tend the line: after the feeder, unless a governor holds it. */
-export const tendsLine = (c: C01State) => owns(c, 'feeder') && !owns(c, 'governor');
+/** Whether hand presses tend the line (after the feeder) rather than bend clips. */
+export const tendsLine = (c: C01State) => owns(c, 'feeder');
+
+/** The governor keeps the meter from draining below half. */
+export const tendingFloor = (c: C01State) => (owns(c, 'governor') ? Math.floor((100_000 * ACTIVE.tending.governorFloor) / 1000) : 0);
+
+/** How long until running brisk or hard costs a tuning level, in ms; null when the die is not wearing. */
+export function wearLeftMs(s: CampaignState): number | null {
+  const c = cs(s);
+  if (c.lineSpeed === 'steady' || c.tuneLevel === 0 || c.capped) return null;
+  const limit = c.lineSpeed === 'hard' ? ACTIVE.wear.hardMs : ACTIVE.wear.briskMs;
+  return Math.max(0, limit - c.wearMs);
+}
 
 /** The most tending can add, in thousandths: +25%, or +50% with the foot pedal. */
 export const tendingMax = (c: C01State) => (owns(c, 'pedal') ? ACTIVE.tending.pedalMaxBonus : ACTIVE.tending.maxBonus);
 
 /** Machine bonus from tending, in thousandths. */
 export function tendingBonus(c: C01State): number {
-  if (owns(c, 'governor')) return 0;
   return Math.floor((c.tending * tendingMax(c)) / 100_000);
 }
 
@@ -154,11 +164,19 @@ function cartonGated(c: C01State): OfficeProject | undefined {
   );
 }
 
+/** The next main-line installation that is waiting only on clips made, if any. */
+function madeGated(c: C01State): OfficeProject | undefined {
+  return OFFICE.projects.find(
+    (p) => !owns(c, p.id) && !OPTIONAL.includes(p.id) && p.unlock.made !== undefined && c.madeClips < p.unlock.made && unlocked(c, { ...p, unlock: { ...p.unlock, made: undefined } }),
+  );
+}
+
 /** One short line for the rail: what the night is waiting on right now. */
 export function officeStatus(s: CampaignState): string {
   const c = cs(s);
   if (c.capped) return 'Order complete';
   if (c.jammed) return 'Wire caught';
+  if (boxFull(c)) return 'Carton full: seal it';
   if (c.installing) return `Installing: ${project(c.installing.id).name.toLowerCase()}`;
   if (c.madeClips === 0) return 'Waiting for the first clip';
   const next = nextProject(s);
@@ -178,6 +196,7 @@ export function nextGoal(s: CampaignState): string {
   if (c.capped) return 'The order is complete.';
   if (c.madeClips === 0) return 'Bend a clip from the coil.';
   if (c.jammed) return 'Free the caught wire to restart the bender.';
+  if (boxFull(c)) return 'The packer’s carton is full: seal it.';
   const l = loose(s);
   const saving = (p: OfficeProject) => {
     if (l >= p.costClips) return p.exclusive ? `Enough clips to choose ${goalName(p)}.` : `${p.name}: ready to install for ${p.costClips} clips.`;
@@ -187,7 +206,13 @@ export function nextGoal(s: CampaignState): string {
   const next = nextProject(s);
   if (next && !c.installing) return saving(next);
   if (c.installing) return `Installing ${project(c.installing.id).name.toLowerCase()}.`;
-  // Something is waiting only on sealed cartons: say so, so the wait is a goal.
+  // Something is waiting only on clips made or cartons sealed: say so, so the wait is a goal.
+  const made = madeGated(c);
+  if (made) {
+    const n = made.unlock.made! - c.madeClips;
+    const verb = owns(c, 'calibrate') ? 'Make' : 'Bend';
+    return `${verb} ${n} more clip${n === 1 ? '' : 's'}: ${made.name.toLowerCase()} comes next.`;
+  }
   const gated = cartonGated(c);
   if (gated) {
     const n = gated.unlock.boxes! - c.sealed;
@@ -209,11 +234,6 @@ export function canStart(s: CampaignState, id: OfficeProjectId): string | null {
   if (forkTaken(c, p)) return 'The other option was chosen.';
   if (loose(s) < p.costClips) return `Needs ${p.costClips} clips on the desk.`;
   return null;
-}
-
-export function salvageAvailable(c: C01State, id: 'cabinet' | 'lamp' | 'frame'): boolean {
-  const def = OFFICE.salvage.find((x) => x.id === id)!;
-  return !c.salvaged[id] && !c.capped && c.madeClips >= def.threshold;
 }
 
 /** The spare coil can be taken once the inventory has been read, or as soon as wire runs low. */
@@ -244,19 +264,21 @@ function bend(s: CampaignState, n: number, rejectPpm = 0): number {
   return k;
 }
 
-/** The auto-packer packs every clip above the reserve into the open carton. */
+/** The auto-packer fills the open carton with every clip above the reserve. Sealing it is the player's job. */
 function runPacker(s: CampaignState) {
   const c = cs(s);
-  if (!owns(c, 'packer') || c.capped || c.sealed >= CARTONS) return;
+  if (!owns(c, 'packer') || c.capped || c.sealed >= CARTONS || boxFull(c)) return;
   const excess = loose(s) - c.reserve;
   if (excess <= 0) return;
-  const k = Math.min(excess, OFFICE.boxSize - c.openBox);
-  c.openBox += k;
-  if (c.openBox >= OFFICE.boxSize) {
-    c.openBox = 0;
-    sealCarton(s);
+  c.openBox += Math.min(excess, OFFICE.boxSize - c.openBox);
+  if (boxFull(c)) {
+    emit({ type: 'sound', id: 'boxFull' });
+    bump(s);
   }
 }
+
+/** The packer's carton is full and waiting to be taped shut. */
+export const boxFull = (c: C01State) => c.openBox >= OFFICE.boxSize;
 
 function sealCarton(s: CampaignState) {
   const c = cs(s);
@@ -317,7 +339,7 @@ export const c01: Controller = {
 
     // Tending drains when the hands stop; the smooth die holds it twice as long.
     const decay = Math.floor((ACTIVE.tending.decayPerSecond * dt) / 1000);
-    c.tending = Math.max(0, c.tending - (owns(c, 'dieSmooth') ? Math.floor(decay / 2) : decay));
+    c.tending = Math.max(tendingFloor(c), c.tending - (owns(c, 'dieSmooth') ? Math.floor(decay / 2) : decay));
 
     // True wire: once the bender runs, light catches the wire now and then.
     if (owns(c, 'calibrate')) {
@@ -349,6 +371,7 @@ export const c01: Controller = {
         c.slowTuneMs = null;
         c.tuneLevel = Math.min(ACTIVE.tuning.levels, c.tuneLevel + 1);
         c.tuneAttempts += 1;
+        c.wearMs = 0;
         c.lastTune = 'hit';
         emit({ type: 'sound', id: 'tuneHit' });
         bump(s);
@@ -356,6 +379,17 @@ export const c01: Controller = {
     }
 
     const rate = machineRate(s);
+    // Running fast wears the die: every so often it loses a tuning level until it is set again.
+    if (rate > 0 && wearLeftMs(s) !== null) {
+      c.wearMs += dt;
+      if (wearLeftMs(s) === 0) {
+        c.wearMs = 0;
+        c.tuneLevel -= 1;
+        c.lastTune = null;
+        emit({ type: 'sound', id: 'wear' });
+        bump(s);
+      }
+    }
     if (rate > 0) {
       // rate (milli-clips/s) × dt (ms) is exactly micro-clips.
       c.rateResidue += rate * dt;
@@ -397,7 +431,6 @@ export const c01: Controller = {
     if (c.madeClips >= 1) {
       const [t, x] = beat('01', 0);
       beatNow(s, '01', 0, t, x);
-      if (once(s, 'c01.motif.first')) emit({ type: 'sound', id: 'motif' });
     }
     if (owns(c, 'calibrate')) {
       const [t, x] = beat('01', 1);
@@ -439,14 +472,10 @@ export const c01: Controller = {
       }
     }
 
-    for (const sv of OFFICE.salvage) {
-      if (c.madeClips >= sv.threshold && once(s, `c01.salvageable.${sv.id}`)) {
-        if (sv.id === 'frame') {
-          log(s, { id: MARA.photograph.id, kind: 'note', title: 'Mara Venn', text: MARA.photograph.text, dateline: MARA.photograph.dateline, author: 'Mara Venn' });
-        }
-        emit({ type: 'sound', id: 'notice' });
-        bump(s);
-      }
+    // Mara's last note arrives when the jig frame goes in on the side table, beside the photograph.
+    if (owns(c, 'jig') && once(s, 'c01.mara.photograph')) {
+      log(s, { id: MARA.photograph.id, kind: 'note', title: 'Mara Venn', text: MARA.photograph.text, dateline: MARA.photograph.dateline, author: 'Mara Venn' });
+      bump(s);
     }
 
     const minute = s.storySeconds / 60;
@@ -463,9 +492,15 @@ export const c01: Controller = {
                 ? 'The delivery van waited a minute across the street, then left empty. The order goes on the 7:00 run.'
                 : `The delivery van took ${c.sealed} carton${c.sealed === 1 ? '' : 's'}. The other ${rest} go on the 7:00 run.`;
           log(s, { id: ev.id, kind: 'system', title: ev.title, text });
+          if (!c.capped) emit({ type: 'beat', title: ev.title, text });
           emit({ type: 'sound', id: 'van' });
           bump(s);
-        } else log(s, { id: ev.id, kind: 'system', title: ev.title, text: ev.text });
+        } else {
+          log(s, { id: ev.id, kind: 'system', title: ev.title, text: ev.text });
+          // The night outside is told in the caption strip, not only in the log.
+          // (After the last carton the room goes quiet; the order's own caption stays up.)
+          if (!c.capped) emit({ type: 'beat', title: ev.title, text: ev.text });
+        }
       }
     }
 
@@ -498,8 +533,6 @@ export const c01: Controller = {
         if (!owns(c, 'feeder')) {
           if (!bend(s, 1)) return 'There is no wire left on the coil.';
           emit({ type: 'sound', id: 'bend' });
-        } else if (owns(c, 'governor')) {
-          return 'The governor holds the line.';
         } else {
           emit({ type: 'sound', id: 'tend' });
         }
@@ -534,6 +567,9 @@ export const c01: Controller = {
         if (Math.abs(needle - band.center) <= band.width / 2) {
           c.tuneLevel += 1;
           c.lastTune = 'hit';
+          c.wearMs = 0;
+          // A newly set die has to run in before it can be set again.
+          if (c.tuneLevel < ACTIVE.tuning.levels) c.tuneCooldownUntilMs = s.simMs + ACTIVE.tuning.settleMs;
           emit({ type: 'sound', id: 'tuneHit' });
           bump(s);
         } else {
@@ -569,6 +605,11 @@ export const c01: Controller = {
         return null;
       case 'c01/pack': {
         if (c.capped || c.sealed >= CARTONS) return 'All twelve cartons are sealed.';
+        if (boxFull(c)) {
+          c.openBox = 0;
+          sealCarton(s);
+          return null;
+        }
         if (loose(s) < OFFICE.boxSize) return `A carton needs ${OFFICE.boxSize} clips on the desk.`;
         sealCarton(s);
         return null;
@@ -599,12 +640,6 @@ export const c01: Controller = {
         return null;
       }
       case 'request': {
-        if (a.kind === 'salvage') {
-          const id = a.subject as 'cabinet' | 'lamp' | 'frame';
-          if (!salvageAvailable(c, id)) return 'Not available.';
-          ask(s, { id: `c01.salvage.${id}`, kind: 'c01/salvage', subject: id, checkpoint: true, data: { checkpointLabel: `Before: salvage ${id}` } });
-          return null;
-        }
         if (a.kind === 'report') {
           if (!c.capped || s.charters.buildingLease) return 'Not available.';
           ask(s, { id: `c01.report.${s.seq++}`, kind: 'c01/report', checkpoint: true, data: { checkpointLabel: 'Before: building lease' } });
@@ -619,47 +654,6 @@ export const c01: Controller = {
 
   choose(s, choice, option) {
     const c = cs(s);
-    if (choice.kind === 'c01/salvage') {
-      const id = choice.subject as 'cabinet' | 'lamp' | 'frame';
-      if (option !== 'confirm' || !salvageAvailable(c, id)) return;
-      const def = OFFICE.salvage.find((x) => x.id === id)!;
-      const acc = s.ledger.accounts[`office.${id}`];
-      const clipMass = BigInt(def.yieldClips) * CLIP;
-      acc.released = true;
-      mustCommit(s, {
-        id: `c01.salvage.${id}`,
-        from: acc.id,
-        input: acc.mass,
-        outputs: [
-          ['clips', clipMass],
-          ['office.scrap', acc.mass - clipMass],
-        ],
-        release: true,
-        irreversible: true,
-      });
-      acc.protected = false;
-      c.salvaged[id] = true;
-      c.madeClips += def.yieldClips;
-      s.clips.lifetimeMadeMicrograms += clipMass;
-      const an = s.anchors[id];
-      an.fidelity = 'absent';
-      an.protected = false;
-      an.released = true;
-      an.currentLocation = 'office scrap';
-      an.evidence.push(`salvaged at ${c.madeClips} clips`);
-      log(s, {
-        id: `loss.${id}`,
-        kind: 'loss',
-        title: `${id[0].toUpperCase()}${id.slice(1)} salvaged`,
-        text:
-          id === 'frame'
-            ? `${def.yieldClips} clips formed. The remaining metal is raw scrap. The photograph is on the desk.`
-            : `${def.yieldClips} clips formed. The remaining ${id === 'cabinet' ? '9.925 kg' : '1.85 kg'} is raw scrap.`,
-      });
-      emit({ type: 'sound', id: id === 'lamp' ? 'lampOff' : 'salvage' });
-      bump(s);
-      return;
-    }
     if (choice.kind === 'c01/report') {
       if (option === 'accept') {
         s.charters.buildingLease = true;

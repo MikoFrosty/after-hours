@@ -1729,29 +1729,6 @@ details.exact .digits {
 .make-wrap {
   position: relative;
 }
-.make-btn.idle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border-radius: 10px;
-  border: 1px dashed var(--line-strong);
-  color: var(--muted);
-  height: 100%;
-}
-.make-btn.idle .spin {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  border-top-color: transparent;
-  animation: spin 1.6s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 .make-wrap .floater {
   position: absolute;
   top: 6px;
@@ -1929,8 +1906,34 @@ details.exact .digits {
   .office-svg .stationin,
   .office-svg .gainfloat,
   .make-wrap .floater,
-  .make-btn.idle .spin,
   .carton.just {
+    animation: none;
+  }
+}
+
+.alert-slot.sealme {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: linear-gradient(120deg, rgba(213, 164, 102, 0.16), rgba(213, 164, 102, 0.03));
+  animation: slotin 0.25s ease;
+}
+.carton.waiting {
+  border-color: var(--accent);
+  animation: waiting 1.2s ease-in-out infinite;
+}
+@keyframes waiting {
+  50% {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+}
+/* On phones the office scene is shorter so the bench is in view from the first clip. */
+@media (max-width: 980px) {
+  .app[data-chapter='01'] .scene {
+    min-height: 34vh;
+    height: 34vh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .carton.waiting {
     animation: none;
   }
 }

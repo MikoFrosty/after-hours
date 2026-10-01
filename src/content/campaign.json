@@ -64,7 +64,7 @@
     "jam": {
       "intervalClips": 25,
       "tensionedIntervalClips": 60,
-      "highTensionIntervalClips": 150,
+      "highTensionIntervalClips": 300,
       "hardSpeedIntervalClips": 200
     },
     "lineSpeeds": [
@@ -205,11 +205,10 @@
         "name": "Governor",
         "costClips": 90,
         "installSeconds": 10,
-        "group": "line",
+        "group": "none",
         "unlock": {
           "after": "roller"
         },
-        "addedRate": 0.35,
         "exclusive": "hands"
       },
       {
@@ -244,7 +243,7 @@
         "unlock": {
           "after": "jig"
         },
-        "addedRate": 0.22
+        "addedRate": 0.19
       },
       {
         "id": "station2",
@@ -255,7 +254,7 @@
         "unlock": {
           "after": "station1"
         },
-        "addedRate": 0.22
+        "addedRate": 0.19
       },
       {
         "id": "station3",
@@ -266,7 +265,7 @@
         "unlock": {
           "after": "station2"
         },
-        "addedRate": 0.22
+        "addedRate": 0.19
       },
       {
         "id": "station4",
@@ -278,31 +277,31 @@
           "after": "station3",
           "boxes": 5
         },
-        "addedRate": 0.22
+        "addedRate": 0.19
       },
       {
         "id": "station5",
         "name": "Jig station 5",
-        "costClips": 175,
+        "costClips": 190,
         "installSeconds": 12,
         "group": "line",
         "unlock": {
           "after": "station4",
           "boxes": 7
         },
-        "addedRate": 0.22
+        "addedRate": 0.19
       },
       {
         "id": "station6",
         "name": "Jig station 6",
-        "costClips": 200,
+        "costClips": 220,
         "installSeconds": 12,
         "group": "line",
         "unlock": {
           "after": "station5",
           "boxes": 9
         },
-        "addedRate": 0.22
+        "addedRate": 0.19
       },
       {
         "id": "overdrive",
@@ -344,7 +343,8 @@
         "perBendMilli": 5000,
         "decayPerSecondMilli": 4000,
         "maxBonus": 0.25,
-        "pedalMaxBonus": 0.4
+        "pedalMaxBonus": 0.4,
+        "governorFloor": 0.5
       },
       "trueWire": {
         "firstAfterSeconds": 40,
@@ -361,11 +361,16 @@
         "bandShrink": 3,
         "cooldownSeconds": 6,
         "periodSeconds": 2.4,
-        "slowSeconds": 20
+        "slowSeconds": 20,
+        "settleSeconds": 25
       },
       "practice": {
         "bendsPerLevel": 150,
         "maxExtra": 3
+      },
+      "wear": {
+        "briskSeconds": 180,
+        "hardSeconds": 90
       }
     },
     "packerReserves": [
@@ -376,7 +381,7 @@
     ],
     "storySecondsPerSecond": 17.4,
     "vanMinute": 335,
-    "overdriveRejectPpm": 60000,
+    "overdriveRejectPpm": 40000,
     "carefulRunSeconds": 30
   },
   "building": {

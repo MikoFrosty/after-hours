@@ -234,6 +234,14 @@ class AudioEngine {
         this.sweep(t, 1800, 3600, 0.035, 0.45, true);
         this.thump(t + 0.55, 82, 0.13);
         return this.noiseHit(t + 0.55, 380, 0.07, 0.12, 'lowpass');
+      case 'boxFull':
+        // The packer's carton is full: two soft knocks on cardboard.
+        this.noiseHit(t, 420, 0.06, 0.08, 'lowpass');
+        return this.noiseHit(t + 0.14, 380, 0.05, 0.08, 'lowpass');
+      case 'wear':
+        // The die has worn a little: a dull scrape and a flattened note.
+        this.noiseHit(t, 1200, 0.04, 0.25, 'bandpass');
+        return this.tone(t + 0.05, 233, 0.03, 0.3, 'triangle');
       case 'ready':
         // Something in the workshop can be afforded now: a soft, short ping.
         return this.bell(t, 1567.98, 0.028, 0.9, false, 0.25);
