@@ -214,6 +214,15 @@ export const c02: Controller = {
         return null;
       }
       case 'request':
+        // Deciding to keep the old office folds the clearing card away; it can be reopened while the offer stands.
+        if (a.kind === 'keepOffice' || a.kind === 'reviewOffice') {
+          s.flags['c02.officeKept'] = a.kind === 'keepOffice';
+          if (a.kind === 'keepOffice' && once(s, 'c02.officeKept.log')) {
+            log(s, { id: 'c02.officeKept', kind: 'system', title: 'The 11th floor', text: 'The old office comes to the building as it was: cabinet, lamp and frame with it.' });
+          }
+          emit({ type: 'sound', id: 'switch' });
+          return null;
+        }
         if (a.kind === 'salvage') {
           const id = a.subject as OfficeItem;
           if (!clearable(s, id)) return 'Not available.';

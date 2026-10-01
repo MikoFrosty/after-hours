@@ -317,6 +317,16 @@ describe('chapter 02 building', () => {
     expect(heatGainRate(c)).toBeLessThan(coolingRate(c));
   });
 
+  it('keeping the old office folds the clearing offer away, and it can be reopened', () => {
+    const s = seeded('02');
+    expect(dispatch(s, { type: 'request', kind: 'keepOffice' })).toBeNull();
+    expect(s.flags['c02.officeKept']).toBe(true);
+    expect(s.anchors.cabinet.fidelity).toBe('original');
+    expect(dispatch(s, { type: 'request', kind: 'reviewOffice' })).toBeNull();
+    expect(s.flags['c02.officeKept']).toBe(false);
+    expect(dispatch(s, { type: 'request', kind: 'salvage', subject: 'lamp' })).toBeNull();
+  });
+
   it('each inspection reports how the contract went', () => {
     const s = seeded('02');
     let guard = 0;

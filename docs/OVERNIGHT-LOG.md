@@ -124,3 +124,22 @@ Checked in the browser at 1440 px (second inspection: 47 s, peak heat 26, no thr
 
 **For the morning**
 - No new decisions. Two passes remain tonight; they will stay on chapter 2 polish (likely the mobile schematic's small labels and chapter 2's sound against the spec) unless something more urgent turns up.
+
+## Pass 7 · 2026-10-01 16:10 UTC · chapter 2
+
+**Focus.** The "Clearing the 11th floor" card only offered destruction ("Send to the line…" three times). A player who had already decided to keep the old office had no way to say so; the card sat above Route and Stations for the whole chapter, re-offering the cabinet, lamp and frame on every glance.
+
+**Changed**
+- *"Keep them all"* at the foot of the clearing card. It folds the card to one line ("The old office comes along whole: cabinet, lamp, frame." with *Reconsider*), logs the decision once, and leaves the offer open until the third contract as before. Nothing is lost by keeping; reconsidering brings the full card back.
+- *Permit rows:* Roof cooling read "runs cool → runs cool" when the plant was already cool; the arrow now appears only when the heat outcome actually changes (a flaw in pass 5's wording).
+
+Checked at 1440 and 390 px: keep, the folded line, reconsider, and the card returning. A new test covers keep/reconsider and that salvage still works after reconsidering.
+
+**Numbers.** Chapter 2 unchanged (relaxed 165 s, engaged 126 s simulated). 46 tests pass; no page errors.
+
+**Considered and rejected**
+- Hiding the clearing card automatically after the first contract: that would quietly make the decision for the player.
+- Enlarging the schematic's labels on phones with a CSS override: at 390 px the larger labels overlap the nodes, and the Stations card in the panel already carries the same numbers legibly. Left for a proper narrow-screen schematic layout if wanted.
+
+**For the morning**
+- No new decisions. One pass remains tonight (17:06 UTC); it will be the eighth and will switch the routine off.

@@ -94,7 +94,16 @@ export function P02() {
         </div>
       </div>
 
-      {OFFICE_ITEMS.some((id) => clearable(s, id)) && (
+      {OFFICE_ITEMS.some((id) => clearable(s, id)) && s.flags['c02.officeKept'] === true && (
+        <div className="card slim row between small">
+          <span className="muted">The old office comes along whole: {OFFICE_ITEMS.filter((id) => clearable(s, id)).join(', ')}.</span>
+          <button className="btn small ghost" onClick={() => act({ type: 'request', kind: 'reviewOffice' })}>
+            Reconsider
+          </button>
+        </div>
+      )}
+
+      {OFFICE_ITEMS.some((id) => clearable(s, id)) && s.flags['c02.officeKept'] !== true && (
         <div className="card">
           <h3>
             Clearing the 11th floor <span className="tag">optional · one time each</span>
@@ -120,6 +129,12 @@ export function P02() {
                 </div>
               );
             })}
+          </div>
+          <div className="row between" style={{ marginTop: 10 }}>
+            <span className="tiny faint">Available until the third contract is delivered.</span>
+            <button className="btn small" onClick={() => act({ type: 'request', kind: 'keepOffice' })}>
+              Keep them all
+            </button>
           </div>
         </div>
       )}
@@ -233,5 +248,6 @@ function upgradeOutcome(c: C02State, id: 'wireDraw' | 'freight' | 'roofCooling')
   const net = (x: C02State) => (mulMilli(baseThroughput(x), BUILDING.heat.gainPerWork) - coolingRate(x)) / 1000;
   const heat = (n: number) => (n > 0 ? `heat +${n.toFixed(2)}/s` : 'runs cool');
   const tp = after === before ? `throughput stays ${(before / 1000).toFixed(2)} (not the slowest station)` : `throughput ${(before / 1000).toFixed(2)} → ${(after / 1000).toFixed(2)}`;
-  return `${tp} · ${heat(net(c))}${net(next) !== net(c) ? ` → ${heat(net(next))}` : ''}`;
+  const [h0, h1] = [heat(net(c)), heat(net(next))];
+  return `${tp} · ${h0}${h1 !== h0 ? ` → ${h1}` : ''}`;
 }
