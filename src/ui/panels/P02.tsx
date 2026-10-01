@@ -5,6 +5,7 @@ import { baseThroughput, bottleneck, coolingRate, heatGainRate, stationRates, ST
 import { mass } from '../../game/ledger';
 import { fmtMass } from '../../game/mass';
 import { Bar } from './Panel';
+import { mulMilli } from '../../game/fixed';
 import { OFFICE } from '../../content/campaign';
 import { clearable, clearingWork, OFFICE_ITEMS } from '../../game/officeSalvage';
 
@@ -40,9 +41,16 @@ export function P02() {
               <span>
                 Job {c.contractIndex + 1}: {target / 1000} work units
               </span>
-              <span className="mono">{(c.contractWorkMilli / 1000).toFixed(1)}</span>
+              <span className="mono">
+                {(c.contractWorkMilli / 1000).toFixed(1)} / {target / 1000}
+              </span>
             </div>
             <Bar value={c.contractWorkMilli} max={target} />
+            {throughput(c) > 0 && (
+              <div className="tiny faint" style={{ marginTop: 4 }}>
+                About {Math.ceil((target - c.contractWorkMilli) / throughput(c))} s to go at the current rate
+              </div>
+            )}
           </>
         ) : (
           <div className="small">All three contracts delivered. Building work total {(c.cumulativeWorkMilli / 1000).toFixed(0)}.</div>
@@ -72,6 +80,7 @@ export function P02() {
               <div>
                 <div className="t">{u.name}</div>
                 <div className="d">{u.effect}</div>
+                {!c.upgrades[u.id] && <div className="d mono tiny">{upgradeOutcome(c, u.id)}</div>}
               </div>
               {c.upgrades[u.id] ? (
                 <span className="pill ok">Installed</span>
@@ -211,4 +220,18 @@ function HeatForecast({ c }: { c: C02State }) {
       Heat {Math.round(heat / 1000)} and rising: the plant throttles to 25% in about {secs} s at this rate.
     </div>
   );
+}
+
+/**
+ * What an upgrade would do to the whole plant, not just its station: throughput (only the slowest
+ * station counts) and the heat balance at full output. This is the chapter's diagnosis, made visible.
+ */
+function upgradeOutcome(c: C02State, id: 'wireDraw' | 'freight' | 'roofCooling'): string {
+  const next: C02State = { ...c, upgrades: { ...c.upgrades, [id]: true } };
+  const before = baseThroughput(c);
+  const after = baseThroughput(next);
+  const net = (x: C02State) => (mulMilli(baseThroughput(x), BUILDING.heat.gainPerWork) - coolingRate(x)) / 1000;
+  const heat = (n: number) => (n > 0 ? `heat +${n.toFixed(2)}/s` : 'runs cool');
+  const tp = after === before ? `throughput stays ${(before / 1000).toFixed(2)} (not the slowest station)` : `throughput ${(before / 1000).toFixed(2)} → ${(after / 1000).toFixed(2)}`;
+  return `${tp} · ${heat(net(c))}${net(next) !== net(c) ? ` → ${heat(net(next))}` : ''}`;
 }

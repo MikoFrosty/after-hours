@@ -87,3 +87,22 @@ Unless you say otherwise, the next passes will keep to polish and clarity in cha
 
 **For the morning**
 - Proposal A (make heat a real limit) should be read with this correction: heat already bites for players who skip cooling, so A could be lighter than first described, e.g. only making the courtyard-vs-direct and cooling choices matter on every route.
+
+## Pass 5 · 2026-10-01 14:10 UTC · chapter 2
+
+**Focus.** The chapter's one real decision each contract is which upgrade to buy with the permit. The manifesto's lesson is "diagnose the pipeline rather than buy the largest number," but each permit row only described its own station ("Drawing rate 1 → 4"), so a player could spend a permit on the freight scheduler and gain nothing without ever learning why.
+
+**Changed**
+- *Each permit row says what it does to the whole plant*: throughput before and after (only the slowest station counts, so "Freight scheduler: throughput stays 0.85 (not the slowest station)" when drawing is the limit), and the heat balance it leads to ("runs cool → heat +0.56/s"). Speed and heat are now visibly the same trade, so roof cooling reads as an answer to a problem the player can see coming.
+- *The contract shows time remaining*: "0.7 / 80" and "About 94 s to go at the current rate" under the bar.
+
+Checked at 1440 and 390 px after the first inspection with a permit waiting.
+
+**Numbers.** Chapter 2 unchanged by this pass (relaxed 165 s, engaged 126 s simulated). 44 tests pass; no page errors at either width.
+
+**Considered and rejected**
+- Removing the "bottleneck" label so the new rows carry the diagnosis alone (proposal C): that changes how the chapter teaches and is for the owner to decide. With these rows, C would now be easy and safe to do: the player could still find the slowest station from what each permit predicts.
+- Showing the countdown in real seconds at 4×: it counts simulated seconds, which is what the contract and the throughput are measured in.
+
+**For the morning**
+- No new decisions; proposals A–D from pass 3 still stand, and C has become cheaper (see above).
