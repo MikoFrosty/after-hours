@@ -1943,3 +1943,31 @@ details.exact .digits {
   background: rgba(232, 194, 122, 0.08);
   animation: slotin 0.25s ease;
 }
+
+.heat-note {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  line-height: 1.35;
+}
+.heat-note.warm {
+  background: rgba(232, 194, 122, 0.08);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+}
+.heat-note.hot {
+  background: rgba(226, 135, 111, 0.1);
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+}
+/* On phones the records bar fits all five buttons without scrolling sideways. */
+@media (max-width: 520px) {
+  .dock {
+    gap: 0;
+    padding: 4px 4px;
+    justify-content: space-between;
+  }
+  .dock .btn {
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 0.82em;
+  }
+}

@@ -68,3 +68,22 @@ Measured with both simulated players at 1× and looked at in the browser at 1440
 - **D. A hands-on verb.** The night ended with a tactile ritual (sealing); the building could keep one: load the freight lift by hand until the freight scheduler is bought, or a dispatch button that ships when a pallet is full.
 
 Unless you say otherwise, the next passes will keep to polish and clarity in chapter 2 and leave A–D for your decision.
+
+## Pass 4 · 2026-10-01 13:10 UTC · chapter 2
+
+**How it was checked.** Played chapter 2 in real time at 1× in a headless browser the way a person would (accept each inspection, spend each permit on the first upgrade offered), screenshots every ~50 s at 1440 and 390 px, plus seeded heat states.
+
+**A correction to last pass's review.** "Heat never matters" was wrong for a human player. The simulated player happens to buy roof cooling second, so it never overheats; a person who buys the wire draw and then the freight scheduler (the order the panel lists them) reaches 77 heat and throttles to 25% during the third contract. Recovery from 80 to 50 then takes about 100 s while still running, or about 37 s with production stopped, and the only place that said so was the Heat card at the bottom of the panel. So heat does work as a constraint; what was missing was telling the player.
+
+**Changed**
+- *Heat said where the player is looking.* Under the throughput line in the Contracts card: when heat is rising toward the throttle, "Heat 62 and rising: the plant throttles to 25% in about 15 s at this rate" (shown only within two minutes of it); once throttled, "Throttled to 25% until heat falls to 50: about 101 s running, about 37 s with production stopped. Roof cooling would keep it from happening again." This turns the throttle from a mystery slowdown into a choice (ride it out, stop and cool, or plan the cooling permit next time), which is the chapter's lesson.
+- *Phone records bar.* At 390 px the bottom bar (Log, Ledger, Office, Checkpoints, Settings) scrolled sideways and Settings started off-screen from chapter 2 on. Tighter spacing on phones now fits all five. Shared by chapters 2–8; layout only.
+
+**Numbers.** Chapter 2 unchanged by this pass (relaxed 165 s, engaged 126 s simulated). 44 tests pass; no page errors at either width.
+
+**Considered and rejected**
+- Changing heat gain or contract sizes so the simulated players also throttle: that is proposal A from pass 3 and is the owner's call.
+- Adding an automatic "stop to cool" suggestion button: the existing Stop production button sits right beside the new note.
+
+**For the morning**
+- Proposal A (make heat a real limit) should be read with this correction: heat already bites for players who skip cooling, so A could be lighter than first described, e.g. only making the courtyard-vs-direct and cooling choices matter on every route.

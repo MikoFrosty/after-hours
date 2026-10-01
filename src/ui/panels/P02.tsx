@@ -56,6 +56,7 @@ export function P02() {
             {c.running ? 'Stop production' : 'Start production'}
           </button>
         </div>
+        <HeatForecast c={c} />
         <p className="tiny faint" style={{ marginBottom: 0 }}>
           Supply: {fmtMass(mass(s, 'building.supply'))} disclosed and finite. Each work unit schedules a 10 kg batch.
         </p>
@@ -179,5 +180,35 @@ export function P02() {
         </button>
       )}
     </>
+  );
+}
+
+/**
+ * Heat, said where the player is looking: how soon the plant throttles at this rate, and once it has,
+ * how long recovery takes running versus stopped. The full explanation stays in the Heat card.
+ */
+function HeatForecast({ c }: { c: C02State }) {
+  const heat = c.heatMilli;
+  const cool = coolingRate(c);
+  const gain = heatGainRate(c);
+  if (c.throttled) {
+    const toGo = heat - BUILDING.heat.throttleOff;
+    const running = cool > gain ? Math.ceil(toGo / (cool - gain)) : null;
+    const stopped = Math.ceil(toGo / cool);
+    return (
+      <div className="heat-note hot small" role="status">
+        Throttled to 25% until heat falls to 50: {running !== null ? `about ${running} s running, ` : ''}about {stopped} s with production stopped.
+        {!c.upgrades.roofCooling && ' Roof cooling would keep it from happening again.'}
+      </div>
+    );
+  }
+  const net = gain - cool;
+  if (!c.running || net <= 0 || heat >= BUILDING.heat.throttleOn) return null;
+  const secs = Math.ceil((BUILDING.heat.throttleOn - heat) / net);
+  if (secs > 120) return null;
+  return (
+    <div className="heat-note warm small" role="status">
+      Heat {Math.round(heat / 1000)} and rising: the plant throttles to 25% in about {secs} s at this rate.
+    </div>
   );
 }
