@@ -34,6 +34,15 @@ class AudioEngine {
   private state: CampaignState | null = null;
   private finalPhrasePlayed = false;
   private silenced = false;
+  // Rain: a muffled bed heard through the window, plus individually scheduled drops and drips.
+  private rainBufs: AudioBuffer[] = [];
+  private dropBus!: GainNode;
+  private rainGust: GainNode | null = null;
+  private rainTone: BiquadFilterNode | null = null;
+  private rainLevel = 0;
+  private nextDrop = 0;
+  private nextDrip = 0;
+  private nextGust = 0;
 
   /** Create the audio context on the first user gesture (autoplay policy). */
   unlock() {
@@ -45,6 +54,13 @@ class AudioEngine {
     if (!AC) return;
     const ctx = new AC();
     this.ctx = ctx;
+    this.buildGraph(ctx);
+    if (this.chapter) this.buildChapter(this.chapter);
+    this.startScheduler();
+  }
+
+  /** Master, buses, reverb and the shared noise and rain sources. */
+  private buildGraph(ctx: BaseAudioContext) {
     this.master = ctx.createGain();
     this.master.gain.value = this.settings.muted ? 0 : 1;
     const comp = ctx.createDynamicsCompressor();
@@ -63,8 +79,40 @@ class AudioEngine {
     this.reverbSend.gain.value = 0.35;
     this.reverbSend.connect(this.reverb).connect(this.musicBus);
     this.noiseBuf = this.makeNoise(4);
-    if (this.chapter) this.buildChapter(this.chapter);
-    this.startScheduler();
+    // Two long pink-noise loops of different lengths: their sum never repeats audibly.
+    this.rainBufs = [this.makePink(19.3), this.makePink(23.7)];
+    // Drops on the glass: a gentle lowpass so they sound outside, with a little room reverb.
+    const glass = ctx.createBiquadFilter();
+    glass.type = 'lowpass';
+    glass.frequency.value = 3800;
+    glass.Q.value = 0.4;
+    this.dropBus = ctx.createGain();
+    this.dropBus.gain.value = 1;
+    this.dropBus.connect(glass);
+    glass.connect(this.musicBus);
+    const dropVerb = ctx.createGain();
+    dropVerb.gain.value = 0.35;
+    glass.connect(dropVerb).connect(this.reverbSend);
+  }
+
+  /**
+   * Developer aid: render the office rain (bed, gusts, drops and drips) offline with the
+   * same code paths, returning stereo samples. Used to measure and audition the ambience.
+   */
+  async renderRainPreview(seconds: number, level = 1): Promise<Float32Array[]> {
+    const saved = { ...this } as Record<string, unknown>;
+    const off = new OfflineAudioContext(2, Math.floor(44100 * seconds), 44100);
+    this.ctx = off as unknown as AudioContext;
+    this.buildGraph(off);
+    this.musicBus.gain.value = this.settings.music;
+    const layer = this.rainLayer(level === 1 ? 0.11 : 0.035);
+    this.rainLevel = level;
+    this.nextDrop = this.nextDrip = this.nextGust = 0;
+    this.scheduleRain(off as unknown as AudioContext, seconds);
+    const out = await off.startRendering();
+    layer.stop = () => undefined;
+    Object.assign(this, saved);
+    return [out.getChannelData(0), out.getChannelData(1)];
   }
 
   applySettings(s: Partial<AudioSettings>) {
@@ -82,6 +130,7 @@ class AudioEngine {
     this.chapter = ch;
     this.finalPhrasePlayed = false;
     this.silenced = false;
+    this.rainLevel = ch === '01' ? 1 : ch === '02' ? 0.3 : 0;
     if (!this.ctx) return;
     this.fadeAllLayers(2.5);
     if (ch) this.buildChapter(ch);
@@ -209,13 +258,13 @@ class AudioEngine {
     const add = (id: string, l: Layer | null) => l && this.layers.set(id, l);
     switch (ch) {
       case '01':
-        add('rain', this.noiseLayer(0.07, 'bandpass', 1400, 0.4, 0.15));
-        add('rainLow', this.noiseLayer(0.05, 'lowpass', 500, 1, 0.1));
+        add('rain', this.rainLayer(0.11));
         add('hum', this.humLayer(120, 0.035));
         this.tempo = 2.2;
         break;
       case '02':
-        add('rain', this.noiseLayer(0.02, 'bandpass', 1400, 0.4, 0.15));
+        // Rain recedes behind freight and ventilation.
+        add('rain', this.rainLayer(0.035));
         add('vent', this.noiseLayer(0.06, 'lowpass', 320, 1, 0.3));
         add('hum', this.humLayer(100, 0.02));
         this.tempo = 0.42;
@@ -267,6 +316,79 @@ class AudioEngine {
       this.nextBeat += this.tempo;
       this.beatIndex += 1;
     }
+    this.scheduleRain(ctx);
+  }
+
+  /** Random (Poisson) drop timing, slow random gusts, and occasional drips from the gutter. */
+  private scheduleRain(ctx: AudioContext, ahead = 0.3) {
+    const level = this.rainLevel;
+    if (level <= 0 || this.settings.muted) return;
+    const now = ctx.currentTime;
+    const horizon = now + ahead;
+    if (this.nextDrop < now) this.nextDrop = now + 0.05;
+    if (this.nextDrip < now) this.nextDrip = now + 2 + Math.random() * 4;
+    if (this.nextGust < now) this.nextGust = now;
+    while (this.nextDrop < horizon) {
+      this.drop(this.nextDrop, level);
+      // Mean rate ~7 drops/s at full rain; exponential gaps sound natural rather than rhythmic.
+      this.nextDrop += -Math.log(1 - Math.random()) / (7 * level);
+    }
+    while (this.nextDrip < horizon) {
+      this.drip(this.nextDrip, level);
+      if (Math.random() < 0.3) this.drip(this.nextDrip + 0.18 + Math.random() * 0.25, level * 0.7);
+      this.nextDrip += (2.5 + Math.random() * 6) / Math.max(0.3, level);
+    }
+    while (this.nextGust < horizon && this.rainGust && this.rainTone) {
+      // The rain swells and eases a little, at irregular intervals.
+      const g = 0.7 + Math.random() * 0.55;
+      const tau = 1.5 + Math.random() * 2.5;
+      this.rainGust.gain.setTargetAtTime(g, this.nextGust, tau);
+      this.rainTone.frequency.setTargetAtTime(1300 + g * 700, this.nextGust, tau);
+      this.nextGust += 4 + Math.random() * 7;
+    }
+  }
+
+  /** A tiny tick of water on the window glass. Most are faint; a few are closer. */
+  private drop(t: number, level: number) {
+    const ctx = this.ctx!;
+    const near = Math.random() < 0.12;
+    const f = 2200 + Math.random() * 3800;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.exponentialRampToValueAtTime(f * 0.55, t + 0.03);
+    const e = ctx.createGain();
+    const peak = (near ? 0.012 + Math.random() * 0.01 : 0.002 + Math.random() * 0.005) * level;
+    const dur = 0.012 + Math.random() * 0.025;
+    e.gain.setValueAtTime(0, t);
+    e.gain.linearRampToValueAtTime(peak, t + 0.002);
+    e.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const p = ctx.createStereoPanner();
+    // The window is on the left wall: drops lean left but spread across the field.
+    p.pan.value = -0.35 + (Math.random() - 0.5) * 1.1;
+    o.connect(e).connect(p).connect(this.dropBus);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  /** Water dripping from the gutter onto the sill: a soft, rounded plink. */
+  private drip(t: number, level: number) {
+    const ctx = this.ctx!;
+    const f = 650 + Math.random() * 500;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.exponentialRampToValueAtTime(f * 1.6, t + 0.04);
+    const e = ctx.createGain();
+    const peak = (0.008 + Math.random() * 0.008) * level;
+    e.gain.setValueAtTime(0, t);
+    e.gain.linearRampToValueAtTime(peak, t + 0.004);
+    e.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    const p = ctx.createStereoPanner();
+    p.pan.value = -0.55 + Math.random() * 0.2;
+    o.connect(e).connect(p).connect(this.dropBus);
+    o.start(t);
+    o.stop(t + 0.18);
   }
 
   private playBeat(ch: ChapterId, t: number, i: number) {
@@ -553,6 +675,88 @@ class AudioEngine {
     o.connect(lp).connect(e).connect(this.out(Math.sin(t) * 0.4, 0.7));
     o.start(t);
     o.stop(t + 0.5);
+  }
+
+  /** Steady rain heard through a closed window: soft pink noise, muffled, with slow gusts. */
+  private rainLayer(g: number): Layer {
+    const ctx = this.ctx!;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 160;
+    hp.Q.value = 0.5;
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = 1700;
+    tone.Q.value = 0.3;
+    // A second gentle lowpass makes the roll-off smooth, like sound through glass.
+    const tone2 = ctx.createBiquadFilter();
+    tone2.type = 'lowpass';
+    tone2.frequency.value = 3200;
+    tone2.Q.value = 0.2;
+    const gust = ctx.createGain();
+    gust.gain.value = 0.9;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.gain.setTargetAtTime(g, ctx.currentTime, 2.5);
+    hp.connect(tone).connect(tone2).connect(gust).connect(gain).connect(this.musicBus);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.25;
+    gain.connect(wet).connect(this.reverbSend);
+    const sources = this.rainBufs.map((buf, i) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const sg = ctx.createGain();
+      sg.gain.value = i === 0 ? 0.6 : 0.5;
+      src.connect(sg).connect(hp);
+      src.start(ctx.currentTime, Math.random() * buf.duration);
+      return src;
+    });
+    this.rainGust = gust;
+    this.rainTone = tone;
+    this.nextGust = 0;
+    return {
+      gain,
+      stop: () => {
+        sources.forEach((x) => x.stop());
+        if (this.rainGust === gust) {
+          this.rainGust = null;
+          this.rainTone = null;
+        }
+      },
+    };
+  }
+
+  /** Stereo pink noise (Paul Kellet's filter), each channel independent so the bed is wide. */
+  private makePink(seconds: number): AudioBuffer {
+    const ctx = this.ctx!;
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const fade = Math.floor(ctx.sampleRate * 0.25);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      // Generate a little past the end, then crossfade that overrun into the start:
+      // the last sample flows into the first exactly as it was generated, so the loop has no seam.
+      const g = new Float32Array(len + fade);
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < g.length; i++) {
+        const w = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + w * 0.0555179;
+        b1 = 0.99332 * b1 + w * 0.0750759;
+        b2 = 0.969 * b2 + w * 0.153852;
+        b3 = 0.8665 * b3 + w * 0.3104856;
+        b4 = 0.55 * b4 + w * 0.5329522;
+        b5 = -0.7616 * b5 - w * 0.016898;
+        g[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
+        b6 = w * 0.115926;
+      }
+      const d = buf.getChannelData(ch);
+      d.set(g.subarray(0, len));
+      for (let i = 0; i < fade; i++) {
+        const k = i / fade;
+        d[i] = g[len + i] * Math.cos((k * Math.PI) / 2) + g[i] * Math.sin((k * Math.PI) / 2);
+      }
+    }
+    return buf;
   }
 
   private noiseLayer(g: number, type: BiquadFilterType, f: number, q: number, lfo: number): Layer {
