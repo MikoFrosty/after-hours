@@ -152,6 +152,18 @@ export const OFFICE = {
   })),
 };
 
+export type BuildingUpgradeId = 'dockCrew' | 'wireDraw' | 'secondBender' | 'freight' | 'roofCooling';
+
+export interface BuildingContract {
+  id: string;
+  title: string;
+  /** Work units, in milli. */
+  work: number;
+  /** What this contract introduces. */
+  adds: 'bench' | 'drawing' | 'dispatch' | 'heat' | 'route' | 'none';
+  text: string;
+}
+
 export const BUILDING = {
   stations: {
     dock: milli(c.building.stations.dock),
@@ -159,11 +171,28 @@ export const BUILDING = {
     bender: milli(c.building.stations.bender),
     dispatch: milli(c.building.stations.dispatch),
   },
+  upgraded: {
+    drawing: milli(c.building.upgradedRates.drawing),
+    dispatch: milli(c.building.upgradedRates.dispatch),
+    bender: milli(c.building.upgradedRates.bender),
+  },
   routes: {
     courtyard: milli(c.building.routeFactors.courtyard),
     direct: milli(c.building.routeFactors.direct),
   },
-  contracts: c.building.contracts.map(milli),
+  /** Queue between two stations, in milli-units. */
+  bufferCap: milli(c.building.bufferCapacity),
+  hands: {
+    perPress: milli(c.building.hands.unitsPerPress),
+    maxPerSecond: milli(c.building.hands.maxPerSecond),
+  },
+  storyPerMs: (c.building.storyHoursPerSecond * 3600) / 1000,
+  contractList: c.building.contracts.map(
+    (k): BuildingContract => ({ id: k.id, title: k.title, work: milli(k.work), adds: k.adds as BuildingContract['adds'], text: k.text }),
+  ),
+  /** Work per contract, in milli (kept for callers that only need the sizes). */
+  contracts: c.building.contracts.map((k) => milli(k.work)),
+  upgrades: c.building.upgrades.map((u) => ({ id: u.id as BuildingUpgradeId, name: u.name, effect: u.effect, afterContract: u.afterContract })),
   heat: {
     gainPerWork: milli(c.building.heat.gainPerWork),
     cooling: milli(c.building.heat.coolingPerSecond),
@@ -172,8 +201,6 @@ export const BUILDING = {
     throttleOff: milli(c.building.heat.throttleOff),
     throttleFactor: milli(c.building.heat.throttleFactor),
   },
-  upgradedDrawing: milli(4),
-  upgradedDispatch: milli(4),
 };
 
 export const CITY = {

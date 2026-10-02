@@ -242,6 +242,10 @@ class AudioEngine {
         // The die has worn a little: a dull scrape and a flattened note.
         this.noiseHit(t, 1200, 0.04, 0.25, 'bandpass');
         return this.tone(t + 0.05, 233, 0.03, 0.3, 'triangle');
+      case 'unload':
+        // A coil set down on the dock by hand.
+        this.thump(t, 75 + Math.random() * 20, 0.09);
+        return this.metal(t + 0.01, 0.05);
       case 'ready':
         // Something in the workshop can be afforded now: a soft, short ping.
         return this.bell(t, 1567.98, 0.028, 0.9, false, 0.25);
@@ -556,7 +560,8 @@ class AudioEngine {
       case '02': {
         // The relay becomes a soft mechanical rhythm.
         const c = s?.chapterState.kind === '02' ? (s.chapterState as C02State) : null;
-        const running = c ? c.running && !c.awaitingInspection : true;
+        // The rhythm is the line itself: it only plays while work is actually moving.
+        const running = c ? c.running && !c.awaitingInspection && c.shipRate > 0 : true;
         if (!running) break;
         const accent = i % 4 === 0;
         this.click(t, accent ? 1400 : 2600, accent ? 0.06 : 0.03, 0.015);

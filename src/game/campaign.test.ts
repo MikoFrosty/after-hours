@@ -6,7 +6,7 @@ import { byCategory, checkInvariant, commit, mass, nonClipMatter } from './ledge
 import { CLIP } from './mass';
 import { clone, deserialize, importV1, parse, serialize } from './save';
 import { newCampaign } from './state';
-import { baseThroughput, coolingRate, heatGainRate } from './chapters/c02';
+import { availableUpgrades, bottleneck, coolingRate, heatGainRate, onlineStations, routeIntroduced } from './chapters/c02';
 import { reserveRate } from './chapters/c03';
 import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
@@ -306,15 +306,77 @@ describe('chapter 01 office', () => {
 });
 
 describe('chapter 02 building', () => {
+  const b = (s: CampaignState) => s.chapterState as C02State;
+  /** Unload by hand until the first inspection is asked. */
+  function firstContract(s: CampaignState) {
+    let guard = 0;
+    while (!s.choices.some((x) => x.kind === 'c02/inspection') && guard++ < 20000) {
+      dispatch(s, { type: 'c02/hand', station: 'dock' });
+      step(s);
+    }
+  }
+
   it('throttled maximum output always cools', () => {
     const s = seeded('02');
-    const c = s.chapterState as C02State;
-    c.upgrades = { wireDraw: true, freight: true, roofCooling: false };
+    const c = b(s);
+    c.contractIndex = 4;
+    c.upgrades = { dockCrew: true, wireDraw: true, secondBender: true, freight: true, roofCooling: false };
     c.route = 'direct';
     c.throttled = true;
-    expect(baseThroughput(c)).toBe(3000);
-    expect(heatGainRate(c)).toBe(600);
     expect(heatGainRate(c)).toBeLessThan(coolingRate(c));
+  });
+
+  it('opens one station at a time', () => {
+    const s = seeded('02');
+    const c = b(s);
+    expect(onlineStations(c)).toEqual(['dock', 'bender']);
+    c.contractIndex = 1;
+    expect(onlineStations(c)).toEqual(['dock', 'drawing', 'bender']);
+    c.contractIndex = 2;
+    expect(onlineStations(c)).toEqual(['dock', 'drawing', 'bender', 'dispatch']);
+    expect(routeIntroduced(c)).toBe(false);
+    expect(dispatch(s, { type: 'request', kind: 'clearGarden' })).not.toBeNull();
+  });
+
+  it('with no one on the dock, nothing moves until coils are unloaded by hand, and hands have a pace', () => {
+    const s = seeded('02');
+    run(s, 50);
+    expect(b(s).contractWorkMilli).toBe(0);
+    expect(dispatch(s, { type: 'c02/hand', station: 'dock' })).toBeNull();
+    expect(dispatch(s, { type: 'c02/hand', station: 'dock' })).toBeNull();
+    // A third press in the same instant is absorbed: hands work two units a second at most.
+    expect(dispatch(s, { type: 'c02/hand', station: 'dock' })).toBeNull();
+    run(s, 20);
+    expect(b(s).contractWorkMilli).toBe(2000);
+  });
+
+  it('the slowest station shows itself: work piles up in front of it', () => {
+    const s = seeded('02');
+    const c = b(s);
+    c.contractIndex = 1;
+    c.upgrades.dockCrew = true;
+    run(s, 200);
+    expect(bottleneck(c)).toBe('drawing');
+    expect(c.queues.dock).toBe(BUILDING.bufferCap);
+    // Downstream of the slow station the queue stays near empty (one step's work in flight).
+    expect(c.queues.drawing).toBeLessThanOrEqual(100);
+  });
+
+  it('the permit is chosen in the inspection, or kept for later', () => {
+    const s = seeded('02');
+    firstContract(s);
+    const insp = s.choices.find((x) => x.kind === 'c02/inspection')!;
+    expect(insp.data?.contract).toBe(1);
+    expect(Number(insp.data?.seconds)).toBeGreaterThan(10);
+    expect(b(s).permits).toBe(1);
+    expect(availableUpgrades(b(s))).toEqual(['dockCrew']);
+    dispatch(s, { type: 'choose', choiceId: insp.id, option: 'continue' });
+    expect(b(s).permits).toBe(1);
+    expect(b(s).awaitingInspection).toBe(false);
+    expect(dispatch(s, { type: 'c02/upgrade', id: 'dockCrew' })).toBeNull();
+    expect(b(s).upgrades.dockCrew).toBe(true);
+    expect(b(s).permits).toBe(0);
+    expect(checkInvariant(s)).toBeNull();
   });
 
   it('keeping the old office folds the clearing offer away, and it can be reopened', () => {
@@ -327,20 +389,19 @@ describe('chapter 02 building', () => {
     expect(dispatch(s, { type: 'request', kind: 'salvage', subject: 'lamp' })).toBeNull();
   });
 
-  it('each inspection reports how the contract went', () => {
-    const s = seeded('02');
-    let guard = 0;
-    while (!s.choices.some((x) => x.kind === 'c02/inspection') && guard++ < 5000) step(s);
-    const insp = s.choices.find((x) => x.kind === 'c02/inspection')!;
-    expect(insp.data?.contract).toBe(1);
-    expect(Number(insp.data?.seconds)).toBeGreaterThan(30);
-    expect(insp.data?.throttledSeconds).toBe(0);
-  });
-
   it('the garden route finishes without demolition', () => {
     const s = autoplay(CANONICAL, '03');
     expect(s.anchors.garden.fidelity).toBe('original');
     expect((s.summaries['02'] as object)).toBeDefined();
+  });
+
+  it('the building takes 15–20 minutes for a relaxed player and no less than 10 played hard', () => {
+    const relaxed = autoplay(CANONICAL, '03').summaries['02']!.simMs / 60000;
+    const engaged = autoplay(EFFICIENT, '03').summaries['02']!.simMs / 60000;
+    expect(relaxed).toBeGreaterThanOrEqual(15);
+    expect(relaxed).toBeLessThanOrEqual(20);
+    expect(engaged).toBeGreaterThanOrEqual(10);
+    expect(engaged).toBeLessThan(relaxed);
   });
 });
 
@@ -539,6 +600,38 @@ describe('office migration', () => {
       expect(c.owned).toEqual(['calibrate']);
       expect(c.madeClips).toBe(20);
       expect(mass(r.state, 'office.spare')).toBe(OFFICE.spareWire);
+      expect(checkInvariant(r.state)).toBeNull();
+    }
+  });
+
+  it('converts a save from the three-contract building', () => {
+    const st = seeded('02');
+    (st as unknown as { chapterState: unknown }).chapterState = {
+      kind: '02',
+      route: 'courtyard',
+      directBuilt: false,
+      running: true,
+      heatMilli: 12_000,
+      heatResidue: 0,
+      throttled: false,
+      contractIndex: 1,
+      contractWorkMilli: 10_000,
+      cumulativeWorkMilli: 50_000,
+      workResidue: 0,
+      processedUnits: 50,
+      permits: 0,
+      upgrades: { wireDraw: true, freight: false, roofCooling: false },
+      awaitingInspection: false,
+    };
+    const r = parse(serialize(st));
+    expect(r.status).toBe('ok');
+    if (r.status === 'ok') {
+      const c = r.state.chapterState as C02State;
+      expect(c.contractIndex).toBe(2);
+      expect(c.upgrades.dockCrew).toBe(true);
+      expect(c.upgrades.wireDraw).toBe(true);
+      expect(c.queues.dock).toBe(0);
+      for (let i = 0; i < 50; i++) step(r.state);
       expect(checkInvariant(r.state)).toBeNull();
     }
   });

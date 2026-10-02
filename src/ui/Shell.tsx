@@ -24,7 +24,8 @@ export function Shell() {
   const choice = s.choices[0];
   const unread = s.log.filter((l) => l.kind === 'letter' || l.kind === 'note').length;
   // In the office, faster pace and skipping arrive with the wire feeder, so the night cannot be fast-forwarded.
-  const paceOpen = s.chapter !== '01';
+  // The night and the building are paced by play, not by a fast-forward.
+  const paceOpen = s.chapter !== '01' && s.chapter !== '02';
   const inOffice = s.chapter === '01';
   const c1 = inOffice ? (s.chapterState as C01State) : null;
   const showLedger = !c1 || c1.owned.length > 0 || c1.sealed > 0;
@@ -69,7 +70,7 @@ export function Shell() {
             </div>
           ))}
           <div className="metric bottleneck">
-            <div className="k">{s.chapter === '01' ? 'Now' : 'Bottleneck'}</div>
+            <div className="k">{s.chapter === '01' || s.chapter === '02' ? 'Now' : 'Bottleneck'}</div>
             <div className="v">{m.bottleneck}</div>
           </div>
           <div className="metric" title="The most recent charter signed">

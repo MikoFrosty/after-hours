@@ -22,8 +22,9 @@ Headphones recommended. All sound is synthesized in the browser; it is optional 
 | B / F / C / T / S | Office: bend or tend / free the caught wire / catch the true wire / set the die / seal a carton |
 | Space / Enter | Press the focused button; key repeat is ignored |
 | P | Pause / resume |
-| 1 / 4 | Normal pace / routine pace (from chapter 2) |
-| N | Advance to next event (from chapter 2; only when no decision is pending) |
+| D / H | Building: unload a coil at the dock / lend a hand where work is piling up |
+| 1 / 4 | Normal pace / routine pace (from chapter 3) |
+| N | Advance to next event (from chapter 3; only when no decision is pending) |
 | L / O | Ledger / office bookmark |
 | Esc | Close drawer, or *Review later* on a charter |
 
@@ -34,7 +35,7 @@ Progress saves locally (every 5 s, and on every decision, transition and visibil
 | | Chapter | Verb | What you manage |
 |---|---|---|---|
 | 01 | The Night Desk | Make and reinvest | One night, twelve cartons and a 5:22 van: a bench bender that jams, a workshop of installations paid for in clips you must bend again, and three either/or choices |
-| 02 | The Building That Never Sleeps | Route and balance | Clearing the old office, a four-station pipeline, heat and throttling, and whether the night garden survives the loading route |
+| 02 | The Building That Never Sleeps | Route and balance | Six contracts that open a four-station line one station at a time: queues, hands at the slowest station, permits spent at each inspection, heat, and whether the night garden survives the loading route |
 | 03 | The City Without Want | Allocate and provide | Ten units of power across three districts and industry; public consultation or streamlined approval |
 | 04 | The Garden Under Glass | Interpret and preserve | Six preservation cases: original, lossless archive or reconstruction; a living habitat that can only be kept or moved |
 | 05 | The Sun in Inventory | Build and dissipate | A ten-slot orbital layout where waste heat, not light, is the limit; the Sun's own dismantling date |

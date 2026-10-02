@@ -1971,3 +1971,137 @@ details.exact .digits {
     font-size: 0.82em;
   }
 }
+
+/* Decision options with details render as cards, one per row. */
+.dialog .actions.cards {
+  flex-direction: column;
+  align-items: stretch;
+}
+.dialog .option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+  padding: 10px 14px;
+  min-height: 0;
+  white-space: normal;
+}
+.dialog .option-card .t {
+  font-weight: 600;
+}
+.dialog .option-card .d {
+  font-size: 0.86em;
+  color: var(--muted);
+}
+.dialog .option-card .d:last-child {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+}
+.dialog .actions.cards .btn {
+  flex: 0 0 auto;
+}
+
+/* ---------- building: the line ---------- */
+.line-list {
+  display: flex;
+  flex-direction: column;
+}
+.station-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.station-row .t {
+  font-weight: 600;
+}
+.station-row .d {
+  color: var(--muted);
+  font-size: 0.84em;
+}
+.station-row .rate {
+  font-size: 0.9em;
+}
+.station-row.helped.h0 {
+  animation: helped0 0.35s ease;
+}
+.station-row.helped.h1 {
+  animation: helped1 0.35s ease;
+}
+@keyframes helped0 {
+  40% {
+    border-color: var(--accent);
+    background: rgba(213, 164, 102, 0.08);
+  }
+}
+@keyframes helped1 {
+  40% {
+    border-color: var(--accent);
+    background: rgba(213, 164, 102, 0.08);
+  }
+}
+.queue-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 2.5em;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 12px;
+}
+.queue {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.queue i {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--accent-2) 60%, transparent);
+  transition: width 0.3s linear;
+}
+.queue.full i {
+  background: var(--accent);
+}
+.alert-slot.heat.warm {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+  background: rgba(232, 194, 122, 0.08);
+}
+.alert-slot.heat.hot {
+  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+  background: rgba(226, 135, 111, 0.1);
+}
+@media (max-width: 520px) {
+  .station-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .station-row .btn {
+    grid-column: 1 / -1;
+  }
+  .queue-row .tiny {
+    display: none;
+  }
+  .queue-row {
+    grid-template-columns: minmax(0, 1fr) 2.5em;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .station-row.helped {
+    animation: none;
+  }
+}
+
+.schematic .station-node {
+  cursor: pointer;
+}
+.schematic .station-node:hover circle {
+  stroke: var(--accent);
+}
+
+.make-btn.hand-btn {
+  min-height: 54px;
+  font-size: 1em;
+}

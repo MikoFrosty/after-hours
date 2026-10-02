@@ -336,6 +336,8 @@ export interface C01State {
   reportShown: boolean;
 }
 
+export type BuildingStation = 'dock' | 'drawing' | 'bender' | 'dispatch';
+
 export interface C02State {
   kind: '02';
   route: 'courtyard' | 'direct';
@@ -344,18 +346,30 @@ export interface C02State {
   heatMilli: number;
   heatResidue: number;
   throttled: boolean;
-  contractIndex: number; // 0..3
+  /** Contracts delivered so far (0–6); the current contract is the next one. */
+  contractIndex: number;
   contractWorkMilli: number;
   cumulativeWorkMilli: number;
   workResidue: number;
   processedUnits: number;
+  /** Permits held but not yet spent. */
   permits: number;
-  upgrades: { wireDraw: boolean; freight: boolean; roofCooling: boolean };
+  upgrades: { dockCrew: boolean; wireDraw: boolean; secondBender: boolean; freight: boolean; roofCooling: boolean };
   awaitingInspection: boolean;
-  /** For the inspection report: when the current contract started, its peak heat and time throttled (older saves lack these). */
-  contractStartMs?: number;
-  peakHeatMilli?: number;
-  throttledMs?: number;
+  /** Work waiting after each station, in milli-units (the queue into the next station). */
+  queues: { dock: number; drawing: number; bender: number };
+  /** Hands: capacity to push work through a station by hand, in milli-units (refills over time). */
+  hands: number;
+  /** The station the player last lent a hand at. */
+  handAt: BuildingStation;
+  /** Smoothed shipping rate, milli-units per second, for display. */
+  shipRate: number;
+  /** Work shipped during the current step (transient). */
+  shippedThisStep?: number;
+  /** For the inspection report. */
+  contractStartMs: number;
+  peakHeatMilli: number;
+  throttledMs: number;
 }
 
 export interface C03State {
@@ -517,7 +531,8 @@ export type Action =
   | { type: 'c01/tuneSlow' }
   | { type: 'c02/run'; running: boolean }
   | { type: 'c02/route'; route: 'courtyard' | 'direct' }
-  | { type: 'c02/upgrade'; id: 'wireDraw' | 'freight' | 'roofCooling' }
+  | { type: 'c02/upgrade'; id: 'dockCrew' | 'wireDraw' | 'secondBender' | 'freight' | 'roofCooling' }
+  | { type: 'c02/hand'; station: BuildingStation }
   | { type: 'c02/resume' }
   | { type: 'c03/shift'; from: number; to: number }
   | { type: 'c03/project'; id: 'heatReuse' | 'transit'; district: number }

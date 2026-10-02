@@ -1,5 +1,6 @@
 import { clearingWork } from '../game/officeSalvage';
-import { BUILDING, OFFICE, PRESERVATION } from '../content/campaign';
+import { BUILDING, OFFICE, PRESERVATION, type BuildingUpgradeId } from '../content/campaign';
+import { availableUpgrades, baseThroughput, CONTRACTS, coolingRate, heatGainRate } from '../game/chapters/c02';
 import { CASE_EVIDENCE, CERTIFICATE_LINE, CHARTERS, EPILOGUES, FORK, LIVING_RELEASE, PRESERVATION_CERT, TERMINAL_AUTH, TERMINAL_SCRIPT } from '../content/narrative';
 import { ANCHOR_LABELS } from '../content/world';
 import { caseAccounts } from '../game/chapters/c04';
@@ -13,6 +14,8 @@ export interface ChoiceOption {
   id: string;
   label: string;
   tone?: 'primary' | 'danger';
+  /** Optional lines under the label; options with details render as cards. */
+  detail?: string[];
 }
 
 export interface ChoiceView {
@@ -88,28 +91,30 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
     }
     case 'c02/inspection': {
       const n = Number(c.data?.contract ?? 1);
-      const c2 = s.chapterState.kind === '02' ? (s.chapterState as C02State) : null;
+      const c2 = s.chapterState as C02State;
+      const total = CONTRACTS.length;
+      const done = CONTRACTS[n - 1];
+      const next = CONTRACTS[n];
       const throttled = Number(c.data?.throttledSeconds ?? 0);
-      const facts: Array<[string, string]> = [];
-      if (c.data?.seconds !== undefined) {
-        facts.push(['Delivered in', `${c.data.seconds} s`]);
-        facts.push(['Peak heat', `${c.data.peakHeat} of 100${throttled > 0 ? ' · throttled' : ''}`]);
-        facts.push(['Time at 25% output', throttled > 0 ? `${throttled} s` : 'none']);
-      }
-      if (c2 && n < 3) facts.push(['Next contract', `${BUILDING.contracts[n] / 1000} work units`]);
+      const facts: Array<[string, string]> = [['Delivered in', `${c.data?.seconds ?? 0} s`]];
+      if (Number(c.data?.peakHeat ?? 0) >= 30) facts.push(['Peak heat', `${c.data?.peakHeat} of 100${throttled > 0 ? ` · ${throttled} s throttled` : ''}`]);
+      if (next) facts.push(['Next', `Contract ${n + 1} · ${next.title} · ${next.work / 1000} units`]);
+      const offered = c2.permits > 0 ? availableUpgrades(c2) : [];
+      const options: ChoiceOption[] = offered.map((id) => {
+        const u = BUILDING.upgrades.find((x) => x.id === id)!;
+        return { id: `buy:${id}`, label: `Spend the permit: ${u.name}`, detail: [u.effect, permitOutcome(c2, id)] };
+      });
+      options.push({ id: 'continue', label: next ? (offered.length ? 'Keep the permit for later' : 'Start the next contract') : 'Continue', tone: offered.length ? undefined : 'primary' });
+      const body = [next ? 'Inspection passed. One permit awarded.' : 'Inspection passed. The building has met every contract it was given.'];
+      if (next) body.push(`Next: ${next.title}. ${NEXT_HINT[next.adds]}`);
+      else body.push('What comes next is not another contract but an agreement about who looks after the building.');
+      if (offered.length > 1) body.push('Each choice shows what the whole line would ship afterwards, and how hot the bench would run.');
       return {
-        eyebrow: `Contract ${n} of 3`,
-        title: n === 1 ? 'The lights stayed on without a night crew.' : n === 3 ? 'All three contracts delivered' : `Contract ${n} delivered`,
-        body: [
-          n < 3 ? 'Inspection passed. One improvement permit awarded.' : 'Inspection passed. The building has met every contract it was given.',
-          n < 3
-            ? throttled > 0
-              ? 'The plant spent part of this contract throttled. Each permit row shows what it would do to throughput and heat.'
-              : 'Spend it where the plant is slowest: each permit row shows what it would do to throughput and heat.'
-            : 'What comes next is not another contract but an agreement about who looks after the building.',
-        ],
+        eyebrow: `Contract ${n} of ${total} · ${done.title}`,
+        title: n === 1 ? 'The lights stayed on without a night crew.' : next ? `${done.title}: delivered` : `All ${total} contracts delivered`,
+        body,
         facts,
-        options: [{ id: 'continue', label: 'Continue', tone: 'primary' }],
+        options,
       };
     }
     case 'c02/clearGarden':
@@ -387,4 +392,27 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
     default:
       return { eyebrow: 'Decision', title: c.kind, options: [{ id: 'confirm', label: 'Continue' }] };
   }
+}
+
+/** What the next contract brings, said once at the inspection before it. */
+const NEXT_HINT: Record<string, string> = {
+  bench: '',
+  drawing: 'A wire drawing station opens between the dock and the bench. It is slow.',
+  dispatch: 'Shipping moves to the floor above: a dispatch station at the top of the freight lift.',
+  heat: 'The bench heats as it works; at 80 the workshop throttles to 25%.',
+  route: 'Deliveries come round through the courtyard. A direct route is possible, through the night garden.',
+  none: 'Every floor at once. Nothing new: the building, running.',
+};
+
+/** What a permit would do to the line as it stands for the next contract: shipping rate and heat. */
+function permitOutcome(c: C02State, id: BuildingUpgradeId): string {
+  const before = baseThroughput(c);
+  const next: C02State = { ...c, throttled: false, upgrades: { ...c.upgrades, [id]: true } };
+  const after = baseThroughput(next);
+  const heat = (x: C02State) => {
+    const n = (heatGainRate(x) - coolingRate(x)) / 1000;
+    return n > 0 ? `bench heats +${n.toFixed(2)}/s` : 'bench runs cool';
+  };
+  const ship = before === 0 && after > 0 ? `line ships ${(after / 1000).toFixed(1)}/s without your hands` : after === before ? `line still ships ${(before / 1000).toFixed(1)}/s (not the slowest station)` : `line ships ${(before / 1000).toFixed(1)} → ${(after / 1000).toFixed(1)}/s`;
+  return `${ship} · ${heat(next)}`;
 }

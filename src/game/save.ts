@@ -2,6 +2,7 @@ import { CONTENT_VERSION, OFFICE, SCHEMA_VERSION } from '../content/campaign';
 import { checkInvariant, mustCommit } from './ledger';
 import { CLIP } from './mass';
 import { newCampaign, newOfficeState } from './state';
+import { newBuildingState } from './chapters/c02';
 import type { C01State, CampaignState } from './types';
 import { CHAPTERS } from './types';
 
@@ -293,6 +294,7 @@ export function migrateOffice(s: CampaignState): void {
   if (old?.kind === '01') migrateOfficeV3(s.chapterState as C01State);
   // Fields added since the save was written take their defaults.
   if (s.chapterState?.kind === '01') s.chapterState = { ...newOfficeState(), ...(s.chapterState as C01State) };
+  if (s.chapterState?.kind === '02' && !('queues' in s.chapterState)) migrateBuilding(s);
   // Salvage moved to chapter 2: an office save waiting on a salvage decision simply continues.
   if (s.choices?.some((c) => c.kind === 'c01/salvage')) {
     s.choices = s.choices.filter((c) => c.kind !== 'c01/salvage');
@@ -399,4 +401,42 @@ export function importV1(raw: unknown): { ok: true; state: CampaignState; summar
       'The original save was not modified.',
     ],
   };
+}
+
+/**
+ * The building was rebuilt as six contracts with real queues. An older chapter-2 save keeps its
+ * route, garden, heat, upgrades, permits and total work; its three old contracts map onto the new six
+ * (one delivered → two, two → three, three → all six), and a pending old inspection is dropped.
+ */
+function migrateBuilding(s: CampaignState): void {
+  const old = s.chapterState as unknown as {
+    route: 'courtyard' | 'direct';
+    directBuilt: boolean;
+    running: boolean;
+    heatMilli: number;
+    throttled: boolean;
+    contractIndex: number;
+    cumulativeWorkMilli: number;
+    workResidue: number;
+    processedUnits: number;
+    permits: number;
+    upgrades: { wireDraw: boolean; freight: boolean; roofCooling: boolean };
+  };
+  const next = newBuildingState(s.simMs);
+  next.route = old.route;
+  next.directBuilt = old.directBuilt;
+  next.running = old.running;
+  next.heatMilli = old.heatMilli;
+  next.throttled = old.throttled;
+  next.contractIndex = [0, 2, 3, 6][old.contractIndex] ?? 6;
+  next.cumulativeWorkMilli = old.cumulativeWorkMilli;
+  next.workResidue = old.workResidue;
+  next.processedUnits = old.processedUnits;
+  next.permits = old.permits;
+  next.upgrades = { ...next.upgrades, ...old.upgrades, dockCrew: next.contractIndex >= 1 };
+  s.chapterState = next;
+  if (s.choices.some((c) => c.kind === 'c02/inspection')) {
+    s.choices = s.choices.filter((c) => c.kind !== 'c02/inspection');
+    if (s.choices.length === 0 && s.mode === 'choice') s.mode = 'playing';
+  }
 }

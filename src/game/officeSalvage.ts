@@ -12,16 +12,17 @@ export type OfficeItem = 'cabinet' | 'lamp' | 'frame';
 export const OFFICE_ITEMS: OfficeItem[] = ['cabinet', 'lamp', 'frame'];
 
 /**
- * The recovered metal is already drawn wire, so it skips the drawing station: a small head start on
- * the current contract, in milli-work. Kept well under the first contract (40 units) so clearing the
- * whole floor still leaves the building to do the work.
+ * The recovered metal is already drawn wire: a small head start on the current contract, in
+ * milli-work. Kept well under the first contract (28 of its 120 units for the whole floor), so
+ * clearing the office never does the building's work for it.
  */
-export const CLEARING_WORK: Record<OfficeItem, number> = { cabinet: 2_000, lamp: 4_000, frame: 8_000 };
+export const CLEARING_WORK: Record<OfficeItem, number> = { cabinet: 4_000, lamp: 8_000, frame: 16_000 };
 
 export function clearable(s: CampaignState, id: OfficeItem): boolean {
   if (s.chapter !== '02') return false;
   const c = s.chapterState as C02State;
-  if (c.contractIndex >= 3) return false;
+  // The move happens over the first two contracts.
+  if (c.contractIndex >= 2 || c.awaitingInspection) return false;
   return s.anchors[id].fidelity === 'original' && !s.ledger.accounts[`office.${id}`]?.released;
 }
 

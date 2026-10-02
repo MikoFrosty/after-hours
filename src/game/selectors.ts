@@ -1,7 +1,7 @@
-import { BUILDING, CHAPTER_META, CITY, COSMIC, PRESERVATION, SOLAR, TERMINAL } from '../content/campaign';
+import { CHAPTER_META, CITY, COSMIC, PRESERVATION, SOLAR, TERMINAL } from '../content/campaign';
 import { DISTRICTS } from '../content/world';
 import { CARTONS, loose, officeStatus, wireGrams } from './chapters/c01';
-import { bottleneck as c02Bottleneck, throughput } from './chapters/c02';
+import { bottleneck as c02Bottleneck, CONTRACTS, currentContract, heatIntroduced, NAMES as BUILDING_NAMES } from './chapters/c02';
 import { met, reserveRate } from './chapters/c03';
 import { currentOverhead, resolvedCount, slotsInUse } from './chapters/c04';
 import { limitingRole, output } from './chapters/c05';
@@ -41,7 +41,7 @@ export const STORY_SPANS: Record<ChapterId, string> = {
 
 export const STORY_SCALE_TEXT: Record<ChapterId, string> = {
   '01': '1 simulated second ≈ 17 story seconds; dawn waits for the last carton',
-  '02': '1 simulated second = 12 story hours',
+  '02': '1 simulated second = 6 story hours',
   '03': '1 simulated second = 20 story days',
   '04': '1 simulated second = 1 story year',
   '05': '1 simulated second = 5,000 story years',
@@ -95,16 +95,21 @@ export function metrics(s: CampaignState): { items: Metric[]; bottleneck: string
     }
     case '02': {
       const c = s.chapterState as C02State;
-      const target = BUILDING.contracts[Math.min(c.contractIndex, 2)];
-      return {
-        items: [
-          clips,
-          { label: 'Contract', value: c.contractIndex >= 3 ? '3 / 3 done' : `${c.contractIndex + 1} / 3 · ${fmtMilli(c.contractWorkMilli, 0)} / ${target / 1000}` },
-          { label: 'Throughput', value: `${fmtMilli(throughput(c), 2)} work/s` },
-          { label: 'Heat', value: `${Math.round(c.heatMilli / 1000)}${c.throttled ? ' · throttled' : ''}` },
-        ],
-        bottleneck: c.throttled ? 'Cooling (throttled)' : `${cap(c02Bottleneck(c))} station`,
-      };
+      const n = CONTRACTS.length;
+      const k = currentContract(c);
+      const items: Metric[] = [
+        { label: 'Contract', value: c.contractIndex >= n ? `${n} / ${n} done` : `${c.contractIndex + 1} / ${n} · ${fmtMilli(c.contractWorkMilli, 0)} / ${k.work / 1000}`, hint: k.title },
+        { label: 'Shipping', value: `${fmtMilli(c.shipRate, 1)} /s`, hint: 'Work leaving the building, averaged over the last few seconds.' },
+      ];
+      if (heatIntroduced(c)) items.push({ label: 'Heat', value: `${Math.round(c.heatMilli / 1000)}${c.throttled ? ' · throttled' : ''}` });
+      let now = 'Moving in';
+      if (c.contractIndex >= n) now = 'All contracts delivered';
+      else if (c.awaitingInspection) now = 'Inspection';
+      else if (!c.running) now = 'Stopped to cool';
+      else if (c.throttled) now = 'Throttled: cooling';
+      else if (!c.upgrades.dockCrew) now = 'Unloading by hand';
+      else now = `Slowest: ${BUILDING_NAMES[c02Bottleneck(c)].toLowerCase()}`;
+      return { items, bottleneck: now };
     }
     case '03': {
       const c = s.chapterState as C03State;

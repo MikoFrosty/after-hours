@@ -4,6 +4,8 @@ import { COSMIC, PRESERVATION } from '../content/campaign';
 import { dispatch, step } from './engine';
 import { boxFull, canStart, glintActive, loose, offeredProjects, owns, spareOffered, tuneBand } from './chapters/c01';
 import { clearable, OFFICE_ITEMS } from './officeSalvage';
+import { availableUpgrades, bottleneck, routeIntroduced } from './chapters/c02';
+import type { BuildingUpgradeId } from '../content/campaign';
 import { OFFICE } from '../content/campaign';
 import { allowedTreatments, slotsInUse } from './chapters/c04';
 import { adriftKits } from './chapters/c06';
@@ -76,9 +78,14 @@ export function answer(s: CampaignState, r: Route): void {
     case 'charter':
       option = hold ? 'decline' : 'accept';
       break;
-    case 'c02/inspection':
-      option = 'continue';
+    case 'c02/inspection': {
+      // Spend the permit in the inspection when something worth buying is offered.
+      const c2 = s.chapterState as C02State;
+      const avail = availableUpgrades(c2);
+      const pick = c2.permits > 0 ? buildingPreference(r).find((u) => avail.includes(u)) : undefined;
+      option = pick ? `buy:${pick}` : 'continue';
       break;
+    }
     case 'c02/clearGarden':
       option = 'confirm';
       break;
@@ -200,6 +207,45 @@ function officeNight(s: CampaignState, r: Route) {
   if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton && !owns(c, 'packer')) dispatch(s, { type: 'c01/pack' });
 }
 
+let handCredit = 0;
+
+/**
+ * Upgrade order. Relaxed takes the obvious speed-up (freight) after the third contract and meets the
+ * heat; engaged reads the permit's heat figure and cools first, which keeps the workshop running.
+ */
+function buildingPreference(r: Route): BuildingUpgradeId[] {
+  return r.player === 'efficient' ? ['dockCrew', 'wireDraw', 'roofCooling', 'freight', 'secondBender'] : ['dockCrew', 'wireDraw', 'freight', 'roofCooling', 'secondBender'];
+}
+
+/**
+ * A simulated player for the building. Relaxed: unloads by hand at about 1.5 a second until the dock
+ * crew, then lends a hand at the slowest station for 15 s of every minute; lets a throttle recover on
+ * its own. Engaged: unloads as fast as hands allow, helps for 30 s of every minute, and stops for a
+ * few seconds whenever heat nears 80 so the workshop never throttles.
+ */
+function buildingDay(s: CampaignState, r: Route) {
+  const c = s.chapterState as C02State;
+  const eff = r.player === 'efficient';
+  if (r.salvage) for (const id of OFFICE_ITEMS) if (clearable(s, id)) dispatch(s, { type: 'request', kind: 'salvage', subject: id });
+  if (r.clearGarden && !c.directBuilt && routeIntroduced(c)) dispatch(s, { type: 'request', kind: 'clearGarden' });
+  if (c.permits > 0) {
+    const pick = buildingPreference(r).find((u) => availableUpgrades(c).includes(u));
+    if (pick) dispatch(s, { type: 'c02/upgrade', id: pick });
+  }
+  // Engaged: a short stop just before 80 keeps the workshop from throttling at all.
+  if (eff) {
+    if (c.running && !c.throttled && c.heatMilli >= 78_000) dispatch(s, { type: 'c02/run', running: false });
+    if (!c.running && c.heatMilli <= 70_000) dispatch(s, { type: 'c02/run', running: true });
+  }
+  const sec = (s.simMs - s.chapterEnteredSimMs) % 60_000;
+  const rate = !c.upgrades.dockCrew ? (eff ? 0.25 : 0.15) : eff ? (sec < 30_000 ? 0.15 : 0) : sec < 15_000 ? 0.1 : 0;
+  handCredit += rate;
+  while (handCredit >= 1) {
+    handCredit -= 1;
+    dispatch(s, { type: 'c02/hand', station: c.upgrades.dockCrew ? bottleneck(c) : 'dock' });
+  }
+}
+
 export function act(s: CampaignState, r: Route): void {
   tick += 1;
   switch (s.chapter) {
@@ -208,13 +254,7 @@ export function act(s: CampaignState, r: Route): void {
       return;
     }
     case '02': {
-      const c = s.chapterState as C02State;
-      if (r.clearGarden && !c.directBuilt) dispatch(s, { type: 'request', kind: 'clearGarden' });
-      if (r.salvage) for (const id of OFFICE_ITEMS) if (clearable(s, id)) dispatch(s, { type: 'request', kind: 'salvage', subject: id });
-      if (c.permits > 0) {
-        const next = (['wireDraw', 'roofCooling', 'freight'] as const).find((u) => !c.upgrades[u]);
-        if (next) dispatch(s, { type: 'c02/upgrade', id: next });
-      }
+      buildingDay(s, r);
       return;
     }
     case '03': {
@@ -318,6 +358,7 @@ export function autoplay(route: Route = CANONICAL, until: ChapterId | 'end' = 'e
   glintSeen = 0;
   glintDecided = 0;
   fullSteps = 0;
+  handCredit = 0;
   for (let i = 0; i < maxSteps; i++) {
     if (until !== 'end' && s.chapter === until && s.choices.length === 0) return s;
     if (s.mode === 'ended' || s.mode === 'holding') return s;

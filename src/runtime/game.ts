@@ -170,7 +170,7 @@ class GameRuntime {
       if (s.mode === 'playing' || s.mode === 'terminal') {
         s.activePlayMs += STEP_MS;
         // The office night is never accelerated; it is sped up by playing it.
-        const n = s.mode === 'terminal' || s.chapter === '01' ? 1 : this.speed;
+        const n = s.mode === 'terminal' || s.chapter === '01' || s.chapter === '02' ? 1 : this.speed;
         for (let i = 0; i < n; i++) step(s);
         stepped = true;
       }

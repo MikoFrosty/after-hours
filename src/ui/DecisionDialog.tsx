@@ -77,12 +77,23 @@ export function DecisionDialog({ choice }: { choice: PendingChoice }) {
             ))}
           </div>
         )}
-        <div className="actions">
-          {v.options.map((o) => (
-            <button key={o.id} className={`btn ${o.tone ?? ''}`} onClick={() => choose(o.id)}>
-              {o.label}
-            </button>
-          ))}
+        <div className={`actions ${v.options.some((o) => o.detail) ? 'cards' : ''}`}>
+          {v.options.map((o) =>
+            o.detail ? (
+              <button key={o.id} className={`btn option-card ${o.tone ?? ''}`} onClick={() => choose(o.id)}>
+                <span className="t">{o.label}</span>
+                {o.detail.map((d, i) => (
+                  <span key={i} className="d">
+                    {d}
+                  </span>
+                ))}
+              </button>
+            ) : (
+              <button key={o.id} className={`btn ${o.tone ?? ''}`} onClick={() => choose(o.id)}>
+                {o.label}
+              </button>
+            ),
+          )}
         </div>
         {v.later && (
           <button className="btn ghost small later" onClick={() => choose('later')}>
