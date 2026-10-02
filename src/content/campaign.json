@@ -88,7 +88,7 @@
     "projects": [
       {
         "id": "calibrate",
-        "name": "Calibrate the bender",
+        "name": "Clip machine",
         "costClips": 15,
         "installSeconds": 8,
         "group": "bender",
@@ -99,7 +99,7 @@
       },
       {
         "id": "oil",
-        "name": "Oil the die",
+        "name": "Machine oil",
         "costClips": 40,
         "installSeconds": 10,
         "group": "bender",
@@ -111,7 +111,7 @@
       },
       {
         "id": "tensioner",
-        "name": "Fit a spring tensioner",
+        "name": "Wire spring",
         "costClips": 60,
         "installSeconds": 15,
         "group": "none",
@@ -134,7 +134,7 @@
       },
       {
         "id": "dieHigh",
-        "name": "High-tension die",
+        "name": "Fast bending",
         "costClips": 80,
         "installSeconds": 12,
         "group": "bender",
@@ -146,7 +146,7 @@
       },
       {
         "id": "dieSmooth",
-        "name": "Smooth die",
+        "name": "Gentle bending",
         "costClips": 80,
         "installSeconds": 12,
         "group": "bender",
@@ -158,7 +158,7 @@
       },
       {
         "id": "die2",
-        "name": "Second die",
+        "name": "Second bending arm",
         "costClips": 150,
         "installSeconds": 15,
         "group": "bender",
@@ -180,7 +180,7 @@
       },
       {
         "id": "roller",
-        "name": "Guide roller",
+        "name": "Wire guide",
         "costClips": 90,
         "installSeconds": 12,
         "group": "line",
@@ -202,7 +202,7 @@
       },
       {
         "id": "governor",
-        "name": "Governor",
+        "name": "Auto-boost",
         "costClips": 90,
         "installSeconds": 10,
         "group": "none",
@@ -213,7 +213,7 @@
       },
       {
         "id": "fan",
-        "name": "Desk fan on the die",
+        "name": "Desk fan",
         "costClips": 130,
         "installSeconds": 12,
         "group": "line",
@@ -224,7 +224,7 @@
       },
       {
         "id": "jig",
-        "name": "Jig frame",
+        "name": "Side-table rack",
         "costClips": 200,
         "installSeconds": 30,
         "group": "line",
@@ -236,7 +236,7 @@
       },
       {
         "id": "station1",
-        "name": "Jig station 1",
+        "name": "Small machine 1",
         "costClips": 90,
         "installSeconds": 12,
         "group": "line",
@@ -247,7 +247,7 @@
       },
       {
         "id": "station2",
-        "name": "Jig station 2",
+        "name": "Small machine 2",
         "costClips": 110,
         "installSeconds": 12,
         "group": "line",
@@ -258,7 +258,7 @@
       },
       {
         "id": "station3",
-        "name": "Jig station 3",
+        "name": "Small machine 3",
         "costClips": 130,
         "installSeconds": 12,
         "group": "line",
@@ -269,7 +269,7 @@
       },
       {
         "id": "station4",
-        "name": "Jig station 4",
+        "name": "Small machine 4",
         "costClips": 150,
         "installSeconds": 12,
         "group": "line",
@@ -281,7 +281,7 @@
       },
       {
         "id": "station5",
-        "name": "Jig station 5",
+        "name": "Small machine 5",
         "costClips": 190,
         "installSeconds": 12,
         "group": "line",
@@ -293,7 +293,7 @@
       },
       {
         "id": "station6",
-        "name": "Jig station 6",
+        "name": "Small machine 6",
         "costClips": 220,
         "installSeconds": 12,
         "group": "line",
@@ -305,7 +305,7 @@
       },
       {
         "id": "overdrive",
-        "name": "Overdrive the line",
+        "name": "Faster line",
         "costClips": 120,
         "installSeconds": 12,
         "group": "none",
@@ -317,7 +317,7 @@
       },
       {
         "id": "careful",
-        "name": "Careful finish",
+        "name": "Careful line",
         "costClips": 120,
         "installSeconds": 12,
         "group": "none",
@@ -328,7 +328,7 @@
       },
       {
         "id": "straightener",
-        "name": "Wire straightener",
+        "name": "Wire recycler",
         "costClips": 150,
         "installSeconds": 20,
         "group": "none",
@@ -367,10 +367,6 @@
       "practice": {
         "bendsPerLevel": 150,
         "maxExtra": 3
-      },
-      "wear": {
-        "briskSeconds": 180,
-        "hardSeconds": 90
       }
     },
     "packerReserves": [
@@ -746,7 +742,7 @@
         ],
         [
           "First automation",
-          "You may leave the button alone."
+          "The clip machine makes clips on its own now. You can leave the button alone."
         ],
         [
           "Quota",

@@ -19,7 +19,8 @@ import {
   spareOffered,
   tendingBonus,
   tendsLine,
-  wearLeftMs,
+  packerKeeps,
+  tuningOpen,
   boxFull,
   tuneBand,
   wireGrams,
@@ -29,40 +30,40 @@ import { fmtMass } from '../../game/mass';
 import { Bar } from './Panel';
 
 const EFFECT: Record<OfficeProjectId, string> = {
-  calibrate: 'The bender starts forming clips on its own, about one every three seconds.',
-  oil: 'The die runs half again as fast.',
-  tensioner: 'The wire catches less often: every 60 clips instead of every 25.',
-  feeder: 'A powered feeder adds its own output, and the wire stops catching.',
-  dieHigh: 'Bends ×1.35 faster, but the wire starts catching again every 300 clips.',
-  dieSmooth: 'Bends ×1.15 faster and never catches. Tending drains half as fast.',
-  die2: 'A second die on the bender adds output.',
-  packer: 'Packs every clip above a reserve you choose straight into the open carton.',
-  roller: 'A second roller keeps the wire straight into the die. Adds output.',
-  pedal: 'Tending can add up to +40% instead of +25%. Rewards keeping your hands on the line.',
-  governor: 'Tending never drains below half. Forgives stepping away; tending still tops it up.',
-  fan: 'Keeps the die cool through the long run. Adds output.',
-  jig: 'A frame on the side table, now clear of cartons, with room for six stations. Adds a line-speed control.',
-  station1: 'A forming station on the jig. Adds output.',
-  station2: 'A second forming station.',
-  station3: 'A third forming station.',
-  station4: 'A fourth station. The jig is half full.',
-  station5: 'A fifth station.',
-  station6: 'The last station the jig will take: the line at full speed.',
-  overdrive: 'The whole line runs ×1.2 faster, and about 1 in 25 more clips are ruined at every speed.',
-  careful: 'No clip is ruined at any speed, and a clean run lasts 30 seconds.',
-  straightener: 'Draws ruined clips back into usable wire, slowly, and keeps hard running from catching the wire.',
+  calibrate: 'Sets up the clip machine on the desk. It makes clips on its own, about one every three seconds.',
+  oil: 'The clip machine runs half again as fast.',
+  tensioner: 'The wire snags less often: every 60 clips instead of every 25.',
+  feeder: 'Feeds wire into the machine for you and adds its own clips. The wire stops snagging. From now on, your presses boost the machines instead of making single clips.',
+  dieHigh: 'The machine bends ×1.35 faster, but the wire snags again every 300 clips.',
+  dieSmooth: 'The machine bends ×1.15 faster and never snags. Your boost drains half as fast.',
+  die2: 'A second arm on the clip machine, so it bends two wires at a time. More clips a second.',
+  packer: 'Packs finished clips into the carton for you. It always leaves enough on the desk for your next upgrade.',
+  roller: 'Keeps the wire straight on its way into the machine. More clips a second, and opens fine-tuning.',
+  pedal: 'Your boost can go up to +40% instead of +25%. Best if you keep pressing.',
+  governor: 'Your boost never drops below half, even when you stop pressing.',
+  fan: 'Keeps the clip machine cool so it can run faster. More clips a second.',
+  jig: 'A rack on the side table with room for six small clip machines. Also lets you choose how fast the line runs.',
+  station1: 'A small clip machine on the side-table rack. More clips a second.',
+  station2: 'A second small machine on the rack.',
+  station3: 'A third small machine on the rack.',
+  station4: 'A fourth small machine. The rack is half full.',
+  station5: 'A fifth small machine.',
+  station6: 'The last machine the rack will take: everything running.',
+  overdrive: 'The whole line runs ×1.2 faster, but about 1 in 25 more clips come out spoiled at every speed.',
+  careful: 'No clip is ever spoiled, at any speed, and speed bursts last 30 seconds instead of 20.',
+  straightener: 'Slowly turns spoiled clips back into wire, and stops the wire snagging at Very fast.',
 };
 
 const FORKS: Record<string, string> = {
-  die: 'Choose a die',
-  hands: 'Choose what your hands do',
-  finish: 'Choose a finish',
+  die: 'Choose a bending upgrade',
+  hands: 'Choose a boost upgrade',
+  finish: 'Choose how the line runs',
 };
 
 const SPEEDS: Array<{ id: LineSpeed; name: string; text: string }> = [
-  { id: 'steady', name: 'Steady', text: 'Every clip passes.' },
-  { id: 'brisk', name: 'Brisk', text: '×1.25 · about 1 in 20 ruined' },
-  { id: 'hard', name: 'Hard', text: '×1.45 · about 1 in 8 ruined · the wire catches every 200 clips until a straightener' },
+  { id: 'steady', name: 'Normal', text: 'Every clip comes out right.' },
+  { id: 'brisk', name: 'Fast', text: '×1.25 · about 1 in 20 clips spoiled' },
+  { id: 'hard', name: 'Very fast', text: '×1.45 · about 1 in 8 spoiled · the wire snags every 200 clips until you buy the wire recycler' },
 ];
 
 /** The early van; whatever is still unsealed then goes on the 7:00 run. */
@@ -103,10 +104,10 @@ export function P01() {
         <div className="card reveal highlight-card">
           <h3>Spare coil</h3>
           <p className="small" style={{ margin: '0 0 10px' }}>
-            The inventory lists a 3 kg coil in the cabinet’s bottom drawer. Machines cost wire too: clips spent on them have to be bent again.
+            The inventory lists a 3 kg coil of wire in the cabinet’s bottom drawer. Upgrades are paid for in clips, and those clips have to be made again, so you may need more wire.
           </p>
           <button className="btn" onClick={() => act({ type: 'c01/takeSpare' })}>
-            Put the spare coil on the spindle
+            Load the spare coil
           </button>
         </div>
       )}
@@ -125,7 +126,7 @@ export function P01() {
                 ))}
               </div>
               <p className="tiny faint" style={{ margin: '8px 0 0' }}>
-                Installing one takes the other off the table for the rest of the night.
+                You can only have one. Buying it takes the other off the table for the rest of the night.
               </p>
             </div>
           );
@@ -134,7 +135,7 @@ export function P01() {
       {plain.length > 0 && !c.capped && (
         <div className="card">
           <h3>
-            Workshop <span className="tag">paid from clips on the desk</span>
+            Upgrades <span className="tag">paid with clips on the desk</span>
           </h3>
           <div className="list">
             {plain.map((p) => (
@@ -142,31 +143,31 @@ export function P01() {
             ))}
           </div>
           <p className="tiny faint" style={{ margin: '8px 0 0' }}>
-            Clips spent here become machinery. They have to be bent again before they can fill a carton.
+            Clips you spend here are gone: they become the machine. You will have to make them again to fill the order.
           </p>
         </div>
       )}
 
-      {owns(c, 'feeder') && !c.capped && <TuningCard />}
+      {tuningOpen(c) && !c.capped && <TuningCard />}
 
       {owns(c, 'jig') && !c.capped && (
         <div className="card reveal">
           <h3>
-            Line speed <span className="tag">{c.rejects > 0 ? `${c.rejects} ruined so far` : 'nothing ruined'}</span>
+            Line speed <span className="tag">{c.rejects > 0 ? `${c.rejects} spoiled so far` : 'nothing spoiled'}</span>
           </h3>
           <div className="list" role="radiogroup" aria-label="Line speed">
             {SPEEDS.map((x) => (
               <label key={x.id} className={`item ${c.lineSpeed === x.id ? 'highlight' : ''}`}>
                 <div>
                   <div className="t">{x.name}</div>
-                  <div className="d">{owns(c, 'careful') && x.id !== 'steady' ? `${x.text.split(' · ')[0]} · nothing ruined (careful finish)` : x.text}</div>
+                  <div className="d">{owns(c, 'careful') && x.id !== 'steady' ? `${x.text.split(' · ')[0]} · nothing spoiled (careful line)` : x.text}</div>
                 </div>
                 <input type="radio" name="speed" checked={c.lineSpeed === x.id} onChange={() => act({ type: 'c01/speed', speed: x.id })} style={{ width: 22, height: 22 }} />
               </label>
             ))}
           </div>
           <p className="tiny faint" style={{ margin: '8px 0 0' }}>
-            Ruined clips go to the rejects tray as wire, not lost. {owns(c, 'straightener') ? `The straightener is drawing ${fmtMass(mass(s, 'office.rejects'))} back into wire.` : ''}
+            Spoiled clips go in a tray, not the order. {owns(c, 'straightener') ? `The wire recycler is turning ${fmtMass(mass(s, 'office.rejects'))} of them back into wire.` : 'The wire recycler can turn them back into wire.'}
           </p>
         </div>
       )}
@@ -174,7 +175,7 @@ export function P01() {
       {(c.spareTaken || wire < 1500 || c.files.inventory) && (
         <div className="card slim">
           <div className="row between small">
-            <span className="muted">Wire on the spindle</span>
+            <span className="muted">Wire left on the coil</span>
             <span className="mono">{fmtMass(mass(s, 'office.wire'))}</span>
           </div>
           <Bar value={wire} max={c.spareTaken ? 6000 : 3000} tone="alt" />
@@ -280,7 +281,7 @@ function ActionDock() {
     const err = act({ type: 'c01/make' });
     if (err) return;
     const c1 = game.state!.chapterState as C01State;
-    // Bending shows the clip; tending shows how far the meter rose (nothing once it is topped up: the glowing meter says so).
+    // Making a clip shows the clip; boosting shows how far the meter rose (nothing once it is topped up: the glowing meter says so).
     const gain = Math.round((c1.tending - tend0) / 1000);
     const text = c1.madeClips > made0 ? `+${c1.madeClips - made0}` : gain >= 3 ? `+${gain}%` : null;
     setPressed((p) => p + 1);
@@ -292,7 +293,7 @@ function ActionDock() {
   const pressRef = useRef(press);
   pressRef.current = press;
 
-  // B bends (or tends), F frees the wire, C catches a true-wire moment. Key repeat is ignored.
+  // B makes a clip (or boosts), F frees the wire, C catches a speed burst, S tapes a carton. Key repeat is ignored.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -310,16 +311,16 @@ function ActionDock() {
   const label = c.capped
     ? 'The order is complete'
     : c.madeClips === 0
-      ? 'Bend the first clip'
+      ? 'Make a clip by hand'
       : tends
-          ? 'Tend the line'
-          : 'Bend a clip by hand';
+          ? 'Boost the machines'
+          : 'Make a clip by hand';
   const bonus = tendingBonus(c);
   const full = c.tending >= 95_000;
   const vanGone = c.vanCartons !== null;
 
   return (
-    <div className="card action-dock" aria-label="Bench">
+    <div className="card action-dock" aria-label="Your desk">
       <AlertSlot />
       <div className="dock-main">
         <div className="make-wrap">
@@ -340,7 +341,7 @@ function ActionDock() {
           </div>
           {owns(c, 'calibrate') && (
             <div className="stat">
-              <span className="muted tiny">Machines</span>
+              <span className="muted tiny">Machines make</span>
               <span className="mono">{c.jammed ? 'stopped' : c.capped ? 'off' : `${(goodRate(s) / 1000).toFixed(2)}/s`}</span>
             </div>
           )}
@@ -350,10 +351,10 @@ function ActionDock() {
         <div className={`tending ${full ? 'full' : ''}`}>
           <div className="row between tiny">
             <span className="muted">
-              {tends ? 'Tending the feeder' : 'Tending the bender'}
-              {governed && ' · the governor holds half'}
-              {handLevel(c) > 0 && ` · practice ${handLevel(c)} of 3`}
-              {c.tending > 50_000 && ' · light comes sooner'}
+              Boost from your presses{!tends && ' (each clip you make also boosts the machine)'}
+              {governed && ' · never below half'}
+              {handLevel(c) > 0 && ` · quicker hands ${handLevel(c)} of 3`}
+              {tends && c.tending > 50_000 && ' · speed bursts come sooner'}
             </span>
             <span className="mono">+{Math.round(bonus / 10)}%</span>
           </div>
@@ -371,7 +372,7 @@ function ActionDock() {
           </div>
           <div className="row between" style={{ marginTop: 8, gap: 8 }}>
             <span className="tiny muted">
-              {c.sealed} of {CARTONS} sealed ·{' '}
+              {c.sealed} of {CARTONS} cartons packed ·{' '}
               {vanGone ? `${c.vanCartons} went on the ${VAN_LABEL} van` : `van at ${VAN_LABEL}, the rest go at 7:00`}
             </span>
             {!c.capped && (
@@ -380,20 +381,15 @@ function ActionDock() {
                 disabled={!full250 && (owns(c, 'packer') || deskClips < OFFICE.boxSize || c.sealed >= CARTONS)}
                 onClick={() => act({ type: 'c01/pack' })}
               >
-                {full250 ? 'Seal the carton' : owns(c, 'packer') ? `Packing · ${c.openBox}/${OFFICE.boxSize}` : `Seal · ${OFFICE.boxSize}`} <span className="kbd">S</span>
+                {full250 ? 'Tape it shut' : owns(c, 'packer') ? `Packing · ${c.openBox}/${OFFICE.boxSize}` : `Pack a carton · ${OFFICE.boxSize}`} <span className="kbd">S</span>
               </button>
             )}
           </div>
           {owns(c, 'packer') && !c.capped && (
             <div className="row between reserve" style={{ marginTop: 8, gap: 8 }}>
-              <span className="tiny muted">Packer keeps on the desk</span>
-              <div className="row" role="radiogroup" aria-label="Auto-packer reserve">
-                {OFFICE.packerReserves.map((x) => (
-                  <button key={x} className="btn small" role="radio" aria-checked={c.reserve === x} aria-pressed={c.reserve === x} onClick={() => act({ type: 'c01/reserve', reserve: x })}>
-                    {x}
-                  </button>
-                ))}
-              </div>
+              <span className="tiny muted">
+                {packerKeeps(s) > 0 ? `The packer leaves ${packerKeeps(s)} clips on the desk for your next upgrade.` : 'Nothing left to buy: the packer packs every clip.'}
+              </span>
             </div>
           )}
         </div>
@@ -418,7 +414,7 @@ function AlertSlot() {
   if (c.jammed) {
     return (
       <div className="alert-slot jam" role="alert">
-        <span>The wire caught in the guide. The bender has stopped.</span>
+        <span>The wire snagged. The clip machine has stopped.</span>
         <button className="btn primary small" onClick={() => act({ type: 'c01/free' })}>
           Free it <span className="kbd">F</span>
         </button>
@@ -430,11 +426,11 @@ function AlertSlot() {
     return (
       <div className="alert-slot truewire" role="alert">
         <span>
-          The wire is running true · <span className="mono">{left(c.glintUntilMs)} s</span>
+          Speed burst ready · <span className="mono">{left(c.glintUntilMs)} s</span> to grab it
           <span className="tiny"> · ×1.6 for {run} s</span>
         </span>
         <button className="btn primary small" onClick={() => act({ type: 'c01/catch' })}>
-          Catch it <span className="kbd">C</span>
+          Grab it <span className="kbd">C</span>
         </button>
       </div>
     );
@@ -442,19 +438,9 @@ function AlertSlot() {
   if (boxFull(c)) {
     return (
       <div className="alert-slot sealme" role="alert">
-        <span>The packer’s carton is full. Tape it shut.</span>
+        <span>The carton is full. Tape it shut so it can go.</span>
         <button className="btn primary small" onClick={() => act({ type: 'c01/pack' })}>
           Seal it <span className="kbd">S</span>
-        </button>
-      </div>
-    );
-  }
-  if (c.wornAtMs > 0 && s.simMs - c.wornAtMs < 12_000 && c.slowTuneMs === null && c.tuneLevel < OFFICE.active.tuning.levels) {
-    return (
-      <div className="alert-slot worn" role="alert">
-        <span>The die has worn a level.</span>
-        <button className="btn small" onClick={() => act({ type: 'c01/tuneSlow' })} title="Or press T at the gauge">
-          Retune · 20 s
         </button>
       </div>
     );
@@ -462,7 +448,7 @@ function AlertSlot() {
   if (cleanRunActive(s)) {
     return (
       <div className="alert-slot clean" role="status">
-        <span>Clean run · ×1.6</span>
+        <span>Speed burst · ×1.6</span>
         <span className="mono">{left(c.cleanRunUntilMs)} s</span>
       </div>
     );
@@ -472,7 +458,7 @@ function AlertSlot() {
     return (
       <div className="alert-slot installing" role="status">
         <span>
-          Installing {p.name.toLowerCase()} · <span className="mono">{Math.max(0, Math.ceil((p.installMs - c.installing.ms) / 1000))} s</span>
+          Installing the {p.name.toLowerCase()} · <span className="mono">{Math.max(0, Math.ceil((p.installMs - c.installing.ms) / 1000))} s</span>
         </span>
         <span className="slot-bar">
           <Bar value={c.installing.ms} max={p.installMs} />
@@ -498,7 +484,7 @@ function ForkOption({ p, reason, deskClips }: { p: OfficeProject; reason: string
         {p.costClips} clips · {p.installMs / 1000} s{!affordable && ` · ${p.costClips - deskClips} more`}
       </div>
       <button className="btn small" disabled={Boolean(reason)} onClick={() => act({ type: 'c01/project', id: p.id })} title={reason ?? undefined}>
-        Choose · {p.costClips}
+        Buy · {p.costClips}
       </button>
     </div>
   );
@@ -512,18 +498,18 @@ function ProjectRow({ p, reason, installing, deskClips }: { p: OfficeProject; re
         <div className="t">{p.name}</div>
         <div className="d">{EFFECT[p.id]}</div>
         <div className="d mono tiny">
-          {p.costClips} clips · {p.installMs / 1000} s to install
+          {p.costClips} clips · takes {p.installMs / 1000} s to fit
           {!affordable && ` · ${p.costClips - deskClips} more needed`}
         </div>
       </div>
       <button className="btn small" disabled={Boolean(reason)} onClick={() => act({ type: 'c01/project', id: p.id })} title={reason ?? undefined}>
-        {installing ? 'Installing…' : `Install · ${p.costClips}`}
+        {installing ? 'Installing…' : `Buy · ${p.costClips}`}
       </button>
     </div>
   );
 }
 
-/** Tuning the die: stop the swinging needle inside the band. A miss costs a few seconds, nothing else. */
+/** Fine-tuning: stop the swinging needle inside the band. A miss costs a few seconds, nothing else. */
 function TuningCard() {
   const s = game.state!;
   const c = s.chapterState as C01State;
@@ -534,8 +520,6 @@ function TuningCard() {
   const done = c.tuneLevel >= max;
   const cooling = s.simMs < c.tuneCooldownUntilMs;
   const coolLeft = Math.ceil((c.tuneCooldownUntilMs - s.simMs) / 1000);
-  const wear = wearLeftMs(s);
-  const wearText = wear !== null ? `Running ${c.lineSpeed} wears the die: −1 level in ${Math.ceil(wear / 1000)} s` : null;
   const slow = c.slowTuneMs !== null;
 
   useEffect(() => {
@@ -568,10 +552,9 @@ function TuningCard() {
     return (
       <div className="card slim small">
         <div className="row between">
-          <span className="muted">Die tuned as far as it will go</span>
+          <span className="muted">Machines fine-tuned as far as they go</span>
           <span className="mono">+{(max * OFFICE.active.tuning.bonusPerLevel) / 10}%</span>
         </div>
-        {wearText && <div className="tiny faint">{wearText}</div>}
       </div>
     );
   }
@@ -579,7 +562,7 @@ function TuningCard() {
   return (
     <div className="card reveal">
       <h3>
-        Tune the die <span className="tag">{c.tuneLevel} of {max} · +{(c.tuneLevel * OFFICE.active.tuning.bonusPerLevel) / 10}%</span>
+        Fine-tune the machines <span className="tag">{c.tuneLevel} of {max} · +{(c.tuneLevel * OFFICE.active.tuning.bonusPerLevel) / 10}%</span>
       </h3>
       {done ? (
         <div className="small muted">Tuned as far as it will go.</div>
@@ -592,25 +575,24 @@ function TuningCard() {
           <div className="row between" style={{ marginTop: 10 }}>
             <span className="small muted" role="status">
               {slow
-                ? `Tuning by hand… ${Math.ceil((OFFICE.active.tuning.slowMs - (c.slowTuneMs ?? 0)) / 1000)} s`
+                ? `Tuning slowly… ${Math.ceil((OFFICE.active.tuning.slowMs - (c.slowTuneMs ?? 0)) / 1000)} s`
                 : cooling && c.lastTune === 'hit'
-                  ? `Set. Let it run in… ${coolLeft} s`
+                  ? `Got it. Next try in ${coolLeft} s`
                   : cooling
-                  ? 'Missed. Let the gauge settle…'
+                  ? 'Missed. Try again in a moment…'
                   : c.lastTune === 'hit'
-                    ? 'Set. The band narrows.'
-                    : 'Stop the needle inside the band.'}
+                    ? 'Got it. The band gets narrower each time.'
+                    : `Stop the needle inside the marked band: each hit makes every machine ${OFFICE.active.tuning.bonusPerLevel / 10}% faster.`}
             </span>
             <div className="row">
               <button className="btn small" disabled={cooling || slow} onClick={set}>
-                Set the die <span className="kbd">T</span>
+                Stop the needle <span className="kbd">T</span>
               </button>
               <button className="btn small ghost" disabled={slow} onClick={() => act({ type: 'c01/tuneSlow' })} title="Always works; takes 20 seconds">
-                Tune by hand · 20 s
+                Tune slowly · 20 s
               </button>
             </div>
           </div>
-          {wearText && <div className="tiny faint" style={{ marginTop: 6 }}>{wearText}</div>}
         </>
       )}
     </div>

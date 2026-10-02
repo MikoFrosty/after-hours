@@ -300,7 +300,7 @@ export interface C01State {
   sealed: number;
   /** Clips in the open carton filled by the auto-packer. */
   openBox: number;
-  /** The auto-packer packs every clip above this many on the desk. */
+  /** What the auto-packer leaves on the desk (set by the packer: the price of the next upgrade). */
   reserve: number;
   /** Cartons sealed when the 5:22 van left; null until it has come. */
   vanCartons: number | null;
@@ -323,9 +323,8 @@ export interface C01State {
   tuneAttempts: number;
   tuneCooldownUntilMs: number;
   lastTune: 'hit' | 'miss' | null;
-  /** Running brisk or hard wears the die; ms toward losing one tuning level. */
+  /** No longer used (machines no longer wear); kept so older saves load unchanged. */
   wearMs: number;
-  /** When the die last lost a level to wear (simulated ms; 0 = never), for the dock's notice. */
   wornAtMs: number;
   /** Careful tuning by hand: progress in ms, or null when not under way. */
   slowTuneMs: number | null;
@@ -530,7 +529,6 @@ export type Action =
   | { type: 'c01/project'; id: OfficeProjectId }
   | { type: 'c01/free' }
   | { type: 'c01/pack' }
-  | { type: 'c01/reserve'; reserve: number }
   | { type: 'c01/speed'; speed: LineSpeed }
   | { type: 'c01/read'; file: string }
   | { type: 'c01/takeSpare' }

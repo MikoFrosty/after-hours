@@ -731,7 +731,7 @@ function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
       )}
       {/* the wire running true: light along its whole length, catchable by clicking */}
       {v.glint && !wire && !last && (
-        <g className="glint" onClick={onGlint} style={{ cursor: onGlint ? 'pointer' : undefined }} role={onGlint ? 'button' : undefined} aria-label="Catch the clean run">
+        <g className="glint" onClick={onGlint} style={{ cursor: onGlint ? 'pointer' : undefined }} role={onGlint ? 'button' : undefined} aria-label="Grab the speed burst">
           <polyline
             points={[P(5.6, 3.4, 3.2), P(4.77, 3.02, 3.25), P(4.1, 3.1, 3.05)].map((p) => p.join(',')).join(' ')}
             fill="none"
@@ -782,8 +782,8 @@ export function describeOffice(v: OfficeView): string {
     v.lamp ? 'The desk lamp is on the desk.' : 'The lamp is gone; the room is darker.',
     v.cabinet ? 'The filing cabinet stands against the wall.' : 'Where the cabinet stood there is a clean rectangle on the floor.',
     v.frame ? 'The picture frame holds the photograph.' : v.photo === 'desk' ? 'The frame is gone; the photograph lies on the desk.' : 'There is no photograph.',
-    [v.bender && 'bender', v.feeder && 'wire feeder', v.jig && 'jig'].filter(Boolean).length
-      ? `Installed: ${[v.bender && 'bender', v.feeder && 'wire feeder', v.jig && `jig with ${v.stations} of 6 stations`].filter(Boolean).join(', ')}.`
+    [v.bender && 'clip machine', v.feeder && 'wire feeder', v.jig && 'side-table rack'].filter(Boolean).length
+      ? `Installed: ${[v.bender && 'clip machine', v.feeder && 'wire feeder', v.jig && `side-table rack with ${v.stations} of 6 small machines`].filter(Boolean).join(', ')}.`
       : 'No machines installed yet.',
   ];
   return parts.join(' ');

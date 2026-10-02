@@ -48,13 +48,11 @@ export const tendsLine = (c: C01State) => owns(c, 'feeder');
 /** The governor keeps the meter from draining below half. */
 export const tendingFloor = (c: C01State) => (owns(c, 'governor') ? Math.floor((100_000 * ACTIVE.tending.governorFloor) / 1000) : 0);
 
-/** How long until running brisk or hard costs a tuning level, in ms; null when the die is not wearing. */
-export function wearLeftMs(s: CampaignState): number | null {
-  const c = cs(s);
-  if (c.lineSpeed === 'steady' || c.tuneLevel === 0 || c.capped) return null;
-  const limit = c.lineSpeed === 'hard' ? ACTIVE.wear.hardMs : ACTIVE.wear.briskMs;
-  return Math.max(0, limit - c.wearMs);
-}
+/** Fine-tuning opens once the wire guide is in, so it never arrives alongside the feeder and the packer. */
+export const tuningOpen = (c: C01State) => owns(c, 'roller');
+
+/** Speed bursts (the wire running perfectly straight) start once the feeder is in. */
+export const burstsOpen = (c: C01State) => owns(c, 'feeder');
 
 /** The most tending can add, in thousandths: +25%, or +50% with the foot pedal. */
 export const tendingMax = (c: C01State) => (owns(c, 'pedal') ? ACTIVE.tending.pedalMaxBonus : ACTIVE.tending.maxBonus);
@@ -146,7 +144,7 @@ export function offeredProjects(s: CampaignState): OfficeProject[] {
 }
 
 const OPTIONAL: OfficeProjectId[] = ['straightener', 'tensioner'];
-const FORK_GOALS = { die: 'a die', hands: 'the hands choice', finish: 'a finish' } as const;
+const FORK_GOALS = { die: 'a bending upgrade', hands: 'a boost upgrade', finish: 'a line upgrade' } as const;
 
 /** The installation the player is most plausibly working toward: the first main-line one offered and not yet under way. */
 export function nextProject(s: CampaignState, optional = false): OfficeProject | null {
@@ -155,7 +153,7 @@ export function nextProject(s: CampaignState, optional = false): OfficeProject |
 }
 
 /** A short name for what is being saved for: a fork is named by its choice, not by one side of it. */
-const goalName = (p: OfficeProject) => (p.exclusive ? FORK_GOALS[p.exclusive] : p.name.toLowerCase());
+const goalName = (p: OfficeProject) => (p.exclusive ? FORK_GOALS[p.exclusive] : `the ${p.name.toLowerCase()}`);
 
 /** The next main-line installation that is waiting only on sealed cartons, if any. */
 function cartonGated(c: C01State): OfficeProject | undefined {
@@ -175,17 +173,17 @@ function madeGated(c: C01State): OfficeProject | undefined {
 export function officeStatus(s: CampaignState): string {
   const c = cs(s);
   if (c.capped) return 'Order complete';
-  if (c.jammed) return 'Wire caught';
-  if (boxFull(c)) return 'Carton full: seal it';
-  if (c.installing) return `Installing: ${project(c.installing.id).name.toLowerCase()}`;
+  if (c.jammed) return 'Wire snagged';
+  if (boxFull(c)) return 'Carton full: tape it shut';
+  if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}`;
   if (c.madeClips === 0) return 'Waiting for the first clip';
   const next = nextProject(s);
   if (next && loose(s) < next.costClips) return `Saving for ${goalName(next)}`;
   if (next) return `Ready: ${goalName(next)}`;
-  if (stations(c) >= 6) return 'Line at full speed';
+  if (stations(c) >= 6) return 'Every machine running';
   const made = madeGated(c);
   if (made) return `Working toward ${goalName(made)}`;
-  if (!owns(c, 'calibrate')) return 'Bending by hand';
+  if (!owns(c, 'calibrate')) return 'Making clips by hand';
   if (cartonGated(c)) return 'Filling cartons';
   const extra = nextProject(s, true);
   if (extra && loose(s) < extra.costClips) return `Saving for ${goalName(extra)}`;
@@ -196,44 +194,41 @@ export function officeStatus(s: CampaignState): string {
 export function nextGoal(s: CampaignState): string {
   const c = cs(s);
   if (c.capped) return 'The order is complete.';
-  if (c.madeClips === 0) return 'Bend a clip from the coil.';
-  if (c.jammed) return 'Free the caught wire to restart the bender.';
-  if (boxFull(c)) return 'The packer’s carton is full: seal it.';
+  if (c.madeClips === 0) return 'Make a clip by hand from the coil of wire.';
+  if (c.jammed) return 'The wire snagged: free it to restart the clip machine.';
+  if (boxFull(c)) return 'The packer’s carton is full: tape it shut.';
   const l = loose(s);
   const saving = (p: OfficeProject) => {
-    if (l >= p.costClips) return p.exclusive ? `Enough clips to choose ${goalName(p)}.` : `${p.name}: ready to install for ${p.costClips} clips.`;
-    const held = owns(c, 'packer') && c.reserve < p.costClips;
-    return `Saving for ${goalName(p)}: ${l} of ${p.costClips} clips${held ? ' · raise the packer’s reserve to save' : ''}.`;
+    if (l >= p.costClips) return p.exclusive ? `Enough clips to choose ${goalName(p)}.` : `${p.name}: ready to buy for ${p.costClips} clips.`;
+    return `Saving for ${goalName(p)}: ${l} of ${p.costClips} clips.`;
   };
   const next = nextProject(s);
   if (next && !c.installing) return saving(next);
-  if (c.installing) return `Installing ${project(c.installing.id).name.toLowerCase()}.`;
+  if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}.`;
   // Something is waiting only on clips made or cartons sealed: say so, so the wait is a goal.
   const made = madeGated(c);
   if (made) {
     const n = made.unlock.made! - c.madeClips;
-    const verb = owns(c, 'calibrate') ? 'Make' : 'Bend';
-    return `${verb} ${n} more clip${n === 1 ? '' : 's'}: ${made.name.toLowerCase()} comes next.`;
+    return `Make ${n} more clip${n === 1 ? '' : 's'} to unlock the ${made.name.toLowerCase()}.`;
   }
   const gated = cartonGated(c);
   if (gated) {
     const n = gated.unlock.boxes! - c.sealed;
-    return `Seal ${n} more carton${n === 1 ? '' : 's'} to make room for the ${gated.name.toLowerCase()}.`;
+    return `Pack ${n} more carton${n === 1 ? '' : 's'} to make room for the ${gated.name.toLowerCase()}.`;
   }
-  if (!owns(c, 'packer') && l >= OFFICE.boxSize) return 'Seal a carton: 250 clips.';
-  if (owns(c, 'packer') && c.reserve > 0 && l > 0 && !nextProject(s)) return `Nothing left to buy: lower the packer’s reserve so it packs the ${l} clips on the desk.`;
+  if (!owns(c, 'packer') && l >= OFFICE.boxSize) return 'Fill and tape a carton: 250 clips.';
   const extra = nextProject(s, true);
   if (extra) return `Optional: ${saving(extra).replace(/^./, (x) => x.toLowerCase())}`;
-  return `Fill the order: ${c.sealed} of ${CARTONS} cartons sealed.`;
+  return `Fill the order: ${c.sealed} of ${CARTONS} cartons packed.`;
 }
 
 export function canStart(s: CampaignState, id: OfficeProjectId): string | null {
   const c = cs(s);
   const p = project(id);
   if (c.capped) return 'The order is complete.';
-  if (owns(c, id)) return 'Already installed.';
+  if (owns(c, id)) return 'Already bought.';
   if (!unlocked(c, p)) return 'Not available yet.';
-  if (c.installing) return `Installing ${project(c.installing.id).name.toLowerCase()}.`;
+  if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}.`;
   if (forkTaken(c, p)) return 'The other option was chosen.';
   if (loose(s) < p.costClips) return `Needs ${p.costClips} clips on the desk.`;
   return null;
@@ -267,10 +262,22 @@ function bend(s: CampaignState, n: number, rejectPpm = 0): number {
   return k;
 }
 
-/** The auto-packer fills the open carton with every clip above the reserve. Sealing it is the player's job. */
+/**
+ * What the auto-packer leaves on the desk: enough for the next upgrade, so packing never gets in
+ * the way of buying. Once nothing on the main line is left to buy, it packs everything.
+ */
+export function packerKeeps(s: CampaignState): number {
+  const c = cs(s);
+  if (c.installing) return 0;
+  const next = nextProject(s) ?? OFFICE.projects.find((p) => !owns(c, p.id) && !OPTIONAL.includes(p.id) && !forkTaken(c, p));
+  return next ? next.costClips : 0;
+}
+
+/** The auto-packer fills the open carton with every clip above what it keeps for the next upgrade. Taping it shut is the player's job. */
 function runPacker(s: CampaignState) {
   const c = cs(s);
   if (!owns(c, 'packer') || c.capped || c.sealed >= CARTONS || boxFull(c)) return;
+  c.reserve = packerKeeps(s);
   const excess = loose(s) - c.reserve;
   if (excess <= 0) return;
   c.openBox += Math.min(excess, OFFICE.boxSize - c.openBox);
@@ -344,8 +351,8 @@ export const c01: Controller = {
     const decay = Math.floor((ACTIVE.tending.decayPerSecond * dt) / 1000);
     c.tending = Math.max(tendingFloor(c), c.tending - (owns(c, 'dieSmooth') ? Math.floor(decay / 2) : decay));
 
-    // True wire: once the bender runs, light catches the wire now and then.
-    if (owns(c, 'calibrate')) {
+    // Speed bursts: once the feeder runs, the wire now and then runs perfectly straight for a few seconds.
+    if (burstsOpen(c)) {
       if (c.nextGlintMs === 0) c.nextGlintMs = s.simMs + ACTIVE.trueWire.firstAfterMs;
       if (c.glintUntilMs !== 0 && s.simMs >= c.glintUntilMs) {
         c.glintUntilMs = 0;
@@ -382,18 +389,6 @@ export const c01: Controller = {
     }
 
     const rate = machineRate(s);
-    // Running fast wears the die: every so often it loses a tuning level until it is set again.
-    if (rate > 0 && wearLeftMs(s) !== null) {
-      c.wearMs += dt;
-      if (wearLeftMs(s) === 0) {
-        c.wearMs = 0;
-        c.tuneLevel -= 1;
-        c.lastTune = null;
-        c.wornAtMs = s.simMs;
-        emit({ type: 'sound', id: 'wear' });
-        bump(s);
-      }
-    }
     if (rate > 0) {
       // rate (milli-clips/s) × dt (ms) is exactly micro-clips.
       c.rateResidue += rate * dt;
@@ -544,14 +539,14 @@ export const c01: Controller = {
         const gain = Math.floor((ACTIVE.tending.perBend * (2 + before)) / 2);
         c.tending = Math.min(100_000, c.tending + gain);
         if (handLevel(c) > before) {
-          log(s, { id: `c01.practice.${handLevel(c)}`, kind: 'system', title: 'Practice', text: 'Your hands have the feel of the line now. Each press tends it further.' });
+          log(s, { id: `c01.practice.${handLevel(c)}`, kind: 'system', title: 'Practice', text: 'Your hands are getting quicker. Each press now boosts the machines a little more.' });
           emit({ type: 'sound', id: 'handLevel' });
           bump(s);
         }
         return null;
       }
       case 'c01/catch': {
-        if (!glintActive(s)) return 'The light has moved off the wire.';
+        if (!glintActive(s)) return 'The moment has passed.';
         c.glintUntilMs = 0;
         c.cleanRunUntilMs = s.simMs + (owns(c, 'careful') ? OFFICE.carefulRunMs : ACTIVE.trueWire.runMs);
         c.glintsCaught += 1;
@@ -561,10 +556,10 @@ export const c01: Controller = {
         return null;
       }
       case 'c01/tune': {
-        if (!owns(c, 'feeder')) return 'Needs the wire feeder.';
-        if (c.tuneLevel >= ACTIVE.tuning.levels) return 'The die is tuned as far as it will go.';
-        if (c.slowTuneMs !== null) return 'Tuning by hand is under way.';
-        if (s.simMs < c.tuneCooldownUntilMs) return 'Let the gauge settle.';
+        if (!tuningOpen(c)) return 'Needs the wire guide.';
+        if (c.tuneLevel >= ACTIVE.tuning.levels) return 'The machine is tuned as far as it will go.';
+        if (c.slowTuneMs !== null) return 'Slow tuning is under way.';
+        if (s.simMs < c.tuneCooldownUntilMs) return 'Wait for the needle to settle.';
         const needle = Math.max(0, Math.min(100, a.needle));
         const band = tuneBand(c);
         c.tuneAttempts += 1;
@@ -584,8 +579,8 @@ export const c01: Controller = {
         return null;
       }
       case 'c01/tuneSlow': {
-        if (!owns(c, 'feeder')) return 'Needs the wire feeder.';
-        if (c.tuneLevel >= ACTIVE.tuning.levels) return 'The die is tuned as far as it will go.';
+        if (!tuningOpen(c)) return 'Needs the wire guide.';
+        if (c.tuneLevel >= ACTIVE.tuning.levels) return 'The machine is tuned as far as it will go.';
         if (c.slowTuneMs !== null) return null;
         c.slowTuneMs = 0;
         emit({ type: 'sound', id: 'startInstall' });
@@ -615,19 +610,13 @@ export const c01: Controller = {
           return null;
         }
         // Once the packer is in, cartons are filled there; the hands only tape them shut.
-        if (owns(c, 'packer')) return `The packer is filling the carton: ${c.openBox} of ${OFFICE.boxSize}.`;
+        if (owns(c, 'packer')) return `The auto-packer is filling the carton: ${c.openBox} of ${OFFICE.boxSize}.`;
         if (loose(s) < OFFICE.boxSize) return `A carton needs ${OFFICE.boxSize} clips on the desk.`;
         sealCarton(s);
         return null;
       }
-      case 'c01/reserve':
-        if (!owns(c, 'packer')) return 'Needs the auto-packer.';
-        if (!OFFICE.packerReserves.includes(a.reserve)) return 'Not a setting on the packer.';
-        c.reserve = a.reserve;
-        emit({ type: 'sound', id: 'switch' });
-        return null;
       case 'c01/speed':
-        if (!owns(c, 'jig')) return 'Needs the jig frame.';
+        if (!owns(c, 'jig')) return 'Needs the side-table rack.';
         c.lineSpeed = a.speed as LineSpeed;
         emit({ type: 'sound', id: 'switch' });
         return null;

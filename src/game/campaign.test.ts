@@ -12,7 +12,7 @@ import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
 import { schedulePreview } from './chapters/c08';
 import { protectedLines } from './chapters/c07';
-import { glintActive, jamInterval, loose, machineRate, nextGoal, offeredProjects, tendingBonus, tuneBand } from './chapters/c01';
+import { glintActive, jamInterval, loose, machineRate, nextGoal, offeredProjects, packerKeeps, tendingBonus, tuneBand } from './chapters/c01';
 import type { C01State, C02State, C03State, C05State, C07State, C08State, CampaignState } from './types';
 
 function invariantEveryStep(s: CampaignState, steps: number) {
@@ -155,10 +155,9 @@ describe('chapter 01 office', () => {
     expect(tended).toBeGreaterThan(machineRate(s));
   });
 
-  it('catching the true wire gives a clean run and frees a caught wire', () => {
+  it('speed bursts start with the feeder; catching one speeds the line and frees a snagged wire', () => {
     const s = newCampaign();
-    for (let i = 0; i < 15; i++) dispatch(s, { type: 'c01/make' });
-    dispatch(s, { type: 'c01/project', id: 'calibrate' });
+    night(s).owned.push('calibrate', 'oil', 'feeder');
     let guard = 0;
     while (!glintActive(s) && guard++ < 20000) {
       if (night(s).jammed) dispatch(s, { type: 'c01/free' });
@@ -176,7 +175,7 @@ describe('chapter 01 office', () => {
   it('tuning: a hit is permanent, a miss only costs a few seconds, and careful tuning always works', () => {
     const s = newCampaign();
     const c = night(s);
-    c.owned.push('calibrate', 'oil', 'feeder');
+    c.owned.push('calibrate', 'oil', 'feeder', 'packer', 'roller');
     const band = tuneBand(c);
     dispatch(s, { type: 'c01/tune', needle: band.center });
     expect(c.tuneLevel).toBe(1);
@@ -239,25 +238,27 @@ describe('chapter 01 office', () => {
     expect(c.tending).toBeGreaterThan(50_000);
   });
 
-  it('running fast wears the die; a new setting has to run in', () => {
+  it('fine-tuning opens with the wire guide; a level, once set, stays at any speed', () => {
     const s = newCampaign();
     const c = night(s);
     c.owned.push('calibrate', 'oil', 'feeder', 'jig', 'straightener');
+    expect(dispatch(s, { type: 'c01/tune', needle: tuneBand(c).center })).not.toBeNull();
+    c.owned.push('roller');
     dispatch(s, { type: 'c01/tune', needle: tuneBand(c).center });
     expect(c.tuneLevel).toBe(1);
     expect(dispatch(s, { type: 'c01/tune', needle: tuneBand(c).center })).not.toBeNull();
     dispatch(s, { type: 'c01/speed', speed: 'hard' });
-    run(s, OFFICE.active.wear.hardMs / 100 + 5);
-    expect(c.tuneLevel).toBe(0);
-    expect(c.wornAtMs).toBeGreaterThan(0);
+    run(s, 2000);
+    expect(c.tuneLevel).toBe(1);
   });
 
-  it('the auto-packer packs everything above the reserve', () => {
+  it('the auto-packer keeps enough on the desk for the next upgrade and packs the rest', () => {
     const s = newCampaign();
     const c = night(s);
     c.owned.push('calibrate', 'oil', 'feeder', 'packer');
     commit(s, { id: 'test.wire', from: 'office.wire', input: 400n * CLIP, outputs: [['clips', 400n * CLIP]] });
-    expect(dispatch(s, { type: 'c01/reserve', reserve: 100 })).toBeNull();
+    // The next upgrade is a bending upgrade at 80 clips: that much stays on the desk.
+    expect(packerKeeps(s)).toBe(80);
     // With the packer in, desk clips are not taped up by hand: the packer fills, the hands seal.
     expect(dispatch(s, { type: 'c01/pack' })).not.toBeNull();
     step(s);
@@ -269,9 +270,8 @@ describe('chapter 01 office', () => {
     expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
     expect(c.sealed).toBe(1);
     step(s);
-    expect(c.openBox).toBe(50);
-    expect(loose(s)).toBe(100);
-    expect(dispatch(s, { type: 'c01/reserve', reserve: 37 })).not.toBeNull();
+    expect(c.openBox).toBe(70);
+    expect(loose(s)).toBe(80);
     expect(checkInvariant(s)).toBeNull();
   });
 
@@ -288,7 +288,7 @@ describe('chapter 01 office', () => {
   it('the first goal names the first installation, not the whole order', () => {
     const s = newCampaign();
     dispatch(s, { type: 'c01/make' });
-    expect(nextGoal(s)).toMatch(/Bend 9 more clips: calibrate the bender/);
+    expect(nextGoal(s)).toMatch(/Make 9 more clips to unlock the clip machine/);
   });
 
   it('a wait on sealed cartons is named as a goal', () => {
@@ -297,7 +297,7 @@ describe('chapter 01 office', () => {
     c.owned.push('calibrate', 'oil', 'feeder', 'dieSmooth', 'die2', 'packer', 'roller', 'governor', 'fan');
     c.sealed = 1;
     c.madeClips = 600;
-    expect(nextGoal(s)).toMatch(/1 more carton .* jig frame/);
+    expect(nextGoal(s)).toMatch(/1 more carton .* side-table rack/);
   });
 
   it('declining the lease is an honest holding ending', () => {

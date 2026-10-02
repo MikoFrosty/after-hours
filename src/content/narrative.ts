@@ -5,7 +5,7 @@
 export const MARA = {
   wire: {
     id: 'mara-wire',
-    text: '“The wire catches if you pull too hard. I loosened the guide. Three thousand should be enough for tomorrow. — Mara”',
+    text: '“The wire snags if you pull too hard. I loosened it a little. Three thousand should be enough for tomorrow. — Mara”',
     dateline: 'Saved message · 11:31 PM',
   },
   photograph: {
@@ -306,13 +306,13 @@ export const TERMINAL_FILES: Record<string, TerminalFile> = {
   },
   manual: {
     id: 'manual',
-    name: 'BENDER-MANUAL.TXT',
+    name: 'CLIP-MACHINE-MANUAL.TXT',
     lines: [
-      'BENCH BENDER, MODEL 2 — OPERATING NOTES',
-      'Feed the wire through the guide. The die forms one clip per cycle.',
-      'If the wire catches, free it at the guide. Do not pull.',
-      'A spring tensioner reduces catching. A powered feeder removes it.',
-      'Oil the die every thousand cycles.',
+      'DESKTOP CLIP MACHINE, MODEL 2 — OPERATING NOTES',
+      'Feed the wire in at the back. The machine bends one clip at a time.',
+      'If the wire snags, free it by hand. Do not pull.',
+      'A wire spring makes snags rarer. A powered wire feeder stops them.',
+      'Oil the machine every thousand clips.',
     ],
   },
   inventory: {
@@ -320,7 +320,7 @@ export const TERMINAL_FILES: Record<string, TerminalFile> = {
     name: 'INVENTORY-1104.TXT',
     lines: [
       'FACILITIES INVENTORY — ROOM 1104',
-      'Desk (1). Chair (1). Terminal (1). Bench bender (1).',
+      'Desk (1). Chair (1). Terminal (1). Desktop clip machine (1).',
       'Filing cabinet, four drawers. Drawers 1–3: records. Drawer 4: spare wire coil, 3 kg.',
       'Desk lamp. See ticket 0832.',
       'Picture frame with photograph. Provenance not recorded.',

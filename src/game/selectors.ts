@@ -87,10 +87,10 @@ export function metrics(s: CampaignState): { items: Metric[]; bottleneck: string
   switch (s.chapterState.kind) {
     case '01': {
       const c = s.chapterState as C01State;
-      const deskClips: Metric = { label: 'Clips on the desk', value: loose(s).toLocaleString(), hint: 'Loose clips. Only these can be spent on machines or packed.' };
+      const deskClips: Metric = { label: 'Clips on the desk', value: loose(s).toLocaleString(), hint: 'Loose clips. Only these can be spent on upgrades or packed.' };
       const b = wireGrams(s) < 1 && !c.capped ? 'Wire coil empty' : officeStatus(s);
       const items: Metric[] = [deskClips];
-      if (c.files.order) items.push({ label: 'Cartons', value: `${c.sealed} / ${CARTONS}`, hint: 'The order is twelve sealed cartons of 250.' });
+      if (c.files.order) items.push({ label: 'Cartons', value: `${c.sealed} / ${CARTONS}`, hint: 'The order is twelve cartons of 250 clips, taped shut.' });
       return { items, bottleneck: b };
     }
     case '02': {

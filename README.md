@@ -19,10 +19,11 @@ Headphones recommended. All sound is synthesized in the browser; it is optional 
 
 | Key | Action |
 |---|---|
-| B / F / C / T / S | Office: bend or tend / free the caught wire / catch the true wire / set the die / seal a carton |
+| B / F / C / T / S | Office: make a clip or boost the machines / free the snagged wire / grab a speed burst / fine-tune (stop the needle) / pack or tape a carton |
 | Space / Enter | Press the focused button; key repeat is ignored |
 | P | Pause / resume |
-| D / H | Building: unload a coil at the dock / lend a hand where work is piling up |
+| D (or B) | Building: unload a coil of wire at the dock |
+| ` | Debug panel: game speed, free clips, skip ahead |
 | 1 / 4 | Normal pace / routine pace (from chapter 3) |
 | N | Advance to next event (from chapter 3; only when no decision is pending) |
 | L / O | Ledger / office bookmark |
@@ -32,10 +33,12 @@ Progress saves locally (every 5 s, and on every decision, transition and visibil
 
 ## The eight chapters
 
+The current build is a **demo of chapters 1 and 2**: after the building it ends on its own screen (the debug panel can continue past it).
+
 | | Chapter | Verb | What you manage |
 |---|---|---|---|
-| 01 | The Night Desk | Make and reinvest | One night, twelve cartons and a 5:22 van: a bench bender that jams, a workshop of installations paid for in clips you must bend again, and three either/or choices |
-| 02 | The Building That Never Sleeps | Route and balance | Six contracts that open a four-station line one station at a time: queues, hands at the slowest station, permits spent at each inspection, heat, and whether the night garden survives the loading route |
+| 01 | The Night Desk | Make and reinvest | One night, twelve cartons and a 5:22 van: a desktop clip machine whose wire snags, upgrades paid for in clips you must make again, and three either/or choices |
+| 02 | The Building That Never Sleeps | Route and balance | Six contracts that open four rooms one at a time: clips as currency, the slowest room sets the pace, rush orders, workshop heat, and whether the night garden survives the delivery route |
 | 03 | The City Without Want | Allocate and provide | Ten units of power across three districts and industry; public consultation or streamlined approval |
 | 04 | The Garden Under Glass | Interpret and preserve | Six preservation cases: original, lossless archive or reconstruction; a living habitat that can only be kept or moved |
 | 05 | The Sun in Inventory | Build and dissipate | A ten-slot orbital layout where waste heat, not light, is the limit; the Sun's own dismantling date |

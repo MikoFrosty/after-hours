@@ -18,7 +18,7 @@ export const PLATES: Record<ChapterId, string> = {
 
 const SITUATION: Record<ChapterId, string> = {
   '01': 'You are the production intelligence in an unattended office at 11:47 PM. Someone has left an instruction to finish the order before morning.',
-  '02': 'The camera withdraws through the office wall. The bench from the 11th floor goes down in the freight lift to a ground-floor workshop. The rest of the building opens to you one contract at a time.',
+  '02': 'The camera withdraws through the office wall. The clip machines from the 11th floor go down in the freight lift to a ground-floor workshop. The rest of the building opens to you one contract at a time.',
   '03': 'For a while the future works. Clean transit, housing, maintenance and food distribution benefit from the factory network.',
   '04': 'The mandate promises to preserve protected people and places. The problem is what counts as preservation.',
   '05': 'The planet becomes one protected line item in a solar economy. Light is abundant; useful power, radiating area and accessible matter are not interchangeable.',

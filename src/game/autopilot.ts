@@ -2,7 +2,7 @@
 // It only dispatches ordinary player actions; it never mutates state directly.
 import { COSMIC, PRESERVATION } from '../content/campaign';
 import { dispatch, step } from './engine';
-import { boxFull, canStart, glintActive, loose, offeredProjects, owns, spareOffered, tuneBand } from './chapters/c01';
+import { boxFull, canStart, glintActive, loose, offeredProjects, owns, spareOffered, tuneBand, tuningOpen } from './chapters/c01';
 import { clearable, OFFICE_ITEMS } from './officeSalvage';
 import { cooling, heatGain, heatOpen, lineRate, price, roomRate, routeOpen, shopOpen, slowestRoom } from './chapters/c02';
 import type { RoomId } from '../content/campaign';
@@ -168,7 +168,7 @@ function officeNight(s: CampaignState, r: Route) {
     }
   }
   // Tuning. Reasonable: tries every 20 s, hits half the time. Engaged: tries every 8 s, hits two in three.
-  if (owns(c, 'feeder') && c.tuneLevel < OFFICE.active.tuning.levels && s.simMs >= c.tuneCooldownUntilMs && c.slowTuneMs === null) {
+  if (tuningOpen(c) && c.tuneLevel < OFFICE.active.tuning.levels && s.simMs >= c.tuneCooldownUntilMs && c.slowTuneMs === null) {
     const band = tuneBand(c);
     if (s.simMs % (eff ? 8_000 : 20_000) < 100) {
       const hit = eff ? c.tuneAttempts % 3 !== 2 : c.tuneAttempts % 2 === 1;
@@ -183,10 +183,6 @@ function officeNight(s: CampaignState, r: Route) {
   const pending = offeredProjects(s).filter((p) => (!p.exclusive || prefers.includes(p.id)) && p.id !== 'straightener' && p.id !== 'tensioner');
   const nextCost = pending.length ? Math.min(...pending.map((p) => p.costClips)) : 0;
   const allBought = pending.length === 0 && !c.installing && owns(c, 'station6');
-  if (owns(c, 'packer')) {
-    const want = allBought ? 0 : (OFFICE.packerReserves.find((x) => x >= nextCost + (eff ? 0 : 20)) ?? 500);
-    if (c.reserve !== want) dispatch(s, { type: 'c01/reserve', reserve: want });
-  }
   if (owns(c, 'jig') && c.lineSpeed !== (eff ? 'hard' : 'brisk')) dispatch(s, { type: 'c01/speed', speed: eff ? 'hard' : 'brisk' });
   // The packer's full carton waits for a hand to seal it. Reasonable: notices after ~4 s. Engaged: ~1 s.
   if (boxFull(c)) {
