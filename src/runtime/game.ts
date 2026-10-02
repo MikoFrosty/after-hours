@@ -1,6 +1,8 @@
 // Browser runtime: monotonic fixed-step clock, persistence, checkpoints and fast-forward.
 // UI state (drawers, focus, audio nodes) stays outside the domain snapshot.
-import { dispatch as domainDispatch, emit, onSignal, step, STEP_MS } from '../game/engine';
+import { dispatch as domainDispatch, emit, onSignal, step, STEP_MS, transition } from '../game/engine';
+import { DEMO_ENDS_AFTER } from '../content/campaign';
+import { CHAPTERS } from '../game/types';
 import type { Signal } from '../game/engine';
 import { newCampaign } from '../game/state';
 import {
@@ -170,7 +172,7 @@ class GameRuntime {
       if (s.mode === 'playing' || s.mode === 'terminal') {
         s.activePlayMs += STEP_MS;
         // The office night is never accelerated; it is sped up by playing it.
-        const n = s.mode === 'terminal' || s.chapter === '01' || s.chapter === '02' ? 1 : this.speed;
+        const n = (s.mode === 'terminal' || s.chapter === '01' || s.chapter === '02' ? 1 : this.speed) * this.debugSpeed;
         for (let i = 0; i < n; i++) step(s);
         stepped = true;
       }
@@ -199,6 +201,55 @@ class GameRuntime {
   setPaused(p: boolean, reason: string | null = null) {
     this.paused = p;
     this.pauseReason = p ? reason : null;
+    this.notify();
+  }
+
+  // ---------- debug tools (playtesting) ----------
+  debugOpen = false;
+  /** Multiplies the simulation's pace in every chapter, including the ones with no fast-forward. */
+  debugSpeed = 1;
+
+  toggleDebug(open = !this.debugOpen) {
+    this.debugOpen = open;
+    this.notify();
+  }
+
+  setDebugSpeed(v: number) {
+    this.debugSpeed = v;
+    this.notify();
+  }
+
+  /** Run a debug change on the live state, then save. */
+  debug(fn: (s: CampaignState) => void) {
+    if (!this.state) return;
+    fn(this.state);
+    this.dirty = true;
+    this.save('debug');
+    this.notify();
+  }
+
+  /** Start a fresh game seeded at the start of a chapter. Chapters inside the demo still end where the demo ends. */
+  async jumpTo(ch: ChapterId) {
+    const { seeded, CANONICAL, EFFICIENT } = await import('../game/autopilot');
+    const s = seeded(ch, ch >= '05' ? EFFICIENT : CANONICAL);
+    if (!DEMO_ENDS_AFTER || ch <= DEMO_ENDS_AFTER) delete s.flags['campaign.full'];
+    this.load(s, false);
+    this.introChapter = ch;
+    this.save('debug');
+    this.notify();
+  }
+
+  /** Lift the demo's end: from the demo screen, carry on into the unfinished chapters. */
+  continuePastDemo() {
+    const s = this.state;
+    if (!s) return;
+    s.flags['campaign.full'] = true;
+    if (s.mode === 'ended' && s.ending?.kind === 'demo') {
+      s.ending = null;
+      s.mode = 'playing';
+      transition(s, CHAPTERS[CHAPTERS.indexOf(s.chapter) + 1]);
+    }
+    this.save('debug');
     this.notify();
   }
 

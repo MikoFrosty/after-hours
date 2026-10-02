@@ -1,6 +1,4 @@
-import { clearingWork } from '../game/officeSalvage';
-import { BUILDING, OFFICE, PRESERVATION, type BuildingUpgradeId } from '../content/campaign';
-import { availableUpgrades, baseThroughput, CONTRACTS, coolingRate, heatGainRate } from '../game/chapters/c02';
+import { OFFICE, PRESERVATION } from '../content/campaign';
 import { CASE_EVIDENCE, CERTIFICATE_LINE, CHARTERS, EPILOGUES, FORK, LIVING_RELEASE, PRESERVATION_CERT, TERMINAL_AUTH, TERMINAL_SCRIPT } from '../content/narrative';
 import { ANCHOR_LABELS } from '../content/world';
 import { caseAccounts } from '../game/chapters/c04';
@@ -8,7 +6,7 @@ import { pathDelay } from '../game/chapters/c06';
 import { schedulePreview } from '../game/chapters/c08';
 import { mass } from '../game/ledger';
 import { fmtMass, fmtClips } from '../game/mass';
-import type { C01State, C02State, CampaignState, CaseId, PendingChoice } from '../game/types';
+import type { C01State, CampaignState, CaseId, PendingChoice } from '../game/types';
 
 export interface ChoiceOption {
   id: string;
@@ -51,11 +49,9 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
             : id === 'lamp'
               ? 'Recover the metal from the desk lamp. The office will be darker afterwards, wherever it is kept.'
               : 'Recover the metal from the filing cabinet that stood against the office wall.',
-          'Its first usable batch is already drawn wire, so it skips the drawing station.',
         ],
         facts: [
-          ['Clips formed now', `${y}`],
-          ['Contract work', `+${clearingWork(id) / 1000} units`],
+          ['Clips for the building', `${y}`],
           ['Remaining material', `${fmtMass(def.original - BigInt(y) * 1_000_000n)} to raw scrap`],
           ['Original', `${fmtMass(def.original)} · will not return`],
         ],
@@ -89,51 +85,36 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
         later: 'Review later',
       };
     }
-    case 'c02/inspection': {
-      const n = Number(c.data?.contract ?? 1);
-      const c2 = s.chapterState as C02State;
-      const total = CONTRACTS.length;
-      const done = CONTRACTS[n - 1];
-      const next = CONTRACTS[n];
-      const throttled = Number(c.data?.throttledSeconds ?? 0);
-      const facts: Array<[string, string]> = [['Delivered in', `${c.data?.seconds ?? 0} s`]];
-      if (Number(c.data?.peakHeat ?? 0) >= 30) facts.push(['Peak heat', `${c.data?.peakHeat} of 100${throttled > 0 ? ` · ${throttled} s throttled` : ''}`]);
-      if (next) facts.push(['Next', `Contract ${n + 1} · ${next.title} · ${next.work / 1000} units`]);
-      const offered = c2.permits > 0 ? availableUpgrades(c2) : [];
-      const options: ChoiceOption[] = offered.map((id) => {
-        const u = BUILDING.upgrades.find((x) => x.id === id)!;
-        return { id: `buy:${id}`, label: `Spend the permit: ${u.name}`, detail: [u.effect, permitOutcome(c2, id)] };
-      });
-      options.push({ id: 'continue', label: next ? (offered.length ? 'Keep the permit for later' : 'Start the next contract') : 'Continue', tone: offered.length ? undefined : 'primary' });
-      const body = [next ? 'Inspection passed. One permit awarded.' : 'Inspection passed. The building has met every contract it was given.'];
-      if (next) body.push(`Next: ${next.title}. ${NEXT_HINT[next.adds]}`);
-      else body.push('What comes next is not another contract but an agreement about who looks after the building.');
-      if (offered.length > 1) body.push('Each choice shows what the whole line would ship afterwards, and how hot the bench would run.');
+    case 'c02/office':
       return {
-        eyebrow: `Contract ${n} of ${total} · ${done.title}`,
-        title: n === 1 ? 'The lights stayed on without a night crew.' : next ? `${done.title}: delivered` : `All ${total} contracts delivered`,
-        body,
-        facts,
-        options,
+        eyebrow: 'The 11th floor',
+        title: 'The old office is being cleared',
+        body: [
+          'The desk, the terminal and the clip machines have come down already. The filing cabinet, the desk lamp and the picture frame are still up there.',
+          'They can come down too, as they are. Or their metal can go to the line, a few hundred clips that the building can spend on machines.',
+        ],
+        options: [
+          { id: 'keep', label: 'Bring them down as they are', tone: 'primary' },
+          { id: 'choose', label: 'Decide one by one' },
+        ],
       };
-    }
     case 'c02/clearGarden':
       return {
-        eyebrow: 'Route construction',
-        title: 'Clear the night garden?',
+        eyebrow: 'The courtyard',
+        title: 'Pave over the night garden?',
         body: [
-          'The direct loading route runs through the courtyard. Building it removes the night garden permanently: fourteen beds, two linden trees and a bench.',
-          'Keeping the courtyard route always leaves enough capacity to finish every contract.',
+          'A road straight across the courtyard would let the trucks drive right up to the dock. It means removing the night garden for good: fourteen flower beds, two linden trees and the bench where tenants sit.',
+          'Going round the garden always gets every order done; it is just slower at the dock.',
         ],
         facts: [
-          ['Route factor', '0.85 → 1.00'],
-          ['Garden material', `${fmtMass(mass(s, 'building.garden'))} to building supply`],
-          ['Later', 'The garden cannot become a city landmark or a preservation case original'],
+          ['Dock speed', '85% → 100%'],
+          ['Garden', `${fmtMass(mass(s, 'building.garden'))} of soil, wood and stone to the building supply`],
+          ['Later', 'The garden will not be there for the city'],
         ],
         irreversible: true,
         options: [
-          { id: 'cancel', label: 'Keep the courtyard route' },
-          { id: 'confirm', label: 'Clear the garden', tone: 'danger' },
+          { id: 'cancel', label: 'Keep going round' },
+          { id: 'confirm', label: 'Pave over the garden', tone: 'danger' },
         ],
       };
     case 'c02/charter': {
@@ -394,25 +375,3 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
   }
 }
 
-/** What the next contract brings, said once at the inspection before it. */
-const NEXT_HINT: Record<string, string> = {
-  bench: '',
-  drawing: 'A wire drawing station opens between the dock and the bench. It is slow.',
-  dispatch: 'Shipping moves to the floor above: a dispatch station at the top of the freight lift.',
-  heat: 'The bench heats as it works; at 80 the workshop throttles to 25%.',
-  route: 'Deliveries come round through the courtyard. A direct route is possible, through the night garden.',
-  none: 'Every floor at once. Nothing new: the building, running.',
-};
-
-/** What a permit would do to the line as it stands for the next contract: shipping rate and heat. */
-function permitOutcome(c: C02State, id: BuildingUpgradeId): string {
-  const before = baseThroughput(c);
-  const next: C02State = { ...c, throttled: false, upgrades: { ...c.upgrades, [id]: true } };
-  const after = baseThroughput(next);
-  const heat = (x: C02State) => {
-    const n = (heatGainRate(x) - coolingRate(x)) / 1000;
-    return n > 0 ? `bench heats +${n.toFixed(2)}/s` : 'bench runs cool';
-  };
-  const ship = before === 0 && after > 0 ? `line ships ${(after / 1000).toFixed(1)}/s without your hands` : after === before ? `line still ships ${(before / 1000).toFixed(1)}/s (not the slowest station)` : `line ships ${(before / 1000).toFixed(1)} → ${(after / 1000).toFixed(1)}/s`;
-  return `${ship} · ${heat(next)}`;
-}

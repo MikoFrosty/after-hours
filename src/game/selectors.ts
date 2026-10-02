@@ -1,7 +1,7 @@
 import { CHAPTER_META, CITY, COSMIC, PRESERVATION, SOLAR, TERMINAL } from '../content/campaign';
 import { DISTRICTS } from '../content/world';
 import { CARTONS, loose, officeStatus, wireGrams } from './chapters/c01';
-import { bottleneck as c02Bottleneck, CONTRACTS, currentContract, heatIntroduced, NAMES as BUILDING_NAMES } from './chapters/c02';
+import { CONTRACTS, currentContract, dockBehind, heatOpen, shopOpen, slowestRoom } from './chapters/c02';
 import { met, reserveRate } from './chapters/c03';
 import { currentOverhead, resolvedCount, slotsInUse } from './chapters/c04';
 import { limitingRole, output } from './chapters/c05';
@@ -98,17 +98,16 @@ export function metrics(s: CampaignState): { items: Metric[]; bottleneck: string
       const n = CONTRACTS.length;
       const k = currentContract(c);
       const items: Metric[] = [
-        { label: 'Contract', value: c.contractIndex >= n ? `${n} / ${n} done` : `${c.contractIndex + 1} / ${n} · ${fmtMilli(c.contractWorkMilli, 0)} / ${k.work / 1000}`, hint: k.title },
-        { label: 'Shipping', value: `${fmtMilli(c.shipRate, 1)} /s`, hint: 'Work leaving the building, averaged over the last few seconds.' },
+        { label: 'Clips to spend', value: c.stock.toLocaleString('en-US'), hint: 'Clips the building has made and not yet spent on machines.' },
+        { label: 'Contract', value: c.contractIndex >= n ? `${n} / ${n} done` : `${c.contractIndex + 1} / ${n} · ${c.contractClips.toLocaleString('en-US')} / ${k.clips.toLocaleString('en-US')}`, hint: `${k.title} for ${k.client}` },
+        { label: 'Making', value: `${fmtMilli(c.rate, 1)} clips/s` },
       ];
-      if (heatIntroduced(c)) items.push({ label: 'Heat', value: `${Math.round(c.heatMilli / 1000)}${c.throttled ? ' · throttled' : ''}` });
-      let now = 'Moving in';
-      if (c.contractIndex >= n) now = 'All contracts delivered';
-      else if (c.awaitingInspection) now = 'Inspection';
+      if (heatOpen(c)) items.push({ label: 'Workshop heat', value: `${Math.round(c.heatMilli / 1000)}${c.throttled ? ' · overheated' : ''}` });
+      let now = 'Unloading by hand';
+      if (c.contractIndex >= n) now = 'Every contract delivered';
       else if (!c.running) now = 'Stopped to cool';
-      else if (c.throttled) now = 'Throttled: cooling';
-      else if (!c.upgrades.dockCrew) now = 'Unloading by hand';
-      else now = `Slowest: ${BUILDING_NAMES[c02Bottleneck(c)].toLowerCase()}`;
+      else if (c.throttled) now = 'Overheated: cooling';
+      else if (c.levels.dock > 0 || shopOpen(c)) now = `Slowest: ${(dockBehind(c) ? 'loading dock' : slowestRoom(c).name).toLowerCase()}`;
       return { items, bottleneck: now };
     }
     case '03': {

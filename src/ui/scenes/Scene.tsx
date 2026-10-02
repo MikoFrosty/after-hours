@@ -56,7 +56,7 @@ export function Scene() {
     <section className="scene" aria-label="Scene">
       {body}
       {game.toast && !s.choices.length && (
-        <div className={`beat ${s.chapter === '01' ? 'top' : ''}`} key={game.toast.id} aria-hidden>
+        <div className={`beat ${s.chapter === '01' || s.chapter === '02' ? 'top' : ''}`} key={game.toast.id} aria-hidden>
           <div className="bt">{game.toast.title}</div>
           <div className="bx">{game.toast.text}</div>
         </div>

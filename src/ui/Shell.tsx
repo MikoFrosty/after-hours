@@ -8,12 +8,14 @@ import { DecisionDialog } from './DecisionDialog';
 import { Drawer, type DrawerTab } from './drawer/Drawer';
 import { ChapterIntro } from './ChapterIntro';
 import { Ending, TerminalOverlays } from './Ending';
+import { DebugPanel, useDebugKey } from './DebugPanel';
 import { Scene } from './scenes/Scene';
 import { Panel } from './panels/Panel';
 
 export function Shell() {
   const s = useGameState();
   const [tab, setTab] = useState<DrawerTab | null>(null);
+  useDebugKey();
   const m = metrics(s);
   const meta = CHAPTER_META[s.chapter];
   const c8 = s.chapterState.kind === '08' ? (s.chapterState as C08State) : null;
@@ -49,7 +51,13 @@ export function Shell() {
     return () => window.removeEventListener('keydown', onKey);
   }, [s, archiveGone, computeGone, paceOpen]);
 
-  if (s.mode === 'holding' || s.mode === 'ended') return <Ending />;
+  if (s.mode === 'holding' || s.mode === 'ended')
+    return (
+      <>
+        <Ending />
+        <DebugPanel />
+      </>
+    );
 
   const saveAge = Math.max(0, Math.round((Date.now() - game.saveStatus.at) / 1000));
 
@@ -160,6 +168,9 @@ export function Shell() {
         <button className="btn ghost" onClick={() => setTab('settings')}>
           Settings
         </button>
+        <button className="btn ghost debug-btn" onClick={() => game.toggleDebug()} title="Debug tools (`)">
+          Debug
+        </button>
         <span className={`save-status ${game.saveStatus.ok ? '' : 'bad'}`} role="status" aria-live="polite">
           {game.saveStatus.ok ? (game.saveStatus.at ? `${game.saveStatus.message} · ${saveAge}s ago` : game.saveStatus.message) : game.saveStatus.message}
         </span>
@@ -168,6 +179,7 @@ export function Shell() {
       {tab && <Drawer tab={tab} onTab={setTab} onClose={() => setTab(null)} />}
       {choice && !game.introChapter && <DecisionDialog key={choice.id} choice={choice} />}
       {game.introChapter && <ChapterIntro chapter={game.introChapter} />}
+      <DebugPanel />
       {game.conflict && <ConflictDialog />}
       {s.chapter === '08' && <TerminalOverlays />}
       {game.lastRejection && Date.now() - game.lastRejection.at < 2200 && (

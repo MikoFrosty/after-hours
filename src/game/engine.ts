@@ -1,4 +1,4 @@
-import { CLOCK } from '../content/campaign';
+import { CLOCK, DEMO_ENDS_AFTER } from '../content/campaign';
 import { checkInvariant } from './ledger';
 import { enqueueChoice, log, once, resolveChoice } from './state';
 import type { Action, CampaignState, ChapterId, PendingChoice } from './types';
@@ -113,6 +113,14 @@ export function evaluateGuard(s: CampaignState): void {
   if (s.mode === 'holding' || s.mode === 'ended') return;
   if (!ctrl.guard(s)) return;
   const i = CHAPTERS.indexOf(s.chapter);
+  // The demo ends here, unless the full campaign was asked for (simulated players, the debug menu).
+  if (s.chapter === DEMO_ENDS_AFTER && !s.flags['campaign.full']) {
+    s.summaries[s.chapter] = { chapter: s.chapter, activePlayMs: s.activePlayMs - s.chapterEnteredPlayMs, simMs: s.simMs - s.chapterEnteredSimMs, notes: [] };
+    s.mode = 'ended';
+    s.ending = { kind: 'demo', chapter: s.chapter };
+    emit({ type: 'save', reason: 'demo-end' });
+    return;
+  }
   if (i === CHAPTERS.length - 1) {
     s.mode = 'ended';
     s.ending = { kind: 'totality', chapter: '08' };

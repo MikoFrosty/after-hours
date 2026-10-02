@@ -1,27 +1,37 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGameState, act } from '../hooks';
 import { game } from '../../runtime/game';
-import { BUILDING, OFFICE, type BuildingUpgradeId } from '../../content/campaign';
-import type { BuildingStation, C02State } from '../../game/types';
+import { BUILDING, OFFICE, type Room } from '../../content/campaign';
+import type { C02State } from '../../game/types';
 import {
-  availableUpgrades,
-  baseThroughput,
+  allDelivered,
   buildingGoal,
   CONTRACTS,
-  coolingRate,
+  cooling,
   currentContract,
-  heatGainRate,
-  heatIntroduced,
-  NAMES,
-  onlineStations,
-  routeIntroduced,
-  stationRates,
-  handTarget,
+  heatGain,
+  heatOpen,
+  openRooms,
+  price,
+  roomRate,
+  routeOpen,
+  shopOpen,
+  slowestRoom,
+  dockBehind,
 } from '../../game/chapters/c02';
-import { mass } from '../../game/ledger';
-import { fmtMass } from '../../game/mass';
 import { Bar } from './Panel';
-import { clearable, clearingWork, OFFICE_ITEMS } from '../../game/officeSalvage';
+import { clearable, OFFICE_ITEMS } from '../../game/officeSalvage';
+
+const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
+const perSec = (milli: number) => `${(milli / 1000).toFixed(milli < 10_000 ? 1 : 0)}/s`;
+
+/** What a room's machines are called, counted. */
+const UNITS: Record<Room['id'], (n: number) => string> = {
+  dock: (n) => `${n} dock hand${n === 1 ? '' : 's'}`,
+  wireRoom: (n) => `${n} wire machine${n === 1 ? '' : 's'}`,
+  workshop: (n) => `${n} clip machine${n === 1 ? '' : 's'}`,
+  shipping: (n) => `${n} lift run${n === 1 ? '' : 's'} an hour`,
+};
 
 const CLEARING_COPY = {
   cabinet: { name: 'Filing cabinet', text: 'Ten kilograms of steel. Its records go to storage either way.' },
@@ -29,80 +39,73 @@ const CLEARING_COPY = {
   frame: { name: 'Picture frame', text: 'The photograph would stay with the desk.' },
 } as const;
 
-/** Which contract introduced each station, for a "new" tag while it is new. */
-const OPENED: Record<BuildingStation, number> = { dock: 0, drawing: 1, bender: 0, dispatch: 2 };
-
-const ROLE: Record<BuildingStation, string> = {
-  dock: 'Coils come in off the trucks.',
-  drawing: 'Rod is drawn down into wire.',
-  bender: 'The bench from the 11th floor forms the clips.',
-  dispatch: 'Cartons go up the freight lift and out.',
-};
-
 export function P02() {
   const s = useGameState();
   const c = s.chapterState as C02State;
-  const done = c.contractIndex >= CONTRACTS.length;
+  const done = allDelivered(c);
   return (
     <>
       <BuildingDock />
 
       {done && !s.charters.maintenanceCharter && s.choices.length === 0 && (
         <button className="btn primary" onClick={() => act({ type: 'request', kind: 'charter', subject: 'maintenanceCharter' })}>
-          Review maintenance charter
+          Review the maintenance offer
         </button>
       )}
       {s.charters.maintenanceCharter && !s.charters.cityTender && s.choices.length === 0 && (
         <button className="btn primary" onClick={() => act({ type: 'request', kind: 'charter', subject: 'cityTender' })}>
-          Review city tender
+          Review the city tender
         </button>
       )}
 
-      <LineCard />
-
-      {c.permits > 0 && availableUpgrades(c).length > 0 && <PermitsCard />}
-
-      {heatIntroduced(c) && <HeatCard />}
-
-      {routeIntroduced(c) && <RouteCard />}
-
+      {c.rush && !done && <RushCard />}
+      {!done && <RoomsCard />}
+      {heatOpen(c) && !done && <HeatCard />}
+      {routeOpen(c) && <RouteCard />}
       <ClearingCard />
     </>
   );
 }
 
-/**
- * The building's bench: the current contract, one line saying what needs attention, and the shipping
- * rate. Stop/start appears once heat is part of the job.
- */
+/** Always in view: what to do next, the contract, clips to spend, and the one hands-on verb. */
 function BuildingDock() {
   const s = useGameState();
   const c = s.chapterState as C02State;
-  const done = c.contractIndex >= CONTRACTS.length;
+  const done = allDelivered(c);
   const k = currentContract(c);
   const goal = buildingGoal(s);
-  const hot = c.throttled ? 'hot' : heatIntroduced(c) && c.heatMilli >= 60_000 && heatGainRate(c) > coolingRate(c) ? 'warm' : '';
-  const left = c.shipRate > 0 ? Math.ceil((k.work - c.contractWorkMilli) / c.shipRate) : null;
-
-  // H lends a hand at the station last helped; D at the dock.
+  const hot = c.throttled ? 'hot' : heatOpen(c) && c.heatMilli >= 60_000 && heatGain(c) > cooling(c) ? 'warm' : '';
+  const [n, setN] = useState(0);
+  const [floaters, setFloaters] = useState<Array<{ id: number; x: number }>>([]);
+  const seq = useRef(0);
+  const unload = () => {
+    const before = (game.state?.chapterState as C02State).wire;
+    if (act({ type: 'c02/unload' })) return;
+    setN((x) => x + 1);
+    if ((game.state?.chapterState as C02State).wire > before) {
+      const id = ++seq.current;
+      setFloaters((f) => [...f.slice(-5), { id, x: 78 + ((id * 37) % 10) }]);
+      setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 900);
+    }
+  };
+  const unloadRef = useRef(unload);
+  unloadRef.current = unload;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
-      const c2 = game.state?.chapterState as C02State | undefined;
-      if ((e.key === 'h' || e.key === 'H') && c2?.kind === '02') act({ type: 'c02/hand', station: handTarget(c2) });
-      if (e.key === 'd' || e.key === 'D') act({ type: 'c02/hand', station: 'dock' });
+      if (e.key === 'd' || e.key === 'D' || e.key === 'b' || e.key === 'B') unloadRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-
+  const left = c.rate > 0 ? Math.ceil(((k.clips - c.contractClips) * 1000) / c.rate) : null;
   return (
-    <div className="card action-dock" aria-label="Contract">
+    <div className="card action-dock" aria-label="Building">
       <div className={`alert-slot ${hot ? `heat ${hot}` : 'goal'}`} role="status">
         {!hot && <span className="tiny muted">Next</span>}
         <span>{goal}</span>
       </div>
-      {!done ? (
+      {!done && (
         <div>
           <div className="row between small">
             <span>
@@ -110,27 +113,135 @@ function BuildingDock() {
               {k.title}
             </span>
             <span className="mono">
-              {Math.floor(c.contractWorkMilli / 1000)} / {k.work / 1000}
+              {fmt(c.contractClips)} / {fmt(k.clips)}
             </span>
           </div>
-          <Bar value={c.contractWorkMilli} max={k.work} />
+          <Bar value={c.contractClips} max={k.clips} />
           <div className="row between tiny" style={{ marginTop: 4 }}>
-            <span className="faint">{left !== null && !c.awaitingInspection ? `about ${left} s to go at this pace` : c.awaitingInspection ? 'inspection' : 'waiting for work to reach the end of the line'}</span>
-            <span className="mono">{(c.shipRate / 1000).toFixed(1)}/s shipped</span>
+            <span className="faint">For {k.client}</span>
+            <span className="faint">{left !== null ? `about ${left} s to go` : ''}</span>
           </div>
         </div>
-      ) : (
-        <div className="small">All {CONTRACTS.length} contracts delivered. Building work total {(c.cumulativeWorkMilli / 1000).toFixed(0)}.</div>
       )}
-      {!done && !c.awaitingInspection && <HandButton />}
-      {heatIntroduced(c) && !done && (
-        <div className="row between">
-          <span className="small muted">
-            Heat <span className="mono">{Math.round(c.heatMilli / 1000)}</span>
-            {c.throttled ? ' · throttled to 25%' : ''}
+      <div className="dock-main">
+        <div className="make-wrap">
+          <button className={`btn primary make-btn hand-btn ${n ? `press-${n % 2}` : ''}`} onClick={unload} disabled={done}>
+            Unload a coil of wire
+            <span className="kbd">D</span>
+          </button>
+          {floaters.map((f) => (
+            <span key={f.id} className="floater" style={{ left: `${f.x}%` }} aria-hidden>
+              +{BUILDING.handCoilClips}
+            </span>
+          ))}
+        </div>
+        <div className="dock-stats">
+          <div className="stat">
+            <span className="muted tiny">Clips to spend</span>
+            <span className="mono big">{fmt(c.stock)}</span>
+          </div>
+          <div className="stat">
+            <span className="muted tiny">Making</span>
+            <span className="mono">{(c.rate / 1000).toFixed(1)}/s</span>
+          </div>
+        </div>
+      </div>
+      <div className="tiny faint">
+        Wire waiting at the dock: {fmt(c.wire)} clips’ worth{c.levels.dock === 0 ? ' · each coil makes ' + BUILDING.handCoilClips + ' clips' : ''}
+      </div>
+    </div>
+  );
+}
+
+/** The rooms of the line, in the order wire moves through them. The slowest one sets the pace. */
+function RoomsCard() {
+  const s = useGameState();
+  const c = s.chapterState as C02State;
+  const rooms = openRooms(c);
+  const shop = shopOpen(c);
+  const slow = slowestRoom(c);
+  const max = Math.max(...rooms.map((r) => roomRate(c, r)), 1);
+  const dockShort = dockBehind(c);
+  return (
+    <div className="card">
+      <h3>
+        The building <span className="tag">{rooms.length} of 4 rooms open</span>
+      </h3>
+      <p className="small" style={{ margin: '0 0 10px' }}>
+        {shop
+          ? 'Wire goes through each room in turn, so the whole line only runs as fast as its slowest room. Spend clips there.'
+          : 'Wire comes in at the dock and goes to the workshop to be bent into clips. For now, the dock is you.'}
+      </p>
+      <div className="list">
+        {rooms.map((r) => (
+          <RoomRow key={r.id} r={r} slowest={shop && (dockShort ? r.id === 'dock' : r.id === slow.id)} shop={shop} max={max} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RoomRow({ r, slowest, shop, max }: { r: Room; slowest: boolean; shop: boolean; max: number }) {
+  const s = useGameState();
+  const c = s.chapterState as C02State;
+  const rate = roomRate(c, r);
+  const cost = price(c, r.id);
+  const level = c.levels[r.id];
+  const handsOnly = r.id === 'dock' && level === 0;
+  const isNew = r.opensWith === c.contractIndex && r.opensWith > 0;
+  return (
+    <div className={`item room-row ${slowest ? 'highlight' : ''}`}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="t">
+          {r.name} {isNew && <span className="pill accent">new</span>} {slowest && <span className="pill warn">slowest</span>}
+        </div>
+        <div className="d">{r.does}</div>
+        <div className="room-speed">
+          <span className="mono tiny">{handsOnly ? 'you, by hand' : `${perSec(rate)} · ${UNITS[r.id](r.id === 'dock' ? level : level + 1)}`}</span>
+          {!handsOnly && <Bar value={rate} max={max} tone={slowest ? undefined : 'alt'} />}
+        </div>
+      </div>
+      {shop && (
+        <button className={`btn small ${slowest ? 'primary' : ''}`} disabled={c.stock < cost} onClick={() => act({ type: 'c02/buy', room: r.id })} title={`+${perSec(r.perLevel)}`}>
+          {r.buy}
+          <span className="tiny mono" style={{ display: 'block' }}>
+            {fmt(cost)} clips · +{perSec(r.perLevel)}
           </span>
-          <button className="btn small" aria-pressed={c.running} onClick={() => act({ type: 'c02/run', running: !c.running })}>
-            {c.running ? 'Stop production' : 'Start production'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function RushCard() {
+  const s = useGameState();
+  const c = s.chapterState as C02State;
+  const r = c.rush!;
+  const left = Math.max(0, Math.ceil((r.untilMs - s.simMs) / 1000));
+  return (
+    <div className="card reveal rush">
+      <h3>
+        Rush order <span className="tag">{left} s</span>
+      </h3>
+      {r.taken ? (
+        <>
+          <div className="row between small">
+            <span>
+              Make {fmt(r.target)} clips before the time runs out · bonus {fmt(r.bonus)}
+            </span>
+            <span className="mono">
+              {fmt(r.made)} / {fmt(r.target)}
+            </span>
+          </div>
+          <Bar value={r.made} max={r.target} />
+        </>
+      ) : (
+        <div className="row between">
+          <span className="small">
+            {fmt(r.target)} clips in {BUILDING.rush.ms / 1000} seconds, for a bonus of {fmt(r.bonus)} clips. Nothing is lost if you miss it.
+          </span>
+          <button className="btn primary small" onClick={() => act({ type: 'c02/rush' })}>
+            Take it
           </button>
         </div>
       )}
@@ -138,163 +249,37 @@ function BuildingDock() {
   );
 }
 
-/** The building's one hands-on verb, kept in reach: unload at the dock, then help wherever work piles up. */
-function HandButton() {
-  const s = useGameState();
-  const c = s.chapterState as C02State;
-  const st = handTarget(c);
-  const [n, setN] = useState(0);
-  return (
-    <button
-      className={`btn primary make-btn hand-btn ${n ? `press-${n % 2}` : ''}`}
-      onClick={() => {
-        if (!act({ type: 'c02/hand', station: st })) setN(n + 1);
-      }}
-    >
-      {st === 'dock' && !c.upgrades.dockCrew ? 'Unload a coil' : `Lend a hand at ${NAMES[st].toLowerCase()}`}
-      <span className="kbd">{st === 'dock' ? 'D' : 'H'}</span>
-    </button>
-  );
-}
-
-/** The line, station by station, in the order work flows. Queues show where work is piling up. */
-function LineCard() {
-  const s = useGameState();
-  const c = s.chapterState as C02State;
-  const list = onlineStations(c);
-  const rates = stationRates(c);
-  const [pulse, setPulse] = useState<{ st: BuildingStation; n: number } | null>(null);
-  const n = useRef(0);
-  const help = (st: BuildingStation) => {
-    const err = act({ type: 'c02/hand', station: st });
-    if (!err) setPulse({ st, n: ++n.current });
-  };
-  const installed = BUILDING.upgrades.filter((u) => c.upgrades[u.id]).map((u) => u.name);
-  return (
-    <div className="card">
-      <h3>
-        The line <span className="tag">{list.length} of 4 stations open</span>
-      </h3>
-      <div className="line-list">
-        {list.map((st, i) => {
-          const next = list[i + 1];
-          const q = next ? c.queues[st as keyof C02State['queues']] : 0;
-          const isNew = OPENED[st] === c.contractIndex && c.contractIndex > 0;
-          const byHand = st === 'dock' && !c.upgrades.dockCrew;
-          return (
-            <div key={st}>
-              <div className={`station-row ${pulse?.st === st ? `helped h${pulse.n % 2}` : ''}`}>
-                <div>
-                  <div className="t">
-                    {NAMES[st]} {isNew && <span className="pill accent">new</span>}
-                  </div>
-                  <div className="d">{ROLE[st]}</div>
-                </div>
-                <span className="mono rate">{byHand ? 'by hand' : `${(rates[st] / 1000).toFixed(1)}/s`}</span>
-                <button className={`btn small ${byHand ? 'primary' : ''}`} onClick={() => help(st)} title={st === 'dock' ? 'Unload a coil (D)' : 'Push one unit through by hand (H)'}>
-                  {st === 'dock' ? 'Unload a coil' : 'Lend a hand'}
-                </button>
-              </div>
-              {next && (
-                <div className="queue-row" aria-label={`${Math.floor(q / 1000)} waiting for ${NAMES[next].toLowerCase()}`}>
-                  <span className="tiny faint">↓ waiting for {NAMES[next].toLowerCase()}</span>
-                  <div className={`queue ${q >= BUILDING.bufferCap ? 'full' : ''}`}>
-                    <i style={{ width: `${(q / BUILDING.bufferCap) * 100}%` }} />
-                  </div>
-                  <span className="mono tiny">{Math.floor(q / 1000)}</span>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <p className="tiny faint" style={{ margin: '8px 0 0' }}>
-        Work waits between stations; a queue that fills up sits in front of the slowest one. Your hands push one unit through any station, two a second at most.
-        {installed.length > 0 && ` Installed: ${installed.join(', ')}.`}
-      </p>
-    </div>
-  );
-}
-
-/** Permits kept from an inspection, spent here instead. */
-function PermitsCard() {
-  const s = useGameState();
-  const c = s.chapterState as C02State;
-  return (
-    <div className="card highlight-card">
-      <h3>
-        Permits <span className="tag">{c.permits} to spend</span>
-      </h3>
-      <div className="list">
-        {availableUpgrades(c).map((id) => {
-          const u = BUILDING.upgrades.find((x) => x.id === id)!;
-          return (
-            <div key={id} className="item">
-              <div>
-                <div className="t">{u.name}</div>
-                <div className="d">{u.effect}</div>
-                <div className="d mono tiny">{outcome(c, id)}</div>
-              </div>
-              <button className="btn small" onClick={() => act({ type: 'c02/upgrade', id })}>
-                1 permit
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function outcome(c: C02State, id: BuildingUpgradeId): string {
-  const before = baseThroughput(c);
-  const next: C02State = { ...c, throttled: false, upgrades: { ...c.upgrades, [id]: true } };
-  const after = baseThroughput(next);
-  const n = (heatGainRate(next) - coolingRate(next)) / 1000;
-  const heat = n > 0 ? `bench heats +${n.toFixed(2)}/s` : 'bench runs cool';
-  const ship = after === before ? `still ${(before / 1000).toFixed(1)}/s (not the slowest station)` : `${(before / 1000).toFixed(1)} → ${(after / 1000).toFixed(1)}/s`;
-  return `${ship} · ${heat}`;
-}
-
 function HeatCard() {
   const s = useGameState();
   const c = s.chapterState as C02State;
+  const cost = price(c, 'fan');
+  const gain = heatGain(c);
+  const cool = cooling(c);
+  const secs = c.running && !c.throttled && gain > cool ? Math.ceil((BUILDING.heat.throttleOn - c.heatMilli) / (gain - cool)) : null;
   return (
     <div className="card reveal">
       <h3>
-        Heat <span className="tag">{Math.round(c.heatMilli / 1000)} / 100</span>
+        Workshop heat <span className="tag">{Math.round(c.heatMilli / 1000)} / 100</span>
       </h3>
       <Bar value={c.heatMilli} max={100_000} marks={[50_000, 80_000]} tone={c.throttled ? 'danger' : undefined} />
-      <HeatForecast c={c} />
-      <p className="tiny faint" style={{ margin: '8px 0 0' }}>
-        At full rate the bench adds {(heatGainRate(c) / 1000).toFixed(1)} heat a second and the room takes away {(coolingRate(c) / 1000).toFixed(1)}. At 80 the workshop throttles to 25% until it is back to 50. Heat never damages anything.
+      <p className="small" style={{ margin: '8px 0' }}>
+        {c.throttled
+          ? 'Overheated: the clip machines are at a quarter speed until the heat falls to 50.'
+          : gain > cool
+            ? `Heating up${secs !== null && secs < 120 ? `: it overheats in about ${secs} s` : ''}. Fans or a short stop keep it below 80.`
+            : 'The fans keep up with the machines. It will not overheat at this pace.'}
       </p>
-    </div>
-  );
-}
-
-/** Heat, said plainly: how soon it throttles, and once it has, what recovery costs. */
-function HeatForecast({ c }: { c: C02State }) {
-  const heat = c.heatMilli;
-  const cool = coolingRate(c);
-  const gain = heatGainRate(c);
-  if (c.throttled) {
-    const toGo = heat - BUILDING.heat.throttleOff;
-    const running = cool > gain ? Math.ceil(toGo / (cool - gain)) : null;
-    const stopped = Math.ceil(toGo / cool);
-    return (
-      <div className="heat-note hot small" role="status">
-        Throttled until heat falls to 50: {running !== null ? `about ${running} s at 25%, ` : ''}or about {stopped} s stopped. Next time, a short stop just before 80 keeps the bench at full speed.
+      <div className="row between">
+        <button className="btn small" disabled={c.stock < cost} onClick={() => act({ type: 'c02/buy', room: 'fan' })}>
+          Add a fan · {fmt(cost)} clips
+        </button>
+        <button className="btn small" aria-pressed={c.running} onClick={() => act({ type: 'c02/run', running: !c.running })}>
+          {c.running ? 'Stop the machines' : 'Start the machines'}
+        </button>
       </div>
-    );
-  }
-  const net = gain - cool;
-  if (!c.running || net <= 0 || heat >= BUILDING.heat.throttleOn) return null;
-  const secs = Math.ceil((BUILDING.heat.throttleOn - heat) / net);
-  if (secs > 120) return null;
-  return (
-    <div className="heat-note warm small" role="status">
-      At this rate the workshop throttles in about {secs} s.{!c.upgrades.roofCooling && ' Roof cooling would stop it for good.'}
+      <p className="tiny faint" style={{ margin: '8px 0 0' }}>
+        The faster the workshop runs, the hotter it gets. Each fan takes away {(BUILDING.heat.perFan / 1000).toFixed(1)} heat a second. Heat never breaks anything.
+      </p>
     </div>
   );
 }
@@ -305,60 +290,32 @@ function RouteCard() {
   return (
     <div className="card reveal">
       <h3>
-        Deliveries <span className="tag">{c.route === 'direct' ? 'direct ×1.00' : 'courtyard ×0.85'}</span>
+        The courtyard <span className="tag">{c.route === 'direct' ? 'straight across' : 'trucks go round'}</span>
       </h3>
-      <div className="list">
-        <label className={`item ${c.route === 'courtyard' ? 'highlight' : ''}`}>
-          <div>
-            <div className="t">Through the courtyard</div>
-            <div className="d">Round the night garden. The dock crew manages 3.4 coils a second this way.</div>
-          </div>
-          <input type="radio" name="route" checked={c.route === 'courtyard'} onChange={() => act({ type: 'c02/route', route: 'courtyard' })} style={{ width: 22, height: 22 }} />
-        </label>
-        <div className={`item ${c.route === 'direct' ? 'highlight' : ''}`}>
-          <div>
-            <div className="t">Direct loading</div>
-            <div className="d">{c.directBuilt ? 'Built. 4 coils a second.' : 'Straight across the courtyard: 4 coils a second. Building it removes the night garden permanently.'}</div>
-          </div>
-          {c.directBuilt ? (
-            <input type="radio" name="route" checked={c.route === 'direct'} onChange={() => act({ type: 'c02/route', route: 'direct' })} style={{ width: 22, height: 22 }} aria-label="Direct loading" />
-          ) : (
-            <button className="btn small danger" onClick={() => act({ type: 'request', kind: 'clearGarden' })}>
-              Build…
-            </button>
-          )}
-        </div>
-      </div>
-      <p className="tiny faint" style={{ margin: '8px 0 0' }}>
-        The route only matters when the dock is the slowest station. Keeping the garden always leaves enough to finish every contract; your hands at the dock make up some of the difference.
+      <p className="small" style={{ margin: '0 0 10px' }}>
+        {c.directBuilt
+          ? 'The garden is gone. Trucks drive straight up to the dock.'
+          : 'With the street closed, trucks go round the night garden, and the dock hands work at 85% speed. A road straight across would be quicker, but the garden would have to go.'}
       </p>
+      {!c.directBuilt && (
+        <button className="btn small danger" onClick={() => act({ type: 'request', kind: 'clearGarden' })}>
+          Pave over the garden…
+        </button>
+      )}
     </div>
   );
 }
 
-/** The move from the 11th floor, offered during the first two contracts. */
+/** The old office: offered after the first delivery, if the player chose to decide item by item. */
 function ClearingCard() {
   const s = useGameState();
   const items = OFFICE_ITEMS.filter((id) => clearable(s, id));
-  if (items.length === 0) return null;
-  if (s.flags['c02.officeKept'] === true) {
-    return (
-      <div className="card slim row between small">
-        <span className="muted">The old office comes along whole: {items.join(', ')}.</span>
-        <button className="btn small ghost" onClick={() => act({ type: 'request', kind: 'reviewOffice' })}>
-          Reconsider
-        </button>
-      </div>
-    );
-  }
+  if (items.length === 0 || s.flags['c02.officeKept'] !== false) return null;
   return (
     <div className="card">
       <h3>
-        Clearing the 11th floor <span className="tag">optional · one time each</span>
+        The old office <span className="tag">until the next contract is done</span>
       </h3>
-      <p className="small muted" style={{ margin: '0 0 10px' }}>
-        The desk, the terminal and the bench come along to the building. These can come too, or go to the line.
-      </p>
       <div className="list">
         {items.map((id) => {
           const def = OFFICE.salvage.find((x) => x.id === id)!;
@@ -367,9 +324,7 @@ function ClearingCard() {
               <div>
                 <div className="t">{CLEARING_COPY[id].name}</div>
                 <div className="d">{CLEARING_COPY[id].text}</div>
-                <div className="d mono tiny">
-                  +{def.yieldClips} clips · +{clearingWork(id) / 1000} contract work
-                </div>
+                <div className="d mono tiny">+{def.yieldClips} clips to spend</div>
               </div>
               <button className="btn small" onClick={() => act({ type: 'request', kind: 'salvage', subject: id })}>
                 Send to the line…
@@ -379,14 +334,11 @@ function ClearingCard() {
         })}
       </div>
       <div className="row between" style={{ marginTop: 10 }}>
-        <span className="tiny faint">Available until the third contract begins.</span>
+        <span className="tiny faint">Whatever is left comes down as it is.</span>
         <button className="btn small" onClick={() => act({ type: 'request', kind: 'keepOffice' })}>
-          Keep them all
+          Keep the rest
         </button>
       </div>
-      <p className="tiny faint" style={{ margin: '8px 0 0' }}>
-        Supply: {fmtMass(mass(s, 'building.supply'))} disclosed and finite.
-      </p>
     </div>
   );
 }

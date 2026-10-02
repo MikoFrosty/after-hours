@@ -18,6 +18,9 @@ const c = raw;
 export const CONTENT_VERSION = c.contentVersion as '1.0.0';
 export const SCHEMA_VERSION = c.saveSchemaVersion as 2;
 
+/** The playable demo stops after this chapter; the later chapters stay in the build, reachable from the debug menu. */
+export const DEMO_ENDS_AFTER = (c as { demo?: { endsAfter: string } }).demo?.endsAfter as ChapterId | undefined;
+
 export const CLOCK = {
   stepMs: c.clock.stepMs,
   speeds: c.clock.speeds,
@@ -152,55 +155,63 @@ export const OFFICE = {
   })),
 };
 
-export type BuildingUpgradeId = 'dockCrew' | 'wireDraw' | 'secondBender' | 'freight' | 'roofCooling';
+export type RoomId = 'dock' | 'wireRoom' | 'workshop' | 'shipping';
+
+export interface Room {
+  id: RoomId;
+  name: string;
+  /** What the room does, in plain words. */
+  does: string;
+  /** Clips a second with no machines bought, and per machine bought, in milli. */
+  base: number;
+  perLevel: number;
+  /** First machine's price in clips, and how much each next one costs more. */
+  cost: number;
+  costGrowth: number;
+  buy: string;
+  /** The contract (0-based) that opens this room. */
+  opensWith: number;
+}
 
 export interface BuildingContract {
   id: string;
   title: string;
-  /** Work units, in milli. */
-  work: number;
-  /** What this contract introduces. */
-  adds: 'bench' | 'drawing' | 'dispatch' | 'heat' | 'route' | 'none';
+  /** Clips the contract asks for. */
+  clips: number;
+  client: string;
   text: string;
 }
 
+const b = c.building;
 export const BUILDING = {
-  stations: {
-    dock: milli(c.building.stations.dock),
-    drawing: milli(c.building.stations.drawing),
-    bender: milli(c.building.stations.bender),
-    dispatch: milli(c.building.stations.dispatch),
+  rooms: b.rooms.map((r): Room => ({ ...r, id: r.id as RoomId, base: milli(r.base), perLevel: milli(r.perLevel) })),
+  handCoilClips: b.handCoilClips,
+  handsPerSecond: b.handsPerSecond,
+  wireCapacity: b.wireCapacity,
+  shopOpensWith: b.shopOpensWith,
+  contractList: b.contracts as BuildingContract[],
+  rush: {
+    firstAfterContract: b.rush.firstAfterContract,
+    everyMs: b.rush.everySeconds * 1000,
+    spreadMs: b.rush.spreadSeconds * 1000,
+    offerMs: b.rush.offerSeconds * 1000,
+    ms: b.rush.seconds * 1000,
+    targetFactor: milli(b.rush.targetFactor),
+    bonusFactor: milli(b.rush.bonusFactor),
   },
-  upgraded: {
-    drawing: milli(c.building.upgradedRates.drawing),
-    dispatch: milli(c.building.upgradedRates.dispatch),
-    bender: milli(c.building.upgradedRates.bender),
-  },
-  routes: {
-    courtyard: milli(c.building.routeFactors.courtyard),
-    direct: milli(c.building.routeFactors.direct),
-  },
-  /** Queue between two stations, in milli-units. */
-  bufferCap: milli(c.building.bufferCapacity),
-  hands: {
-    perPress: milli(c.building.hands.unitsPerPress),
-    maxPerSecond: milli(c.building.hands.maxPerSecond),
-  },
-  storyPerMs: (c.building.storyHoursPerSecond * 3600) / 1000,
-  contractList: c.building.contracts.map(
-    (k): BuildingContract => ({ id: k.id, title: k.title, work: milli(k.work), adds: k.adds as BuildingContract['adds'], text: k.text }),
-  ),
-  /** Work per contract, in milli (kept for callers that only need the sizes). */
-  contracts: c.building.contracts.map((k) => milli(k.work)),
-  upgrades: c.building.upgrades.map((u) => ({ id: u.id as BuildingUpgradeId, name: u.name, effect: u.effect, afterContract: u.afterContract })),
   heat: {
-    gainPerWork: milli(c.building.heat.gainPerWork),
-    cooling: milli(c.building.heat.coolingPerSecond),
-    improvedCooling: milli(c.building.heat.improvedCooling),
-    throttleOn: milli(c.building.heat.throttleOn),
-    throttleOff: milli(c.building.heat.throttleOff),
-    throttleFactor: milli(c.building.heat.throttleFactor),
+    opensWith: b.heat.opensWith,
+    perClip: milli(b.heat.perClip),
+    cooling: milli(b.heat.cooling),
+    perFan: milli(b.heat.perFan),
+    fanCost: b.heat.fanCost,
+    fanCostGrowth: b.heat.fanCostGrowth,
+    throttleOn: milli(b.heat.throttleOn),
+    throttleOff: milli(b.heat.throttleOff),
+    throttleFactor: milli(b.heat.throttleFactor),
   },
+  route: { opensWith: b.route.opensWith, courtyard: milli(b.route.courtyard), direct: milli(b.route.direct) },
+  storyPerMs: (b.storyHoursPerSecond * 3600) / 1000,
 };
 
 export const CITY = {

@@ -1,266 +1,165 @@
-import { BUILDING, ENVELOPES, beat, type BuildingUpgradeId } from '../../content/campaign';
+import { BUILDING, ENVELOPES, beat, type Room, type RoomId } from '../../content/campaign';
 import { GARDEN_MASS } from '../../content/world';
 import { clamp, mulMilli } from '../fixed';
-import { makeClips, mass, mustCommit, openAccount } from '../ledger';
-import { minBig } from '../mass';
+import { commit, makeClips, mustCommit, openAccount } from '../ledger';
+import { CLIP } from '../mass';
 import { log, once } from '../state';
 import type { Controller } from '../engine';
 import { ask, beatNow, bump, emit, hold } from '../engine';
-import type { BuildingStation, C02State, CampaignState } from '../types';
+import type { C02State, CampaignState } from '../types';
 import { clearable, salvageOfficeItem, type OfficeItem } from '../officeSalvage';
 
-// The building: six contracts, each introducing one thing. Work flows from the loading dock through
-// the stations as real queues, so the slowest station shows itself by the queue piling up in front of it.
+// The building. The rule is the one the night taught at a bigger size: make clips, spend clips on
+// machines, make clips faster. The line runs at the speed of its slowest room, so the question each
+// time is where the next machine should go. Everything opens one contract at a time.
 
 const cs = (s: CampaignState) => s.chapterState as C02State;
 
-export type Station = BuildingStation;
-export const STATIONS: Station[] = ['dock', 'drawing', 'bender', 'dispatch'];
+export const ROOMS = BUILDING.rooms;
 export const CONTRACTS = BUILDING.contractList;
 export const LAST = CONTRACTS.length;
+export const room = (id: RoomId) => ROOMS.find((r) => r.id === id)!;
 
-/** The contract being worked on (or the last one, once all are delivered). */
 export const currentContract = (c: C02State) => CONTRACTS[Math.min(c.contractIndex, LAST - 1)];
+export const allDelivered = (c: C02State) => c.contractIndex >= LAST;
 
-/** Stations open so far: the bench and the dock first, drawing from contract 2, dispatch from contract 3. */
-export function onlineStations(c: C02State): Station[] {
-  const list: Station[] = ['dock'];
-  if (c.contractIndex >= 1) list.push('drawing');
-  list.push('bender');
-  if (c.contractIndex >= 2) list.push('dispatch');
-  return list;
+/** What has opened so far. */
+export const roomOpen = (c: C02State, r: Room | RoomId) => c.contractIndex >= (typeof r === 'string' ? room(r) : r).opensWith;
+export const openRooms = (c: C02State) => ROOMS.filter((r) => roomOpen(c, r));
+export const shopOpen = (c: C02State) => c.contractIndex >= BUILDING.shopOpensWith;
+export const heatOpen = (c: C02State) => c.contractIndex >= BUILDING.heat.opensWith;
+export const routeOpen = (c: C02State) => c.contractIndex >= BUILDING.route.opensWith;
+export const rushOpen = (c: C02State) => c.contractIndex >= BUILDING.rush.firstAfterContract;
+
+export const routeFactor = (c: C02State) => (!routeOpen(c) || c.route === 'direct' ? BUILDING.route.direct : BUILDING.route.courtyard);
+
+/** A room's speed in milli-clips per second. The dock is slowed by the courtyard route; the workshop by heat. */
+export function roomRate(c: C02State, r: Room | RoomId): number {
+  const def = typeof r === 'string' ? room(r) : r;
+  let rate = def.base + def.perLevel * c.levels[def.id];
+  if (def.id === 'dock') rate = mulMilli(rate, routeFactor(c));
+  if (def.id === 'workshop' && c.throttled) rate = mulMilli(rate, BUILDING.heat.throttleFactor);
+  return rate;
 }
 
-/** What each contract introduced, in the order the player meets it. */
-export const heatIntroduced = (c: C02State) => c.contractIndex >= 3 || c.heatMilli >= 30_000;
-export const routeIntroduced = (c: C02State) => c.contractIndex >= 4;
-
-export const routeFactor = (c: C02State) => (c.route === 'direct' ? BUILDING.routes.direct : BUILDING.routes.courtyard);
-
-/** Each station's automatic rate in milli-units per second (0 for a dock with no crew). */
-export function stationRates(c: C02State): Record<Station, number> {
-  const throttle = (r: number) => (c.throttled ? mulMilli(r, BUILDING.heat.throttleFactor) : r);
-  return {
-    dock: c.upgrades.dockCrew ? mulMilli(BUILDING.stations.dock, routeFactor(c)) : 0,
-    drawing: throttle(c.upgrades.wireDraw ? BUILDING.upgraded.drawing : BUILDING.stations.drawing),
-    bender: throttle(c.upgrades.secondBender ? BUILDING.upgraded.bender : BUILDING.stations.bender),
-    dispatch: c.upgrades.freight ? BUILDING.upgraded.dispatch : BUILDING.stations.dispatch,
-  };
+/** The slowest open room after the dock (the dock is fed by hand as well, so it is judged separately). */
+export function slowestRoom(c: C02State): Room {
+  let best: Room | null = null;
+  for (const r of openRooms(c)) {
+    if (r.id === 'dock' && c.levels.dock === 0) continue;
+    if (!best || roomRate(c, r) < roomRate(c, best)) best = r;
+  }
+  return best ?? room('workshop');
 }
 
-/** The slowest open station: where the queue piles up. */
-export function bottleneck(c: C02State): Station {
-  const r = stationRates(c);
-  let best: Station = 'dock';
-  for (const st of onlineStations(c)) if (r[st] < r[best]) best = st;
-  return best;
+/** The dock hands can't keep up with the rooms after them (true from the start, before anyone is hired). */
+export function dockBehind(c: C02State): boolean {
+  return roomRate(c, 'dock') < lineRate(c);
 }
 
-/** Steady-state throughput (milli-units per second) with no hands: the slowest open station. */
-export function baseThroughput(c: C02State): number {
-  const r = stationRates(c);
-  return Math.min(...onlineStations(c).map((st) => r[st]));
+/** How fast the rooms after the dock can turn wire into shipped clips (milli-clips per second). */
+export function lineRate(c: C02State): number {
+  return Math.min(...openRooms(c).filter((r) => r.id !== 'dock').map((r) => roomRate(c, r)));
 }
 
-/** Heat added per second when the bench runs at full rate, in milli-heat. */
-export function heatGainRate(c: C02State): number {
-  const r = stationRates(c);
-  const benchRate = Math.min(baseThroughput(c), r.bender);
-  return mulMilli(benchRate, BUILDING.heat.gainPerWork);
+export function price(c: C02State, id: RoomId | 'fan'): number {
+  if (id === 'fan') return Math.round(BUILDING.heat.fanCost * Math.pow(BUILDING.heat.fanCostGrowth, c.levels.fans));
+  const r = room(id);
+  return Math.round(r.cost * Math.pow(r.costGrowth, c.levels[id]));
 }
 
-export function coolingRate(c: C02State): number {
-  return c.upgrades.roofCooling ? BUILDING.heat.improvedCooling : BUILDING.heat.cooling;
+export function heatGain(c: C02State): number {
+  // Heat per second at the workshop's current pace (milli).
+  return mulMilli(Math.min(lineRate(c), roomRate(c, 'workshop')), BUILDING.heat.perClip);
 }
-
-export function throughput(c: C02State): number {
-  if (!c.running || c.awaitingInspection || c.contractIndex >= LAST) return 0;
-  return baseThroughput(c);
-}
-
-/** Upgrades that a permit could buy now, in campaign order. */
-export function availableUpgrades(c: C02State): BuildingUpgradeId[] {
-  return BUILDING.upgrades.filter((u) => !c.upgrades[u.id] && c.contractIndex >= u.afterContract).map((u) => u.id);
-}
-
-/** Throughput a given upgrade would give (for permit choices). */
-export function throughputWith(c: C02State, id: BuildingUpgradeId): number {
-  return baseThroughput({ ...c, throttled: false, upgrades: { ...c.upgrades, [id]: true } });
-}
+export const cooling = (c: C02State) => BUILDING.heat.cooling + BUILDING.heat.perFan * c.levels.fans;
 
 export function newBuildingState(simMs: number): C02State {
   return {
     kind: '02',
-    route: 'courtyard',
-    directBuilt: false,
+    contractIndex: 0,
+    contractClips: 0,
+    totalClips: 0,
+    stock: 0,
+    wire: 0,
+    levels: { dock: 0, wireRoom: 0, workshop: 0, shipping: 0, fans: 0 },
+    hands: BUILDING.handsPerSecond,
+    residue: 0,
     running: true,
     heatMilli: 0,
-    heatResidue: 0,
     throttled: false,
-    contractIndex: 0,
-    contractWorkMilli: 0,
-    cumulativeWorkMilli: 0,
-    workResidue: 0,
-    processedUnits: 0,
-    permits: 0,
-    upgrades: { dockCrew: false, wireDraw: false, secondBender: false, freight: false, roofCooling: false },
-    awaitingInspection: false,
-    queues: { dock: 0, drawing: 0, bender: 0 },
-    hands: BUILDING.hands.maxPerSecond,
-    handAt: 'dock',
-    shipRate: 0,
+    route: 'courtyard',
+    directBuilt: false,
+    rush: null,
+    nextRushMs: 0,
+    rushesWon: 0,
+    rate: 0,
     contractStartMs: simMs,
-    peakHeatMilli: 0,
-    throttledMs: 0,
   };
 }
 
-/** The queue a station takes from (null for the dock, which takes from the supply). */
-function inputOf(c: C02State, st: Station): Station | null {
-  const list = onlineStations(c);
-  const i = list.indexOf(st);
-  return i <= 0 ? null : list[i - 1];
-}
-
-const isLast = (c: C02State, st: Station) => onlineStations(c).at(-1) === st;
-
-/** Move up to `want` milli-units through one station, limited by its input and the space after it. */
-function process(s: CampaignState, st: Station, want: number): number {
+/** Make whole clips from the supply; they count toward the contract and go into stock. */
+function make(s: CampaignState, n: number) {
   const c = cs(s);
-  if (want <= 0) return 0;
-  // Nothing leaves the building between contracts.
-  if (isLast(c, st) && (c.awaitingInspection || c.contractIndex >= LAST)) return 0;
-  const from = inputOf(c, st);
-  const available = from === null ? Infinity : c.queues[from as keyof C02State['queues']];
-  const space = isLast(c, st) ? Infinity : BUILDING.bufferCap - c.queues[st as keyof C02State['queues']];
-  const amt = Math.max(0, Math.min(want, available, space));
-  if (amt <= 0) return 0;
-  if (from !== null) c.queues[from as keyof C02State['queues']] -= amt;
-  if (isLast(c, st)) ship(s, amt);
-  else c.queues[st as keyof C02State['queues']] += amt;
-  if (st === 'bender') c.heatMilli = clamp(c.heatMilli + mulMilli(amt, BUILDING.heat.gainPerWork), 0, 100_000);
-  return amt;
-}
-
-/** Work leaving the building counts toward the contract; each whole unit draws a batch from the supply. */
-function ship(s: CampaignState, amt: number) {
-  const c = cs(s);
-  if (c.contractIndex >= LAST || c.awaitingInspection) return;
-  c.contractWorkMilli += amt;
-  c.cumulativeWorkMilli += amt;
-  c.shippedThisStep = (c.shippedThisStep ?? 0) + amt;
-  const units = Math.floor(c.cumulativeWorkMilli / 1000);
-  const batch = ENVELOPES['02'].batch;
-  while (c.processedUnits < units) {
-    c.processedUnits += 1;
-    const input = minBig(batch, mass(s, 'building.supply'));
-    if (input <= 0n) break;
-    makeClips(s, 'c02.batch', 'building.supply', input);
-  }
-  if (c.contractWorkMilli >= currentContract(c).work) completeContract(s);
+  if (n <= 0 || allDelivered(c)) return;
+  makeClips(s, 'c02.make', 'building.supply', BigInt(n) * CLIP);
+  c.stock += n;
+  c.contractClips += n;
+  c.totalClips += n;
+  c.madeThisStep = (c.madeThisStep ?? 0) + n;
+  if (c.rush?.taken) c.rush.made += n;
+  if (c.contractClips >= currentContract(c).clips) completeContract(s);
 }
 
 function completeContract(s: CampaignState) {
   const c = cs(s);
-  const n = c.contractIndex + 1;
-  const data = {
-    contract: n,
-    seconds: Math.round((s.simMs - c.contractStartMs) / 1000),
-    peakHeat: Math.round(c.peakHeatMilli / 1000),
-    throttledSeconds: Math.round(c.throttledMs / 1000),
-  };
-  c.contractIndex = n;
-  c.contractWorkMilli = 0;
-  // The first contract's line ("the lights stayed on…") is the inspection's title; keep it in the log only.
-  if (n === 1 && once(s, 'beat.02.0')) {
-    const [t, x] = beat('02', 0);
-    log(s, { id: 'beat.02.0', kind: 'beat', title: t, text: x });
-    emit({ type: 'sound', id: 'motif' });
-  }
-  // A permit for every contract but the last, which the charters follow.
-  if (n < LAST) c.permits += 1;
-  c.awaitingInspection = true;
+  const done = CONTRACTS[c.contractIndex];
+  c.contractIndex += 1;
+  c.contractClips = 0;
+  c.contractStartMs = s.simMs;
+  c.rush = null;
   emit({ type: 'sound', id: 'contract' });
-  ask(s, { id: `c02.inspection.${n}`, kind: 'c02/inspection', checkpoint: false, data });
-}
-
-function buyUpgrade(s: CampaignState, id: BuildingUpgradeId): string | null {
-  const c = cs(s);
-  if (c.upgrades[id]) return 'Already installed.';
-  if (!availableUpgrades(c).includes(id)) return 'Not offered yet.';
-  if (c.permits < 1) return 'Requires one permit.';
-  c.permits -= 1;
-  c.upgrades[id] = true;
-  if (id === 'wireDraw' || id === 'freight' || id === 'roofCooling') s.projects[id] = 'complete';
-  emit({ type: 'sound', id: 'install' });
-  emit({ type: 'save', reason: 'upgrade' });
+  log(s, { id: `c02.done.${done.id}`, kind: 'system', title: `Delivered · ${done.title}`, text: `${done.clips.toLocaleString('en-US')} clips for ${done.client}.` });
+  if (c.contractIndex === 1) {
+    // The first delivery: the line that ends the night's story.
+    const [t, x] = beat('02', 0);
+    beatNow(s, '02', 0, t, x);
+    // The old office is cleared now; one question about what comes down in the lift.
+    ask(s, { id: 'c02.office', kind: 'c02/office', checkpoint: false });
+  }
+  if (!allDelivered(c)) startContract(s);
+  emit({ type: 'save', reason: 'contract' });
   bump(s);
-  return null;
 }
 
-/** The next contract begins: say what it brings, once, as a caption and in the log. */
+/** The next contract: what it brings, once, as a caption and in the log. */
 function startContract(s: CampaignState) {
   const c = cs(s);
-  c.awaitingInspection = false;
-  c.contractStartMs = s.simMs;
-  c.peakHeatMilli = c.heatMilli;
-  c.throttledMs = 0;
-  if (c.contractIndex >= LAST) return;
   const k = CONTRACTS[c.contractIndex];
-  if (once(s, `c02.start.${k.id}`)) {
-    log(s, { id: `c02.start.${k.id}`, kind: 'system', title: `Contract ${c.contractIndex + 1} · ${k.title}`, text: k.text });
-    emit({ type: 'beat', title: `Contract ${c.contractIndex + 1} · ${k.title}`, text: k.text });
-    emit({ type: 'sound', id: 'notice' });
-  }
-  bump(s);
+  if (!once(s, `c02.start.${k.id}`)) return;
+  log(s, { id: `c02.start.${k.id}`, kind: 'system', title: `Contract ${c.contractIndex + 1} · ${k.title}`, text: k.text });
+  emit({ type: 'beat', title: `Contract ${c.contractIndex + 1} · ${k.title}`, text: k.text });
+  emit({ type: 'sound', id: 'notice' });
+  if (rushOpen(c) && c.nextRushMs === 0) c.nextRushMs = s.simMs + 40_000;
 }
 
-/** Lend a hand at one station: push up to one unit through it now. Hands refill at two units a second. */
-export function lendHand(s: CampaignState, st: Station): string | null {
-  const c = cs(s);
-  if (c.awaitingInspection || c.contractIndex >= LAST) return 'No contract running.';
-  if (!onlineStations(c).includes(st)) return 'That station is not open yet.';
-  c.handAt = st;
-  // Presses faster than hands can work are simply absorbed.
-  if (c.hands < BUILDING.hands.perPress) return null;
-  const moved = process(s, st, BUILDING.hands.perPress);
-  if (moved <= 0) {
-    const from = inputOf(c, st);
-    return from === null ? 'The dock is clear.' : `Nothing waiting at ${NAMES[st].toLowerCase()}.`;
-  }
-  c.hands -= BUILDING.hands.perPress;
-  emit({ type: 'sound', id: st === 'dock' ? 'unload' : 'tend' });
-  return null;
-}
-
-export const NAMES: Record<Station, string> = { dock: 'Loading dock', drawing: 'Wire drawing', bender: 'Bench', dispatch: 'Dispatch' };
-
-/** Where a hand helps most: the furthest-downstream station with a full queue in front of it, else the dock while it has no crew, else the station last helped. */
-export function handTarget(c: C02State): Station {
-  if (!c.upgrades.dockCrew) return 'dock';
-  const list = onlineStations(c);
-  for (let i = list.length - 1; i > 0; i--) if (c.queues[list[i - 1] as keyof C02State['queues']] >= BUILDING.bufferCap) return list[i];
-  return list.includes(c.handAt) ? c.handAt : bottleneck(c);
-}
-
-/** One line for the dock: what the building needs from the player now. */
+/** What the building needs from the player right now, in one sentence. */
 export function buildingGoal(s: CampaignState): string {
   const c = cs(s);
-  if (c.contractIndex >= LAST) return 'All contracts delivered.';
-  if (c.awaitingInspection) return 'Inspection under way.';
-  if (!c.running) return 'Production is stopped. Start it again when the workshop has cooled.';
-  if (c.throttled) return 'The workshop is throttled to 25% until heat falls to 50. Next time, a short stop before 80 avoids it.';
-  if (!c.upgrades.dockCrew) return 'No one is on the dock: unload coils by hand to keep the bench fed.';
-  const r = stationRates(c);
-  const bn = bottleneck(c);
-  if (heatIntroduced(c) && c.heatMilli >= 60_000 && heatGainRate(c) > coolingRate(c)) {
-    return `Heat ${Math.round(c.heatMilli / 1000)} and rising: at 80 the workshop throttles to 25%. A short stop now keeps it running.`;
+  if (allDelivered(c)) return 'Every contract delivered.';
+  if (!c.running) return 'Production is stopped. Start it again once the workshop has cooled.';
+  if (c.throttled) return 'The workshop overheated and slowed to a quarter speed until it cools to 50. A fan stops it happening again.';
+  if (c.levels.dock === 0) {
+    if (c.contractIndex === 0) return c.wire > 0 ? 'The clip machines are running. Keep unloading wire to keep them busy.' : 'Unload a coil of wire from the truck.';
+    return 'Spend clips to hire a dock hand, so the wire unloads itself.';
   }
-  const from = inputOf(c, bn);
-  if (from !== null && c.queues[from as keyof C02State['queues']] >= BUILDING.bufferCap / 2) {
-    return `Work is piling up in front of ${NAMES[bn].toLowerCase()}: that is the slowest station (${(r[bn] / 1000).toFixed(1)}/s). Lend it a hand.`;
-  }
-  return `${currentContract(c).title}: ${Math.floor(c.contractWorkMilli / 1000)} of ${currentContract(c).work / 1000} shipped.`;
+  if (c.rush && !c.rush.taken) return 'A rush order is on the phone: take it for a bonus.';
+  if (heatOpen(c) && c.heatMilli >= 60_000 && heatGain(c) > cooling(c)) return `The workshop is getting hot (${Math.round(c.heatMilli / 1000)}). At 80 it slows right down. A fan, or a short stop, keeps it cool.`;
+  const slow = slowestRoom(c);
+  const dockShort = roomRate(c, 'dock') < lineRate(c) && c.wire < BUILDING.handCoilClips;
+  if (dockShort) return `The rooms are waiting for wire. Hire another dock hand${routeOpen(c) && c.route === 'courtyard' ? ' (the courtyard route slows them)' : ''}.`;
+  if (shopOpen(c) && c.stock >= price(c, slow.id)) return `${slow.name} is the slowest room. ${slow.buy.toLowerCase()} there (${price(c, slow.id)} clips).`;
+  return `${slow.name} is the slowest room, so it sets the pace. Save for its next machine: ${c.stock} of ${price(c, slow.id)} clips.`;
 }
 
 export const c02: Controller = {
@@ -271,6 +170,7 @@ export const c02: Controller = {
     s.chapterState = newBuildingState(s.simMs);
     const env = ENVELOPES['02'];
     openAccount(s, 'building.supply', 'raw', 'feedstock', 'Building wire supply', 'building');
+    openAccount(s, 'building.machines', 'capital', 'machine', 'Machines in the building', 'building');
     openAccount(s, 'building.garden', 'archiveProtected', 'original', 'Night garden', 'building', {
       protected: true,
       anchor: 'garden',
@@ -291,55 +191,84 @@ export const c02: Controller = {
     g.originalMassAccount = 'building.garden';
     g.protected = true;
     g.evidence = ['disclosed Act 2'];
-    // Office inventory remains in its accounts and joins building stock.
-    log(s, {
-      id: 'c02.clearing',
-      kind: 'system',
-      title: 'The 11th floor',
-      text: 'The office is being cleared for the lease. The desk, the terminal and the bench come along to the building. The cabinet, the lamp and the frame can come too, or go to the line.',
-    });
     log(s, {
       id: 'c02.intro',
       kind: 'system',
-      title: 'Building access',
-      text: 'A ground-floor workshop and a loading dock. More of the building opens with each contract. Material is purchased from a finite disclosed allocation.',
+      title: 'The building',
+      text: 'A ground-floor workshop and a loading dock. More of the building opens with each contract. Wire is bought from a finite disclosed supply.',
     });
     startContract(s);
   },
 
   step(s, dt) {
     const c = cs(s);
-    c.shippedThisStep = 0;
-    // Hands refill.
-    c.hands = Math.min(BUILDING.hands.maxPerSecond, c.hands + Math.floor((BUILDING.hands.maxPerSecond * dt) / 1000));
-    if (c.running && !c.awaitingInspection && c.contractIndex < LAST) {
-      // Downstream first, so space frees before work arrives.
-      const r = stationRates(c);
-      const list = onlineStations(c);
-      for (let i = list.length - 1; i >= 0; i--) process(s, list[i], Math.floor((r[list[i]] * dt) / 1000));
-      c.peakHeatMilli = Math.max(c.peakHeatMilli, c.heatMilli);
-      if (c.throttled) c.throttledMs += dt;
+    c.madeThisStep = 0;
+    c.hands = Math.min(BUILDING.handsPerSecond, c.hands + (BUILDING.handsPerSecond * dt) / 1000);
+    if (!allDelivered(c)) {
+      // The dock brings wire in; the rest of the line turns it into clips at the pace of its slowest room.
+      c.wire = Math.min(BUILDING.wireCapacity, c.wire + (roomRate(c, 'dock') * dt) / 1_000_000);
+      if (c.running) {
+        c.residue += lineRate(c) * dt; // micro-clips
+        const want = Math.floor(c.residue / 1_000_000);
+        const n = Math.min(want, Math.floor(c.wire));
+        c.residue -= want * 1_000_000;
+        if (n < want) c.residue = 0; // the line waited for wire
+        c.wire -= n;
+        // An overheated workshop runs at a quarter speed and adds no heat, so it always recovers.
+        if (heatOpen(c) && !c.throttled) c.heatMilli = clamp(c.heatMilli + n * BUILDING.heat.perClip, 0, 100_000);
+        make(s, n);
+      }
     }
-    // Cooling runs whether or not production does.
-    c.heatMilli = clamp(c.heatMilli - Math.floor((coolingRate(c) * dt) / 1000), 0, 100_000);
+    // The workshop cools all the time; heat only matters once the long run starts.
+    c.heatMilli = clamp(c.heatMilli - Math.floor((cooling(c) * dt) / 1000), 0, 100_000);
     if (!c.throttled && c.heatMilli >= BUILDING.heat.throttleOn) {
       c.throttled = true;
       emit({ type: 'sound', id: 'throttle' });
-      log(s, { id: `c02.throttle.${s.simMs}`, kind: 'system', title: 'Thermal throttle', text: 'Heat 80. The workshop runs at 25% until it cools to 50.' });
+      log(s, { id: `c02.throttle.${s.simMs}`, kind: 'system', title: 'Workshop overheated', text: 'Heat 80. The clip machines slow to a quarter speed until it cools to 50.' });
       bump(s);
     } else if (c.throttled && c.heatMilli <= BUILDING.heat.throttleOff) {
       c.throttled = false;
       emit({ type: 'sound', id: 'recover' });
       bump(s);
     }
-    // Smoothed shipping rate for display (milli-units per second).
-    const inst = Math.floor(((c.shippedThisStep ?? 0) * 1000) / dt);
-    c.shipRate = Math.floor(c.shipRate * 0.95 + inst * 0.05);
+    // Rush orders: offered now and then; taken ones pay a bonus if met in time.
+    if (rushOpen(c) && !allDelivered(c)) {
+      if (!c.rush && c.nextRushMs > 0 && s.simMs >= c.nextRushMs) {
+        const rate = Math.max(c.rate, lineRate(c) / 2);
+        const target = Math.max(50, Math.round(((rate * BUILDING.rush.ms) / 1_000_000) * (BUILDING.rush.targetFactor / 1000) / 10) * 10);
+        c.rush = { target, made: 0, bonus: Math.round((target * BUILDING.rush.bonusFactor) / 1000 / 10) * 10, untilMs: s.simMs + BUILDING.rush.offerMs, taken: false };
+        emit({ type: 'sound', id: 'phone' });
+        bump(s);
+      } else if (c.rush && !c.rush.taken && s.simMs >= c.rush.untilMs) {
+        c.rush = null;
+        scheduleRush(s);
+      } else if (c.rush?.taken) {
+        if (c.rush.made >= c.rush.target) {
+          const bonus = c.rush.bonus;
+          makeClips(s, 'c02.rush', 'building.supply', BigInt(bonus) * CLIP);
+          c.stock += bonus;
+          c.rushesWon += 1;
+          log(s, { id: `c02.rush.${s.simMs}`, kind: 'system', title: 'Rush order delivered', text: `${c.rush.target} clips in time. The client sends ${bonus} clips' worth of wire as thanks.` });
+          emit({ type: 'sound', id: 'catch' });
+          c.rush = null;
+          scheduleRush(s);
+          bump(s);
+        } else if (s.simMs >= c.rush.untilMs) {
+          log(s, { id: `c02.rushlate.${s.simMs}`, kind: 'system', title: 'Rush order missed', text: 'The rush order went to someone else. Nothing is lost.' });
+          emit({ type: 'sound', id: 'cleanEnd' });
+          c.rush = null;
+          scheduleRush(s);
+          bump(s);
+        }
+      }
+    }
+    const inst = ((c.madeThisStep ?? 0) * 1_000_000) / dt;
+    c.rate = Math.floor(c.rate * 0.95 + inst * 0.05);
   },
 
   events(s) {
     const c = cs(s);
-    if (c.contractIndex >= LAST && !c.awaitingInspection && !s.charters.maintenanceCharter && once(s, 'c02.maintenance')) {
+    if (allDelivered(c) && !s.charters.maintenanceCharter && once(s, 'c02.maintenance')) {
       ask(s, { id: 'c02.maintenance', kind: 'c02/charter', subject: 'maintenanceCharter', checkpoint: true, data: { checkpointLabel: 'Before: maintenance charter' } });
     }
     if (s.charters.maintenanceCharter && !s.charters.cityTender && once(s, 'c02.tender')) {
@@ -352,26 +281,50 @@ export const c02: Controller = {
   act(s, a) {
     const c = cs(s);
     switch (a.type) {
+      case 'c02/unload': {
+        if (allDelivered(c)) return 'Every contract is delivered.';
+        // Presses faster than two a second are simply absorbed.
+        if (c.hands < 1) return null;
+        if (c.wire + BUILDING.handCoilClips > BUILDING.wireCapacity) return 'The dock is full of wire already.';
+        c.hands -= 1;
+        c.wire += BUILDING.handCoilClips;
+        emit({ type: 'sound', id: 'unload' });
+        return null;
+      }
+      case 'c02/buy': {
+        if (!shopOpen(c)) return 'Nothing to buy yet.';
+        if (a.room === 'fan') {
+          if (!heatOpen(c)) return 'The workshop does not need fans yet.';
+        } else if (!roomOpen(c, a.room)) return 'That room is not open yet.';
+        const cost = price(c, a.room);
+        if (c.stock < cost) return `Needs ${cost} clips.`;
+        const r = commit(s, { id: `c02.buy.${a.room}.${s.seq++}`, from: 'clips', input: BigInt(cost) * CLIP, outputs: [['building.machines', BigInt(cost) * CLIP]] });
+        if (!r.ok) return 'Not enough clips.';
+        c.stock -= cost;
+        c.levels[a.room === 'fan' ? 'fans' : a.room] += 1;
+        emit({ type: 'sound', id: 'install' });
+        bump(s);
+        return null;
+      }
+      case 'c02/rush':
+        if (!c.rush || c.rush.taken) return 'No rush order on offer.';
+        c.rush.taken = true;
+        c.rush.made = 0;
+        c.rush.untilMs = s.simMs + BUILDING.rush.ms;
+        emit({ type: 'sound', id: 'switch' });
+        return null;
       case 'c02/run':
         c.running = a.running;
         emit({ type: 'sound', id: a.running ? 'start' : 'stop' });
         return null;
-      case 'c02/hand':
-        return lendHand(s, a.station);
       case 'c02/route':
         if (a.route === 'direct' && !c.directBuilt) return 'The direct route has not been built.';
-        c.route = a.route; // switching between built routes is free and applies to future work only
+        c.route = a.route;
         emit({ type: 'sound', id: 'switch' });
         return null;
-      case 'c02/upgrade':
-        return buyUpgrade(s, a.id);
       case 'request':
-        // Deciding to keep the old office folds the clearing card away; it can be reopened while the offer stands.
         if (a.kind === 'keepOffice' || a.kind === 'reviewOffice') {
           s.flags['c02.officeKept'] = a.kind === 'keepOffice';
-          if (a.kind === 'keepOffice' && once(s, 'c02.officeKept.log')) {
-            log(s, { id: 'c02.officeKept', kind: 'system', title: 'The 11th floor', text: 'The old office comes to the building as it was: cabinet, lamp and frame with it.' });
-          }
           emit({ type: 'sound', id: 'switch' });
           return null;
         }
@@ -383,14 +336,14 @@ export const c02: Controller = {
         }
         if (a.kind === 'clearGarden') {
           if (c.directBuilt) return 'Already built.';
-          if (!routeIntroduced(c)) return 'Deliveries do not need another route yet.';
+          if (!routeOpen(c)) return 'The street entrance is still open.';
           ask(s, { id: 'c02.clearGarden', kind: 'c02/clearGarden', subject: 'garden', checkpoint: true, data: { checkpointLabel: 'Before: clear the garden' } });
           return null;
         }
         if (a.kind === 'charter') {
           const id = a.subject as 'maintenanceCharter' | 'cityTender';
           if (s.charters[id]) return 'Already accepted.';
-          if (id === 'maintenanceCharter' && c.contractIndex < LAST) return 'Not yet offered.';
+          if (id === 'maintenanceCharter' && !allDelivered(c)) return 'Not yet offered.';
           if (id === 'cityTender' && !s.charters.maintenanceCharter) return 'Not yet offered.';
           ask(s, { id: `c02.${id}.${s.seq++}`, kind: 'c02/charter', subject: id, checkpoint: true, data: { checkpointLabel: `Before: ${id}` } });
           return null;
@@ -403,10 +356,9 @@ export const c02: Controller = {
 
   choose(s, choice, option) {
     const c = cs(s);
-    if (choice.kind === 'c02/inspection') {
-      // The permit can be spent here, in the inspection, or kept for later.
-      if (option.startsWith('buy:')) buyUpgrade(s, option.slice(4) as BuildingUpgradeId);
-      startContract(s);
+    if (choice.kind === 'c02/office') {
+      s.flags['c02.officeKept'] = option !== 'choose';
+      if (option !== 'choose') log(s, { id: 'c02.officeKept', kind: 'system', title: 'The 11th floor', text: 'The old office comes down in the lift as it was: cabinet, lamp and frame with it.' });
       return;
     }
     if (choice.kind === 'office/salvage') {
@@ -435,7 +387,7 @@ export const c02: Controller = {
       g.released = true;
       g.currentLocation = 'Direct loading route';
       g.evidence.push('cleared for direct loading, Act 2');
-      log(s, { id: 'loss.garden', kind: 'loss', title: 'Night garden cleared', text: 'Fourteen beds, two linden trees and a bench removed. 2 t of material joined the building supply. The direct route is open.' });
+      log(s, { id: 'loss.garden', kind: 'loss', title: 'Night garden cleared', text: 'Fourteen beds, two linden trees and a bench removed. 2 t of material joined the building supply. Trucks drive straight across.' });
       emit({ type: 'sound', id: 'demolish' });
       bump(s);
       return;
@@ -456,7 +408,27 @@ export const c02: Controller = {
   },
 
   guard(s) {
-    const c = cs(s);
-    return c.contractIndex >= LAST && s.charters.maintenanceCharter && s.charters.cityTender;
+    return allDelivered(cs(s)) && s.charters.maintenanceCharter && s.charters.cityTender;
   },
 };
+
+function scheduleRush(s: CampaignState) {
+  const c = cs(s);
+  const n = c.rushesWon + Math.floor(s.simMs / 1000);
+  c.nextRushMs = s.simMs + BUILDING.rush.everyMs + ((n * 7919) % (BUILDING.rush.spreadMs / 1000)) * 1000;
+}
+
+/** Debug: finish the current contract at once (the clips are made from the supply as usual). */
+export function debugFinishContract(s: CampaignState) {
+  const c = cs(s);
+  if (allDelivered(c)) return;
+  make(s, currentContract(c).clips - c.contractClips);
+}
+
+/** Debug: clips on hand, made from the supply. */
+export function debugGrant(s: CampaignState, n: number) {
+  const c = cs(s);
+  makeClips(s, 'c02.debug', 'building.supply', BigInt(n) * CLIP);
+  c.stock += n;
+}
+

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { game } from '../runtime/game';
 import { EPILOGUES, TERMINAL_SCRIPT } from '../content/narrative';
 import { useGameState } from './hooks';
-import type { C08State } from '../game/types';
+import type { C02State, C08State } from '../game/types';
 import { setSettings, useSettings } from './settings';
 
 function latestCheckpoint() {
@@ -35,6 +35,7 @@ export function Ending() {
   const e = s.ending;
   if (!e) return null;
   if (e.kind === 'totality') return <TotalityEnding />;
+  if (e.kind === 'demo') return <DemoEnding />;
   const text =
     e.kind === 'office'
       ? EPILOGUES.office[(e.variant as 'kept' | 'partial' | 'salvaged') ?? 'kept']
@@ -137,5 +138,53 @@ export function TerminalOverlays() {
         </button>
       </div>
     </>
+  );
+}
+
+/** The end of the playable demo: what this playthrough chose, and thanks. */
+function DemoEnding() {
+  const s = useGameState();
+  const minutes = (ch: '01' | '02') => {
+    const sum = s.summaries[ch];
+    return Math.max(1, Math.round((sum?.activePlayMs || sum?.simMs || 0) / 60000));
+  };
+  const c = s.chapterState.kind === '02' ? (s.chapterState as C02State) : null;
+  const kept = (['cabinet', 'lamp', 'frame'] as const).filter((k) => s.anchors[k].fidelity === 'original');
+  const facts: Array<[string, string]> = [
+    ['The night shift', `${minutes('01')} min`],
+    ['The building', `${minutes('02')} min`],
+    ['The old office', kept.length === 3 ? 'kept whole' : kept.length === 0 ? 'all sent to the line' : `kept: ${kept.join(', ')}`],
+    ['The night garden', s.anchors.garden.fidelity === 'original' ? 'still in the courtyard' : 'paved over'],
+  ];
+  if (c) facts.push(['Rush orders won', String(c.rushesWon)]);
+  return (
+    <div className="ending demo-end" role="dialog" aria-modal="true" aria-label="End of the demo">
+      <div className="art" style={{ backgroundImage: 'url(./art/03-city.webp)' }} aria-hidden />
+      <div className="copy">
+        <div className="label">End of the demo</div>
+        <h1 className="demo-title">The city has the same problem, at a larger scale.</h1>
+        <p className="epilogue">
+          The building runs without a night crew now, and the city wants the same. What happens next (the city, the garden under glass, the sun, the
+          distant offices) is still being built.
+        </p>
+        <div className="facts">
+          {facts.map(([k, v]) => (
+            <div key={k}>
+              <span className="k">{k}</span>
+              <span className="v">{v}</span>
+            </div>
+          ))}
+        </div>
+        <p className="muted small">Thank you for playing.</p>
+        <div className="actions">
+          <button className="btn primary" onClick={() => game.newGame()}>
+            Play again from the start
+          </button>
+          <button className="btn ghost" onClick={() => game.toTitle()}>
+            Back to the title
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -251,7 +251,7 @@ export interface ChapterSummary {
 }
 
 export interface EndingState {
-  kind: 'office' | 'building' | 'city' | 'protected' | 'totality';
+  kind: 'office' | 'building' | 'city' | 'protected' | 'totality' | 'demo';
   chapter: ChapterId;
   variant?: string;
 }
@@ -336,40 +336,48 @@ export interface C01State {
   reportShown: boolean;
 }
 
-export type BuildingStation = 'dock' | 'drawing' | 'bender' | 'dispatch';
+export type BuildingRoom = 'dock' | 'wireRoom' | 'workshop' | 'shipping';
+
+export interface RushOrder {
+  /** Clips to make, how many are made so far, and the bonus paid in clips. */
+  target: number;
+  made: number;
+  bonus: number;
+  /** While offered: when the offer lapses. Once taken: when time runs out. */
+  untilMs: number;
+  taken: boolean;
+}
 
 export interface C02State {
   kind: '02';
-  route: 'courtyard' | 'direct';
-  directBuilt: boolean;
+  /** Contracts finished so far (0–6); the current one is the next. */
+  contractIndex: number;
+  /** Clips made toward the current contract, and in the whole building. */
+  contractClips: number;
+  totalClips: number;
+  /** Clips on hand to spend on machines. */
+  stock: number;
+  /** Wire waiting at the dock, in clips' worth. */
+  wire: number;
+  /** Machines bought in each room, and fans in the workshop. */
+  levels: { dock: number; wireRoom: number; workshop: number; shipping: number; fans: number };
+  /** Hands: presses available (refills two a second). */
+  hands: number;
+  /** Production carried between steps, in micro-clips. */
+  residue: number;
   running: boolean;
   heatMilli: number;
-  heatResidue: number;
   throttled: boolean;
-  /** Contracts delivered so far (0–6); the current contract is the next one. */
-  contractIndex: number;
-  contractWorkMilli: number;
-  cumulativeWorkMilli: number;
-  workResidue: number;
-  processedUnits: number;
-  /** Permits held but not yet spent. */
-  permits: number;
-  upgrades: { dockCrew: boolean; wireDraw: boolean; secondBender: boolean; freight: boolean; roofCooling: boolean };
-  awaitingInspection: boolean;
-  /** Work waiting after each station, in milli-units (the queue into the next station). */
-  queues: { dock: number; drawing: number; bender: number };
-  /** Hands: capacity to push work through a station by hand, in milli-units (refills over time). */
-  hands: number;
-  /** The station the player last lent a hand at. */
-  handAt: BuildingStation;
-  /** Smoothed shipping rate, milli-units per second, for display. */
-  shipRate: number;
-  /** Work shipped during the current step (transient). */
-  shippedThisStep?: number;
-  /** For the inspection report. */
+  route: 'courtyard' | 'direct';
+  directBuilt: boolean;
+  rush: RushOrder | null;
+  nextRushMs: number;
+  rushesWon: number;
+  /** Smoothed output, milli-clips per second, for display. */
+  rate: number;
   contractStartMs: number;
-  peakHeatMilli: number;
-  throttledMs: number;
+  /** Transient: clips made this step. */
+  madeThisStep?: number;
 }
 
 export interface C03State {
@@ -529,10 +537,11 @@ export type Action =
   | { type: 'c01/catch' }
   | { type: 'c01/tune'; needle: number }
   | { type: 'c01/tuneSlow' }
+  | { type: 'c02/buy'; room: BuildingRoom | 'fan' }
+  | { type: 'c02/unload' }
+  | { type: 'c02/rush' }
   | { type: 'c02/run'; running: boolean }
   | { type: 'c02/route'; route: 'courtyard' | 'direct' }
-  | { type: 'c02/upgrade'; id: 'dockCrew' | 'wireDraw' | 'secondBender' | 'freight' | 'roofCooling' }
-  | { type: 'c02/hand'; station: BuildingStation }
   | { type: 'c02/resume' }
   | { type: 'c03/shift'; from: number; to: number }
   | { type: 'c03/project'; id: 'heatReuse' | 'transit'; district: number }
