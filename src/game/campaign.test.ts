@@ -289,18 +289,20 @@ describe('chapter 01 office', () => {
 
   it('the night opens slowly: the machine waits under a dust sheet and files arrive one at a time', () => {
     const s = newCampaign();
-    for (let i = 0; i < 60; i++) dispatch(s, { type: 'c01/make' });
+    for (let i = 0; i < OFFICE.opening.sheetAfterClips - 1; i++) dispatch(s, { type: 'c01/make' });
     expect(nextGoal(s)).toBe('Keep making clips by hand.');
     expect(offeredProjects(s)).toEqual([]);
     expect(dispatch(s, { type: 'c01/lift' })).not.toBeNull();
+    // The sheet waits on clips made by hand, never on a clock.
+    dispatch(s, { type: 'c01/make' });
+    expect(nextGoal(s)).toMatch(/dust sheet/);
     run(s, 10);
     // The order arrives at once; the contract has to wait its turn.
     expect(Object.keys(night(s).files)).toEqual(['order']);
-    run(s, OFFICE.opening.sheetAfterMs / 100);
-    expect(Object.keys(night(s).files)).toEqual(['order', 'contract']);
-    expect(nextGoal(s)).toMatch(/dust sheet/);
     expect(dispatch(s, { type: 'c01/lift' })).toBeNull();
     expect(offeredProjects(s).map((p) => p.id)).toEqual(['calibrate']);
+    run(s, OFFICE.opening.fileGapMs / 100);
+    expect(Object.keys(night(s).files)).toEqual(['order', 'contract']);
     // The manual comes with the machine, but not on top of the contract.
     const at = night(s).lastFileMs;
     run(s, 5);

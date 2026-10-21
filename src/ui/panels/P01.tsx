@@ -187,7 +187,7 @@ export function P01() {
       {files.length > 0 && (
         <div className="card">
           <h3>
-            Terminal <span className="tag">{unread > 0 ? `${unread} unread` : `${files.length} files`}</span>
+            Terminal <span className="tag">{unread > 0 ? `${unread} unread` : `${files.length} file${files.length === 1 ? '' : 's'}`}</span>
           </h3>
           <div className="row" role="list" aria-label="Files">
             {files.map((f) => (

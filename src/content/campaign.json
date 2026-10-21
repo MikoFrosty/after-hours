@@ -86,7 +86,7 @@
     ],
     "straightenerGramsPerSecond": 0.5,
     "opening": {
-      "sheetAfterSeconds": 75,
+      "sheetAfterSeconds": 0,
       "sheetAfterClips": 50,
       "fileGapSeconds": 40
     },
