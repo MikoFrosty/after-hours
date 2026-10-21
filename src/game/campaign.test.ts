@@ -12,7 +12,7 @@ import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
 import { schedulePreview } from './chapters/c08';
 import { protectedLines } from './chapters/c07';
-import { glintActive, handPackKeeps, jamInterval, loose, machineRate, nextGoal, offeredProjects, packerKeeps, tendingBonus, tuneBand } from './chapters/c01';
+import { glintActive, handPackKeeps, jamInterval, loose, machineRate, nextGoal, offeredProjects, packerKeeps, sheetReady, tendingBonus, tuneBand } from './chapters/c01';
 import type { C01State, C02State, C03State, C05State, C07State, C08State, CampaignState } from './types';
 
 function invariantEveryStep(s: CampaignState, steps: number) {
@@ -88,10 +88,12 @@ describe('chapter 01 office', () => {
 
   it('sealed cartons cannot be spent', () => {
     const s = newCampaign();
+    night(s).trial = 'approved';
+    night(s).sheetLifted = true;
     for (let i = 0; i < 260; i++) dispatch(s, { type: 'c01/make' });
     expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
     expect(night(s).sealed).toBe(1);
-    // 260 clips exist, but only 10 are loose: the 15-clip calibration cannot be paid from the carton.
+    // 260 clips exist, but only 10 are loose: the 100-clip machine cannot be paid from the carton.
     expect(dispatch(s, { type: 'c01/project', id: 'calibrate' })).not.toBeNull();
     expect(s.clips.currentMicrograms).toBe(260n * CLIP);
   });
@@ -257,6 +259,7 @@ describe('chapter 01 office', () => {
   it('the auto-packer keeps enough on the desk for the next upgrade and packs the rest', () => {
     const s = newCampaign();
     const c = night(s);
+    c.trial = 'approved';
     c.owned.push('calibrate', 'oil', 'feeder', 'packer');
     commit(s, { id: 'test.wire', from: 'office.wire', input: 400n * CLIP, outputs: [['clips', 400n * CLIP]] });
     // The next upgrade is a bending upgrade at 80 clips: that much stays on the desk.
@@ -287,49 +290,68 @@ describe('chapter 01 office', () => {
     expect(night(fast).vanCartons).toBe(12);
   });
 
-  it('the night opens slowly: the machine waits under a dust sheet and files arrive one at a time', () => {
-    const s = newCampaign();
-    for (let i = 0; i < OFFICE.opening.sheetAfterClips - 1; i++) dispatch(s, { type: 'c01/make' });
-    expect(nextGoal(s)).toBe('Keep making clips by hand.');
-    expect(offeredProjects(s)).toEqual([]);
-    expect(dispatch(s, { type: 'c01/lift' })).not.toBeNull();
-    // The sheet waits on clips made by hand, never on a clock.
-    dispatch(s, { type: 'c01/make' });
-    expect(nextGoal(s)).toMatch(/dust sheet/);
-    run(s, 10);
-    // The order arrives at once; the contract has to wait its turn.
-    expect(Object.keys(night(s).files)).toEqual(['order']);
-    expect(dispatch(s, { type: 'c01/lift' })).toBeNull();
-    expect(offeredProjects(s).map((p) => p.id)).toEqual(['calibrate']);
-    run(s, OFFICE.opening.fileGapMs / 100);
-    expect(Object.keys(night(s).files)).toEqual(['order', 'contract']);
-    // The manual comes with the machine, but not on top of the contract.
-    const at = night(s).lastFileMs;
-    run(s, 5);
-    expect(night(s).files.manual).toBeUndefined();
-    run(s, (OFFICE.opening.fileGapMs - (s.simMs - at)) / 100 + 1);
-    expect(night(s).files.manual).toBe('unread');
-  });
-
-  it('when the auto-packer waits on the first carton, the goal and the pack button agree', () => {
+  it('the night is three orders: a trial run of 100, one carton, then eleven more', () => {
     const s = newCampaign();
     const c = night(s);
+    for (let i = 0; i < 99; i++) dispatch(s, { type: 'c01/make' });
+    expect(nextGoal(s)).toBe('Trial run: make 100 clips by hand. 99 of 100.');
+    expect(dispatch(s, { type: 'c01/sendTrial' })).not.toBeNull();
+    // No carton order exists yet, and nothing under the dust sheet is offered.
+    expect(dispatch(s, { type: 'c01/pack' })).not.toBeNull();
+    expect(offeredProjects(s)).toEqual([]);
+    dispatch(s, { type: 'c01/make' });
+    expect(dispatch(s, { type: 'c01/sendTrial' })).toBeNull();
+    // The hundred clips have gone: they are not on the desk to spend.
+    expect(loose(s)).toBe(0);
+    expect(c.trial).toBe('sent');
+    expect(sheetReady(s)).toBe(false);
+    run(s, OFFICE.trial.replyMs / 100 + 1);
+    expect(c.trial).toBe('approved');
+    expect(c.files.order2).toBe('unread');
+    // The reply brings the dust sheet into view; the machine under it is the way to a carton's worth.
+    expect(nextGoal(s)).toMatch(/dust sheet/);
+    expect(dispatch(s, { type: 'c01/lift' })).toBeNull();
+    expect(offeredProjects(s).map((p) => p.id)).toEqual(['calibrate']);
+    for (let i = 0; i < 250; i++) dispatch(s, { type: 'c01/make' });
+    expect(nextGoal(s)).toMatch(/pack the carton for order 4472/);
+    expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
+    step(s);
+    expect(c.files.order3).toBe('unread');
+    expect(checkInvariant(s)).toBeNull();
+  });
+
+  it('other terminal files arrive one at a time', () => {
+    const s = newCampaign();
+    const c = night(s);
+    for (let i = 0; i < 30; i++) dispatch(s, { type: 'c01/make' });
+    run(s, 10);
+    expect(Object.keys(c.files)).toEqual(['order']);
+    run(s, OFFICE.opening.fileGapMs / 100);
+    expect(Object.keys(c.files)).toEqual(['order', 'contract']);
+  });
+
+  it('the wire feeder waits on the one-carton order, and the goal counts toward it', () => {
+    const s = newCampaign();
+    const c = night(s);
+    c.trial = 'approved';
     c.sheetLifted = true;
-    c.owned.push('calibrate', 'oil', 'feeder', 'dieHigh', 'die2');
-    c.madeClips = 700;
-    s.simMs = 5 * 60_000;
+    c.owned.push('calibrate', 'oil');
+    c.madeClips = 400;
     commit(s, { id: 'test.wire', from: 'office.wire', input: 100n * CLIP, outputs: [['clips', 100n * CLIP]] });
     expect(handPackKeeps(s)).toBe(0);
-    expect(nextGoal(s)).toBe('Pack 1 more carton to make room for the auto-packer: 100 of 250 clips on the desk.');
+    expect(offeredProjects(s).map((p) => p.id)).not.toContain('feeder');
+    expect(nextGoal(s)).toBe('Pack 1 more carton to make room for the wire feeder: 100 of 250 clips on the desk.');
     commit(s, { id: 'test.wire2', from: 'office.wire', input: 150n * CLIP, outputs: [['clips', 150n * CLIP]] });
-    expect(nextGoal(s)).toBe('Pack 1 more carton to make room for the auto-packer.');
+    expect(nextGoal(s)).toBe('You have 250 clips: pack the carton for order 4472.');
     expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
     expect(c.sealed).toBe(1);
+    expect(offeredProjects(s).map((p) => p.id)).toContain('feeder');
   });
 
   it('a wait on sealed cartons is named as a goal', () => {
     const s = newCampaign();
     const c = night(s);
+    c.trial = 'approved';
     c.owned.push('calibrate', 'oil', 'feeder', 'dieSmooth', 'die2', 'packer', 'roller', 'governor', 'fan');
     c.sealed = 1;
     c.madeClips = 600;

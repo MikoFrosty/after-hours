@@ -8,14 +8,14 @@ import type { Controller } from '../engine';
 import { ask, beatNow, bump, emit, hold } from '../engine';
 import type { C01State, CampaignState, LineSpeed, OfficeProjectId } from '../types';
 
-// The night desk: one order of 3,000 clips, packed in twelve cartons of 250.
+// The night desk: a trial run of 100 loose clips, then one carton of 250, then eleven more cartons.
 // Clips spent on machinery have to be made again, so every purchase is a real trade.
 
 const cs = (s: CampaignState) => s.chapterState as C01State;
 const CARTONS = OFFICE.quota / OFFICE.boxSize;
 
 export const owns = (c: C01State, id: OfficeProjectId) => c.owned.includes(id);
-export const packed = (c: C01State) => c.sealed * OFFICE.boxSize + c.openBox;
+export const packed = (c: C01State) => c.trialClips + c.sealed * OFFICE.boxSize + c.openBox;
 export const project = (id: OfficeProjectId) => OFFICE.projects.find((p) => p.id === id)!;
 
 /** Clips on the desk that are not in a carton: the only clips that can be spent. */
@@ -130,7 +130,7 @@ export const uncovered = (c: C01State) => c.sheetLifted || owns(c, 'calibrate');
 /** The dust sheet can be lifted once a few clips have been made by hand and the room has had a minute to settle. */
 export function sheetReady(s: CampaignState): boolean {
   const c = cs(s);
-  return !uncovered(c) && c.madeClips >= OFFICE.opening.sheetAfterClips && nightMs(s) >= OFFICE.opening.sheetAfterMs;
+  return !uncovered(c) && c.trial === 'approved' && c.madeClips >= OFFICE.opening.sheetAfterClips && nightMs(s) >= OFFICE.opening.sheetAfterMs;
 }
 
 export function unlocked(s: CampaignState, p: OfficeProject): boolean {
@@ -200,6 +200,8 @@ export function officeStatus(s: CampaignState): string {
   if (boxFull(c)) return 'Carton full: tape it shut';
   if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}`;
   if (c.madeClips === 0) return 'Waiting for the first clip';
+  if (c.trial === 'open') return `Trial run: ${Math.min(loose(s), OFFICE.trial.clips)} of ${OFFICE.trial.clips}`;
+  if (c.trial === 'sent') return 'Waiting to hear back';
   if (!uncovered(c)) return sheetReady(s) ? 'Something under a dust sheet' : 'Making clips by hand';
   const next = nextProject(s);
   if (next && loose(s) < next.costClips) return `Saving for ${goalName(next)}`;
@@ -208,7 +210,7 @@ export function officeStatus(s: CampaignState): string {
   const made = madeGated(s);
   if (made) return `Working toward ${goalName(made)}`;
   if (!owns(c, 'calibrate')) return 'Making clips by hand';
-  if (cartonGated(s)) return 'Filling cartons';
+  if (cartonGated(s)) return c.sealed === 0 ? 'Filling the one-carton order' : 'Filling cartons';
   const extra = nextProject(s, true);
   if (extra && loose(s) < extra.costClips) return `Saving for ${goalName(extra)}`;
   return 'Filling cartons';
@@ -220,6 +222,11 @@ export function nextGoal(s: CampaignState): string {
   if (c.capped) return 'The order is complete.';
   if (c.madeClips === 0) return 'Make a clip by hand from the coil of wire.';
   if (c.jammed) return 'The wire snagged: free it to restart the clip machine.';
+  if (c.trial === 'open') {
+    const l = loose(s);
+    return l >= OFFICE.trial.clips ? `The trial run is ready: send the ${OFFICE.trial.clips} clips.` : `Trial run: make ${OFFICE.trial.clips} clips by hand. ${l} of ${OFFICE.trial.clips}.`;
+  }
+  if (c.trial === 'sent') return 'Trial run sent. Keep making clips while you wait to hear back.';
   if (!uncovered(c)) return sheetReady(s) ? 'There is something on the desk under a dust sheet.' : 'Keep making clips by hand.';
   if (boxFull(c)) return 'The packer’s carton is full: tape it shut.';
   const l = loose(s);
@@ -227,6 +234,8 @@ export function nextGoal(s: CampaignState): string {
     if (l >= p.costClips) return p.exclusive ? `Enough clips to choose ${goalName(p)}.` : `${p.name}: ready to buy for ${p.costClips} clips.`;
     return `Saving for ${goalName(p)}: ${l} of ${p.costClips} clips.`;
   };
+  // The one-carton order comes first once its clips are on the desk: packing it brings the big order.
+  if (c.sealed === 0 && l >= OFFICE.boxSize) return `You have ${OFFICE.boxSize} clips: pack the carton for order 4472.`;
   const next = nextProject(s);
   if (next && !c.installing) return saving(next);
   if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}.`;
@@ -307,6 +316,8 @@ export function packerKeeps(s: CampaignState): number {
  * offer now. (An upgrade that is itself waiting for a packed carton doesn't count.)
  */
 export function handPackKeeps(s: CampaignState): number {
+  // The first carton is an order in its own right; nothing is held back for it.
+  if (cs(s).sealed === 0) return 0;
   return nextProject(s)?.costClips ?? 0;
 }
 
@@ -484,16 +495,39 @@ export const c01: Controller = {
       bump(s);
     }
 
-    // Terminal files appear as the night goes on, one at a time and never two close together.
-    const fileRules: Array<[string, boolean]> = [
+    // The trial run's reply: approved, and an order for one carton.
+    if (c.trial === 'sent' && s.simMs - c.trialAtMs >= OFFICE.trial.replyMs) {
+      c.trial = 'approved';
+      emit({ type: 'beat', title: 'Sample approved', text: 'The customer liked the trial run. Next: one carton of 250.' });
+      bump(s);
+    }
+    // The big order arrives with the first carton.
+    if (c.sealed >= 1 && !c.capped && once(s, 'c01.bigOrder')) {
+      emit({ type: 'beat', title: 'A bigger order', text: 'Eleven more cartons, by morning. A van stops across the street at 5:22.' });
+    }
+
+    // The orders arrive the moment they are placed; other files appear one at a time and never two close together.
+    const orders: Array<[string, boolean]> = [
       ['order', c.madeClips >= 1],
+      ['order2', c.trial === 'approved'],
+      ['order3', c.sealed >= 1],
+    ];
+    for (const [id, ok] of orders) {
+      if (ok && !c.files[id]) {
+        c.files[id] = 'unread';
+        c.lastFileMs = s.simMs;
+        emit({ type: 'sound', id: 'file' });
+        bump(s);
+      }
+    }
+    const fileRules: Array<[string, boolean]> = [
       ['contract', c.madeClips >= 15],
       ['manual', uncovered(c)],
       ['inventory', owns(c, 'calibrate') && c.madeClips >= 100],
       ['ticket', c.madeClips >= 200],
       ['memo', owns(c, 'feeder')],
     ];
-    const gapOk = Object.keys(c.files).length === 0 || s.simMs - c.lastFileMs >= OFFICE.opening.fileGapMs;
+    const gapOk = s.simMs - c.lastFileMs >= OFFICE.opening.fileGapMs;
     const due = gapOk ? fileRules.find(([id, ok]) => ok && !c.files[id]) : undefined;
     if (due) {
       c.files[due[0]] = 'unread';
@@ -649,6 +683,7 @@ export const c01: Controller = {
         return null;
       case 'c01/pack': {
         if (c.capped || c.sealed >= CARTONS) return 'All twelve cartons are sealed.';
+        if (c.trial !== 'approved') return 'There is no carton order yet.';
         if (boxFull(c)) {
           c.openBox = 0;
           sealCarton(s);
@@ -669,6 +704,19 @@ export const c01: Controller = {
         if (!c.files[a.file]) return 'No such file.';
         c.files[a.file] = 'read';
         return null;
+      case 'c01/sendTrial': {
+        if (c.trial !== 'open') return 'The trial run has gone.';
+        if (loose(s) < OFFICE.trial.clips) return `The trial run is ${OFFICE.trial.clips} clips.`;
+        c.trial = 'sent';
+        c.trialAtMs = s.simMs;
+        c.trialClips = OFFICE.trial.clips;
+        log(s, { id: 'c01.trial', kind: 'system', title: 'Trial run', text: `${OFFICE.trial.clips} clips in an envelope, left at the front desk for the courier.` });
+        emit({ type: 'beat', title: 'Trial run sent', text: `${OFFICE.trial.clips} clips in an envelope, left at the front desk for the courier.` });
+        emit({ type: 'sound', id: 'tape' });
+        emit({ type: 'save', reason: 'carton' });
+        bump(s);
+        return null;
+      }
       case 'c01/lift': {
         if (uncovered(c)) return null;
         if (!sheetReady(s)) return 'Not yet.';
@@ -683,7 +731,7 @@ export const c01: Controller = {
         const m = mass(s, 'office.spare');
         mustCommit(s, { id: 'c01.spare', from: 'office.spare', input: m, outputs: [['office.wire', m]] });
         c.spareTaken = true;
-        log(s, { id: 'c01.spare', kind: 'system', title: 'Spare coil', text: 'The 3 kg coil from the cabinet’s bottom drawer is on the spindle.' });
+        log(s, { id: 'c01.spare', kind: 'system', title: 'Spare coil', text: 'The 4 kg coil from the cabinet’s bottom drawer is on the spindle.' });
         emit({ type: 'sound', id: 'install' });
         bump(s);
         return null;

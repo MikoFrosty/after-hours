@@ -67,15 +67,16 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
       const n = Object.values(c1.salvaged).filter(Boolean).length;
       const variant = n === 0 ? 'kept' : n === 3 ? 'salvaged' : 'partial';
       return {
-        eyebrow: 'Shift report · 3,000 clips',
+        eyebrow: 'Shift report · three orders',
         title: 'Order complete. Renewal clause active.',
         quote: EPILOGUES.office[variant],
         body: [CHARTERS.buildingLease.body],
         facts: [
-          ['Cartons sealed', '12 of 12'],
+          ['Trial run', c1.trialClips > 0 ? `${c1.trialClips} clips, approved` : 'approved'],
+          ['Cartons sealed', '1 + 11'],
           ['On the 5:22 van', `${c1.vanCartons ?? 12} of 12`],
           ['For the 7:00 van', `${12 - (c1.vanCartons ?? 12)}`],
-          ['Clips left on the desk', fmtClips(s.clips.currentMicrograms - 3_000n * 1_000_000n)],
+          ['Clips left on the desk', fmtClips(s.clips.currentMicrograms - BigInt(3_000 + c1.trialClips) * 1_000_000n)],
           ['Wire unprocessed', fmtMass(mass(s, 'office.wire') + mass(s, 'office.spare'))],
         ],
         options: [

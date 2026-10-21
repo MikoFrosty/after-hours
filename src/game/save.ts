@@ -292,6 +292,10 @@ export function migrateOffice(s: CampaignState): void {
     s.chapterState = next;
   }
   if (old?.kind === '01') migrateOfficeV3(s.chapterState as C01State);
+  // A night saved before the trial run existed carries on as if it had already been approved.
+  if (s.chapterState?.kind === '01' && !('trial' in s.chapterState) && (s.chapterState as C01State).madeClips > 0) {
+    Object.assign(s.chapterState, { trial: 'approved', trialAtMs: 0, trialClips: 0 });
+  }
   // Fields added since the save was written take their defaults.
   if (s.chapterState?.kind === '01') s.chapterState = { ...newOfficeState(), ...(s.chapterState as C01State) };
   if (s.chapterState?.kind === '02' && !('levels' in s.chapterState)) migrateBuilding(s);

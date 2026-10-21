@@ -1,4 +1,4 @@
-import { CHAPTER_META, CITY, COSMIC, PRESERVATION, SOLAR, TERMINAL } from '../content/campaign';
+import { CHAPTER_META, CITY, COSMIC, OFFICE, PRESERVATION, SOLAR, TERMINAL } from '../content/campaign';
 import { DISTRICTS } from '../content/world';
 import { CARTONS, loose, officeStatus, wireGrams } from './chapters/c01';
 import { CONTRACTS, currentContract, dockBehind, heatOpen, shopOpen, slowestRoom } from './chapters/c02';
@@ -90,7 +90,9 @@ export function metrics(s: CampaignState): { items: Metric[]; bottleneck: string
       const deskClips: Metric = { label: 'Clips on the desk', value: loose(s).toLocaleString(), hint: 'Loose clips. Only these can be spent on upgrades or packed.' };
       const b = wireGrams(s) < 1 && !c.capped ? 'Wire coil empty' : officeStatus(s);
       const items: Metric[] = [deskClips];
-      if (c.sealed > 0 || c.capped) items.push({ label: 'Cartons', value: `${c.sealed} / ${CARTONS}`, hint: 'The order is twelve cartons of 250 clips, taped shut.' });
+      if (c.sealed > 0 || c.capped) items.push({ label: 'Cartons', value: `${Math.max(0, c.sealed - 1)} / ${CARTONS - 1}`, hint: 'Order 4473: eleven more cartons of 250 clips, taped shut.' });
+      else if (c.trial === 'approved') items.push({ label: 'Order', value: 'One carton', hint: 'Order 4472: one carton of 250 clips.' });
+      else if (c.files.order) items.push({ label: 'Trial run', value: c.trial === 'sent' ? 'Sent' : `${Math.min(loose(s), OFFICE.trial.clips)} / ${OFFICE.trial.clips}`, hint: 'Trial order 4471: 100 loose clips as a sample.' });
       return { items, bottleneck: b };
     }
     case '02': {

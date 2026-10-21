@@ -20,7 +20,6 @@ import {
   tendingBonus,
   tendsLine,
   packerKeeps,
-  handPackKeeps,
   sheetReady,
   tuningOpen,
   boxFull,
@@ -32,7 +31,7 @@ import { fmtMass } from '../../game/mass';
 import { Bar } from './Panel';
 
 const EFFECT: Record<OfficeProjectId, string> = {
-  calibrate: 'Sets up the clip machine on the desk. It makes clips on its own, about one every three seconds.',
+  calibrate: 'Sets up the clip machine on the desk. It makes clips on its own, about one every two seconds.',
   oil: 'The clip machine runs half again as fast.',
   tensioner: 'The wire snags less often: every 60 clips instead of every 25.',
   feeder: 'Feeds wire into the machine for you and adds its own clips. The wire stops snagging. From now on, your presses boost the machines instead of making single clips.',
@@ -106,7 +105,7 @@ export function P01() {
         <div className="card reveal highlight-card">
           <h3>Spare coil</h3>
           <p className="small" style={{ margin: '0 0 10px' }}>
-            The inventory lists a 3 kg coil of wire in the cabinet’s bottom drawer. Upgrades are paid for in clips, and those clips have to be made again, so you may need more wire.
+            The inventory lists a 4 kg coil of wire in the cabinet’s bottom drawer. Upgrades are paid for in clips, and those clips have to be made again, so you may need more wire.
           </p>
           <button className="btn" onClick={() => act({ type: 'c01/takeSpare' })}>
             Load the spare coil
@@ -180,7 +179,7 @@ export function P01() {
             <span className="muted">Wire left on the coil</span>
             <span className="mono">{fmtMass(mass(s, 'office.wire'))}</span>
           </div>
-          <Bar value={wire} max={c.spareTaken ? 6000 : 3000} tone="alt" />
+          <Bar value={wire} max={c.spareTaken ? 7000 : 3000} tone="alt" />
         </div>
       )}
 
@@ -320,6 +319,9 @@ function ActionDock() {
   const bonus = tendingBonus(c);
   const full = c.tending >= 95_000;
   const vanGone = c.vanCartons !== null;
+  // The big order is the eleven cartons after the first.
+  const BIG = CARTONS - 1;
+  const bigSealed = Math.max(0, c.sealed - 1);
 
   return (
     <div className="card action-dock" aria-label="Your desk">
@@ -363,29 +365,58 @@ function ActionDock() {
           <Bar value={c.tending} max={100_000} />
         </div>
       )}
-      {/* Cartons stay out of view until the first one is packed by hand; until then one button appears once a carton's worth is on the desk on top of the price of the next upgrade, so packing never strands a purchase. */}
-      {c.sealed === 0 && !c.capped && deskClips >= OFFICE.boxSize + handPackKeeps(s) && (
+      {/* The night's orders, one at a time: a trial run of loose clips, one carton, then eleven more. */}
+      {c.files.order && c.trial !== 'approved' && !c.capped && (
         <div className="dock-order reveal">
-          <div className="row between" style={{ gap: 8 }}>
-            <span className="tiny muted">The order is {CARTONS} cartons of {OFFICE.boxSize} clips. You have enough on the desk to fill the first one{handPackKeeps(s) > 0 ? ` and still afford the next upgrade` : ''}.</span>
-            <button className="btn small primary" onClick={() => act({ type: 'c01/pack' })}>
-              Pack the first carton <span className="kbd">S</span>
+          <div className="row between tiny" style={{ marginBottom: 6 }}>
+            <span className="muted">{c.trial === 'open' ? `Trial order 4471 · ${OFFICE.trial.clips} loose clips` : 'Trial run sent · waiting to hear back'}</span>
+            <span className="mono">
+              {c.trial === 'open' ? `${Math.min(deskClips, OFFICE.trial.clips)} / ${OFFICE.trial.clips}` : `${OFFICE.trial.clips} / ${OFFICE.trial.clips}`}
+            </span>
+          </div>
+          <Bar value={c.trial === 'open' ? Math.min(deskClips, OFFICE.trial.clips) : OFFICE.trial.clips} max={OFFICE.trial.clips} />
+          {c.trial === 'open' && (
+            <div className="row between" style={{ marginTop: 8, gap: 8 }}>
+              <span className="tiny muted">If the customer likes the sample, a carton order follows.</span>
+              <button className="btn small primary" disabled={deskClips < OFFICE.trial.clips} onClick={() => act({ type: 'c01/sendTrial' })}>
+                Send the trial run
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {c.trial === 'approved' && c.sealed === 0 && !c.capped && (
+        <div className="dock-order reveal">
+          <div className="row between tiny" style={{ marginBottom: 6 }}>
+            <span className="muted">Order 4472 · one carton of {OFFICE.boxSize}</span>
+            <span className="mono">
+              {Math.min(deskClips, OFFICE.boxSize)} / {OFFICE.boxSize}
+            </span>
+          </div>
+          <Bar value={Math.min(deskClips, OFFICE.boxSize)} max={OFFICE.boxSize} />
+          <div className="row between" style={{ marginTop: 8, gap: 8 }}>
+            <span className="tiny muted">Fill it from the clips on the desk and tape it shut.</span>
+            <button className={`btn small ${deskClips >= OFFICE.boxSize ? 'primary' : ''}`} disabled={deskClips < OFFICE.boxSize} onClick={() => act({ type: 'c01/pack' })}>
+              Pack the carton <span className="kbd">S</span>
             </button>
           </div>
         </div>
       )}
       {(c.sealed > 0 || c.capped) && (
         <div className="dock-order reveal">
-          <div className="cartons" role="img" aria-label={`${c.sealed} of ${CARTONS} cartons sealed`}>
-            {Array.from({ length: CARTONS }, (_, i) => (
-              <span key={i} className={`carton ${i < c.sealed ? 'sealed' : i === c.sealed && c.openBox > 0 ? 'open' : ''} ${i === c.sealed && full250 ? 'waiting' : ''} ${i === justSealed ? 'just' : ''}`}>
-                {i === c.sealed && c.openBox > 0 && <i style={{ height: `${(c.openBox / OFFICE.boxSize) * 100}%` }} />}
+          <div className="tiny muted" style={{ marginBottom: 6 }}>
+            Order 4473 · {BIG} more cartons
+          </div>
+          <div className="cartons" role="img" aria-label={`${bigSealed} of ${BIG} cartons sealed`}>
+            {Array.from({ length: BIG }, (_, i) => (
+              <span key={i} className={`carton ${i < bigSealed ? 'sealed' : i === bigSealed && c.openBox > 0 ? 'open' : ''} ${i === bigSealed && full250 ? 'waiting' : ''} ${i === justSealed - 1 ? 'just' : ''}`}>
+                {i === bigSealed && c.openBox > 0 && <i style={{ height: `${(c.openBox / OFFICE.boxSize) * 100}%` }} />}
               </span>
             ))}
           </div>
           <div className="row between" style={{ marginTop: 8, gap: 8 }}>
             <span className="tiny muted">
-              {c.sealed} of {CARTONS} cartons packed ·{' '}
+              {bigSealed} of {BIG} packed ·{' '}
               {vanGone ? `${c.vanCartons} went on the ${VAN_LABEL} van` : `van at ${VAN_LABEL}, the rest go at 7:00`}
             </span>
             {!c.capped && (

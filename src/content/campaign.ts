@@ -94,6 +94,8 @@ export const OFFICE = {
   carefulRunMs: c.office.carefulRunSeconds * 1000,
   lineSpeeds: c.office.lineSpeeds.map((x) => ({ id: x.id as LineSpeed, factor: milli(x.factor), rejectPpm: x.rejectPpm })),
   straightenerRate: milli(c.office.straightenerGramsPerSecond),
+  /** The first order is a trial run of loose clips; the carton orders follow once it is approved. */
+  trial: { clips: c.office.trial.clips, replyMs: c.office.trial.replySeconds * 1000 },
   /** The slow start: the machine under a dust sheet, and terminal files that arrive one at a time. */
   opening: {
     sheetAfterMs: c.office.opening.sheetAfterSeconds * 1000,

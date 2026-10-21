@@ -323,6 +323,15 @@ export interface C01State {
   tuneAttempts: number;
   tuneCooldownUntilMs: number;
   lastTune: 'hit' | 'miss' | null;
+  /**
+   * The night's orders: a trial run of 100 loose clips, then one carton, then eleven more.
+   * open → sent (waiting on the reply) → approved.
+   */
+  trial: 'open' | 'sent' | 'approved';
+  /** When the trial run was sent (simulated ms). */
+  trialAtMs: number;
+  /** Clips that left in the trial run (0 for nights saved before there was one). */
+  trialClips: number;
   /** The clip machine starts under a dust sheet; lifting it reveals the machine and its manual. */
   sheetLifted: boolean;
   /** When the last terminal file appeared (simulated ms), so files arrive one at a time. */
@@ -537,6 +546,7 @@ export type Action =
   | { type: 'c01/read'; file: string }
   | { type: 'c01/takeSpare' }
   | { type: 'c01/lift' }
+  | { type: 'c01/sendTrial' }
   | { type: 'c01/catch' }
   | { type: 'c01/tune'; needle: number }
   | { type: 'c01/tuneSlow' }

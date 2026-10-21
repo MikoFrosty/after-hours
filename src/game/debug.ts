@@ -28,6 +28,11 @@ export function finishCurrent(s: CampaignState): void {
     debugFinishContract(s);
   } else if (s.chapter === '01') {
     const c = s.chapterState as C01State;
+    if (c.trial === 'open') {
+      if (loose(s) < OFFICE.trial.clips) grantClips(s, OFFICE.trial.clips - loose(s));
+      c.trialClips = OFFICE.trial.clips;
+    }
+    c.trial = 'approved';
     const need = (CARTONS - c.sealed) * OFFICE.boxSize;
     if (loose(s) < need) grantClips(s, need - loose(s));
     c.openBox = 0;

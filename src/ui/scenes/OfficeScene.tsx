@@ -169,8 +169,8 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
       : c1.capped
         ? ['ORDER 4471', 'COMPLETE', 'CLAUSE 9 LIVE', '>']
         : [
-            c1.sealed > 0 ? `CARTONS ${c1.sealed}/12` : 'ORDER 4471',
-            `DESK ${desk.toLocaleString('en-US')}`,
+            c1.sealed > 0 ? `CARTONS ${c1.sealed - 1}/11` : c1.trial === 'approved' ? 'ORDER 4472' : c1.trial === 'sent' ? 'TRIAL SENT' : 'TRIAL 4471',
+            c1.trial === 'sent' ? 'AWAITING REPLY' : `DESK ${desk.toLocaleString('en-US')}`,
             c1.jammed ? 'WIRE SNAGGED' : unread > 0 ? `NEW FILE (${unread})` : has('calibrate') ? `${(goodRate(s) / 1000).toFixed(1)} CLIPS/S` : 'BY HAND',
             '>',
           ]

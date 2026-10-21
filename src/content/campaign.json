@@ -59,7 +59,7 @@
       }
     ],
     "boxSize": 250,
-    "spareWireMicrograms": "3000000000",
+    "spareWireMicrograms": "4000000000",
     "nightStorySeconds": 22980,
     "jam": {
       "intervalClips": 25,
@@ -85,6 +85,10 @@
       }
     ],
     "straightenerGramsPerSecond": 0.5,
+    "trial": {
+      "clips": 100,
+      "replySeconds": 12
+    },
     "opening": {
       "sheetAfterSeconds": 0,
       "sheetAfterClips": 50,
@@ -100,7 +104,7 @@
         "unlock": {
           "made": 50
         },
-        "addedRate": 0.32
+        "addedRate": 0.5
       },
       {
         "id": "oil",
@@ -128,12 +132,12 @@
       {
         "id": "feeder",
         "name": "Wire feeder",
-        "costClips": 200,
+        "costClips": 150,
         "installSeconds": 25,
         "group": "line",
         "unlock": {
           "after": "oil",
-          "made": 350
+          "boxes": 1
         },
         "addedRate": 0.9
       },
@@ -179,8 +183,7 @@
         "installSeconds": 15,
         "group": "none",
         "unlock": {
-          "after": "feeder",
-          "boxes": 1
+          "after": "feeder"
         }
       },
       {

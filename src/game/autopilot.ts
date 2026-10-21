@@ -140,6 +140,8 @@ function officeNight(s: CampaignState, r: Route) {
   const eff = r.player === 'efficient';
   for (const f of Object.keys(c.files)) if (c.files[f] === 'unread') dispatch(s, { type: 'c01/read', file: f });
   if (spareOffered(s)) dispatch(s, { type: 'c01/takeSpare' });
+  // The trial run goes as soon as its hundred clips are on the desk.
+  if (c.trial === 'open' && loose(s) >= OFFICE.trial.clips) dispatch(s, { type: 'c01/sendTrial' });
   // The dust sheet: noticed after a few seconds (relaxed) or at once (engaged).
   if (sheetReady(s) && (eff || s.simMs % 5_000 < 100)) dispatch(s, { type: 'c01/lift' });
   if (c.jammed) {
@@ -195,6 +197,8 @@ function officeNight(s: CampaignState, r: Route) {
     }
   } else fullSteps = 0;
   const reserve = pending.length ? nextCost + (eff ? 0 : 20) : 0;
+  // The one-carton order: packed as soon as the clips are there, as the goal line says (it brings the feeder).
+  if (c.sealed === 0 && c.trial === 'approved' && loose(s) >= OFFICE.boxSize) dispatch(s, { type: 'c01/pack' });
   // Everyone seals the first carton by hand (that is what reveals the auto-packer).
   const wantsCarton = !eff || allBought || (c.sealed < 1 && owns(c, 'feeder'));
   if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton && !owns(c, 'packer')) dispatch(s, { type: 'c01/pack' });
