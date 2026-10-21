@@ -87,30 +87,30 @@
     "straightenerGramsPerSecond": 0.5,
     "opening": {
       "sheetAfterSeconds": 75,
-      "sheetAfterClips": 25,
+      "sheetAfterClips": 50,
       "fileGapSeconds": 40
     },
     "projects": [
       {
         "id": "calibrate",
         "name": "Clip machine",
-        "costClips": 30,
+        "costClips": 100,
         "installSeconds": 8,
         "group": "bender",
         "unlock": {
-          "made": 25
+          "made": 50
         },
         "addedRate": 0.32
       },
       {
         "id": "oil",
         "name": "Machine oil",
-        "costClips": 40,
+        "costClips": 75,
         "installSeconds": 10,
         "group": "bender",
         "unlock": {
           "after": "calibrate",
-          "made": 120,
+          "made": 200,
           "seconds": 150
         },
         "multiplier": 1.5
@@ -118,7 +118,7 @@
       {
         "id": "tensioner",
         "name": "Wire spring",
-        "costClips": 60,
+        "costClips": 80,
         "installSeconds": 15,
         "group": "none",
         "unlock": {
@@ -129,15 +129,15 @@
       {
         "id": "feeder",
         "name": "Wire feeder",
-        "costClips": 150,
+        "costClips": 200,
         "installSeconds": 25,
         "group": "line",
         "unlock": {
           "after": "oil",
-          "made": 200,
+          "made": 350,
           "seconds": 240
         },
-        "addedRate": 0.64
+        "addedRate": 0.9
       },
       {
         "id": "dieHigh",

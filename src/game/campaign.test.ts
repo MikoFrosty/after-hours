@@ -54,13 +54,13 @@ describe('chapter 01 office', () => {
 
   it('reinvestment spends clips that must be made again; lifetime is unchanged', () => {
     const s = newCampaign();
-    for (let i = 0; i < 30; i++) dispatch(s, { type: 'c01/make' });
+    for (let i = 0; i < 100; i++) dispatch(s, { type: 'c01/make' });
     night(s).sheetLifted = true;
     const life = s.clips.lifetimeMadeMicrograms;
     expect(dispatch(s, { type: 'c01/project', id: 'calibrate' })).toBeNull();
     expect(s.clips.currentMicrograms).toBe(0n);
     expect(s.clips.lifetimeMadeMicrograms).toBe(life);
-    expect(mass(s, 'office.machines')).toBe(30n * CLIP);
+    expect(mass(s, 'office.machines')).toBe(100n * CLIP);
     expect(checkInvariant(s)).toBeNull();
   });
 
@@ -72,7 +72,7 @@ describe('chapter 01 office', () => {
 
   it('the wire catches until a feeder is installed, and freeing it resumes the bender', () => {
     const s = newCampaign();
-    for (let i = 0; i < 30; i++) dispatch(s, { type: 'c01/make' });
+    for (let i = 0; i < 100; i++) dispatch(s, { type: 'c01/make' });
     night(s).sheetLifted = true;
     dispatch(s, { type: 'c01/project', id: 'calibrate' });
     let guard = 0;
