@@ -35,7 +35,6 @@ export function finishCurrent(s: CampaignState): void {
     c.trial = 'approved';
     const need = (CARTONS - c.sealed) * OFFICE.boxSize;
     if (loose(s) < need) grantClips(s, need - loose(s));
-    c.openBox = 0;
     c.sealed = CARTONS;
   }
   bump(s);

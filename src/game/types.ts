@@ -263,66 +263,50 @@ export type OfficeProjectId =
   | 'oil'
   | 'tensioner'
   | 'feeder'
-  | 'dieHigh'
-  | 'dieSmooth'
   | 'die2'
-  | 'packer'
-  | 'roller'
   | 'pedal'
   | 'governor'
-  | 'fan'
   | 'jig'
+  | 'station6'
+  // Upgrades from earlier versions of the night; kept so older saves still type-check before migration.
+  | 'dieHigh'
+  | 'dieSmooth'
+  | 'packer'
+  | 'roller'
+  | 'fan'
   | 'station1'
   | 'station2'
   | 'station3'
   | 'station4'
   | 'station5'
-  | 'station6'
   | 'overdrive'
   | 'careful'
   | 'straightener';
 
-export type LineSpeed = 'steady' | 'brisk' | 'hard';
-
 export interface C01State {
   kind: '01';
-  /** Good clips formed this night (by hand, by machine, or from salvage). A statistic. */
+  /** Good clips made this night (by hand or by machine). A statistic. */
   madeClips: number;
-  /** Machine output in milli-clips carried between steps. */
+  /** Machine output in micro-clips carried between steps. */
   rateResidue: number;
   owned: OfficeProjectId[];
   installing: { id: OfficeProjectId; ms: number } | null;
-  /** The wire catches in the bender's guide until a feeder is installed. */
+  /** Until the wire feeder is in, the wire snags every so often and the clip machine stops. */
   jammed: boolean;
   sinceJam: number;
   jams: number;
-  /** Sealed cartons of 250 clips. The order is complete at 12. */
+  /** Cartons of 250 sealed: the first is order 4472, the next eleven are the big order. */
   sealed: number;
-  /** Clips in the open carton filled by the auto-packer. */
-  openBox: number;
-  /** What the auto-packer leaves on the desk (set by the packer: the price of the next upgrade). */
-  reserve: number;
-  /** Cartons sealed when the 5:22 van left; null until it has come. */
+  /** Cartons of the big order on the 5:22 van; null until it has come. */
   vanCartons: number | null;
-  lineSpeed: LineSpeed;
-  rejectCredit: number;
-  rejects: number;
-  straightenResidue: number;
   spareTaken: boolean;
-  /** Tending: hand bends keep the line fed. 0–100,000 milli. */
-  tending: number;
-  /** Hand presses this night; practice adds clips per press. */
-  handBends: number;
-  /** True wire: a short window to catch a clean run. Times are simulated ms; 0 = none. */
-  nextGlintMs: number;
-  glintUntilMs: number;
-  cleanRunUntilMs: number;
-  glintsCaught: number;
-  /** Tuning the die: permanent levels won on the gauge. */
-  tuneLevel: number;
-  tuneAttempts: number;
-  tuneCooldownUntilMs: number;
-  lastTune: 'hit' | 'miss' | null;
+  /** Presses of the main button this night. */
+  handPresses: number;
+  /** Speed bursts (simulated ms; 0 = none): when the next one shows, until when it can be grabbed, and until when it runs. */
+  nextBurstMs: number;
+  burstReadyUntilMs: number;
+  burstUntilMs: number;
+  burstsCaught: number;
   /**
    * The night's orders: a trial run of 100 loose clips, then one carton, then eleven more.
    * open → sent (waiting on the reply) → approved.
@@ -336,11 +320,6 @@ export interface C01State {
   sheetLifted: boolean;
   /** When the last terminal file appeared (simulated ms), so files arrive one at a time. */
   lastFileMs: number;
-  /** No longer used (machines no longer wear); kept so older saves load unchanged. */
-  wearMs: number;
-  wornAtMs: number;
-  /** Careful tuning by hand: progress in ms, or null when not under way. */
-  slowTuneMs: number | null;
   /** Terminal files that have appeared, and whether they have been opened. */
   files: Record<string, 'unread' | 'read'>;
   salvaged: { cabinet: boolean; lamp: boolean; frame: boolean };
@@ -542,14 +521,11 @@ export type Action =
   | { type: 'c01/project'; id: OfficeProjectId }
   | { type: 'c01/free' }
   | { type: 'c01/pack' }
-  | { type: 'c01/speed'; speed: LineSpeed }
   | { type: 'c01/read'; file: string }
   | { type: 'c01/takeSpare' }
   | { type: 'c01/lift' }
   | { type: 'c01/sendTrial' }
   | { type: 'c01/catch' }
-  | { type: 'c01/tune'; needle: number }
-  | { type: 'c01/tuneSlow' }
   | { type: 'c02/buy'; room: BuildingRoom | 'fan' }
   | { type: 'c02/unload' }
   | { type: 'c02/rush' }

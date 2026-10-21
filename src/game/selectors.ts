@@ -1,6 +1,6 @@
-import { CHAPTER_META, CITY, COSMIC, OFFICE, PRESERVATION, SOLAR, TERMINAL } from '../content/campaign';
+import { CHAPTER_META, CITY, COSMIC, PRESERVATION, SOLAR, TERMINAL } from '../content/campaign';
 import { DISTRICTS } from '../content/world';
-import { CARTONS, loose, officeStatus, wireGrams } from './chapters/c01';
+import { officeStatus } from './chapters/c01';
 import { CONTRACTS, currentContract, dockBehind, heatOpen, shopOpen, slowestRoom } from './chapters/c02';
 import { met, reserveRate } from './chapters/c03';
 import { currentOverhead, resolvedCount, slotsInUse } from './chapters/c04';
@@ -10,7 +10,6 @@ import { recovered, slotsUsed, surveyed } from './chapters/c07';
 import { energyRemaining } from './chapters/c08';
 import { fmtBig, fmtClips, fmtMilli } from './mass';
 import type {
-  C01State,
   C02State,
   C03State,
   C04State,
@@ -40,7 +39,7 @@ export const STORY_SPANS: Record<ChapterId, string> = {
 };
 
 export const STORY_SCALE_TEXT: Record<ChapterId, string> = {
-  '01': '1 simulated second ≈ 17 story seconds; dawn waits for the last carton',
+  '01': '1 simulated second ≈ 38 story seconds; dawn waits for the last carton',
   '02': '1 simulated second = 6 story hours',
   '03': '1 simulated second = 20 story days',
   '04': '1 simulated second = 1 story year',
@@ -86,14 +85,8 @@ export function metrics(s: CampaignState): { items: Metric[]; bottleneck: string
   };
   switch (s.chapterState.kind) {
     case '01': {
-      const c = s.chapterState as C01State;
-      const deskClips: Metric = { label: 'Clips on the desk', value: loose(s).toLocaleString(), hint: 'Loose clips. Only these can be spent on upgrades or packed.' };
-      const b = wireGrams(s) < 1 && !c.capped ? 'Wire coil empty' : officeStatus(s);
-      const items: Metric[] = [deskClips];
-      if (c.sealed > 0 || c.capped) items.push({ label: 'Cartons', value: `${Math.max(0, c.sealed - 1)} / ${CARTONS - 1}`, hint: 'Order 4473: eleven more cartons of 250 clips, taped shut.' });
-      else if (c.trial === 'approved') items.push({ label: 'Order', value: 'One carton', hint: 'Order 4472: one carton of 250 clips.' });
-      else if (c.files.order) items.push({ label: 'Trial run', value: c.trial === 'sent' ? 'Sent' : `${Math.min(loose(s), OFFICE.trial.clips)} / ${OFFICE.trial.clips}`, hint: 'Trial order 4471: 100 loose clips as a sample.' });
-      return { items, bottleneck: b };
+      // The office panel shows the order and the numbers itself; the rail keeps only the clock.
+      return { items: [], bottleneck: officeStatus(s) };
     }
     case '02': {
       const c = s.chapterState as C02State;

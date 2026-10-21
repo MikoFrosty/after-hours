@@ -2,7 +2,7 @@
 // It only dispatches ordinary player actions; it never mutates state directly.
 import { COSMIC, PRESERVATION } from '../content/campaign';
 import { dispatch, step } from './engine';
-import { boxFull, canStart, glintActive, loose, offeredProjects, owns, sheetReady, spareOffered, tuneBand, tuningOpen } from './chapters/c01';
+import { bestUpgrade, burstReady, canStart, loose, offeredProjects, owns, paysBeforeVan, sheetReady, spareOffered } from './chapters/c01';
 import { clearable, OFFICE_ITEMS } from './officeSalvage';
 import { cooling, heatGain, heatOpen, lineRate, price, roomRate, routeOpen, shopOpen, slowestRoom } from './chapters/c02';
 import type { RoomId } from '../content/campaign';
@@ -126,24 +126,24 @@ let clickCredit = 0;
 let jamSteps = 0;
 let glintSeen = 0;
 let glintDecided = 0;
-let fullSteps = 0;
 
 /**
  * A simulated player for the office night. Steps are 100 ms. The "efficient" route models an
- * engaged, optimizing person rather than a machine.
- * Reasonable: clicks about 3 times a second until the feeder, notices a jam after ~2 s, keeps a
- * small reserve, packs cartons when nothing is affordable soon. Efficient: clicks 6 times a second,
- * frees jams at once, buys the moment it can, runs the line hard and packs only at the end.
+ * engaged, optimizing person rather than a machine. Both follow the panel's advice: buy the
+ * upgrade that pays back soonest if it pays back before the van, otherwise pack a carton.
+ * Relaxed: presses about twice a second for the first few minutes, then in short bursts; notices a
+ * snag after ~2 s; grabs two speed bursts in three; picks overnight mode.
+ * Engaged: presses four times a second, then three times a second for half of every minute;
+ * frees snags at once; grabs nine bursts in ten; picks the foot pedal.
  */
 function officeNight(s: CampaignState, r: Route) {
   const c = s.chapterState as C01State;
   const eff = r.player === 'efficient';
   for (const f of Object.keys(c.files)) if (c.files[f] === 'unread') dispatch(s, { type: 'c01/read', file: f });
   if (spareOffered(s)) dispatch(s, { type: 'c01/takeSpare' });
-  // The trial run goes as soon as its hundred clips are on the desk.
   if (c.trial === 'open' && loose(s) >= OFFICE.trial.clips) dispatch(s, { type: 'c01/sendTrial' });
   // The dust sheet: noticed after a few seconds (relaxed) or at once (engaged).
-  if (sheetReady(s) && (eff || s.simMs % 5_000 < 100)) dispatch(s, { type: 'c01/lift' });
+  if (sheetReady(s) && (eff || s.simMs % 3_000 < 100)) dispatch(s, { type: 'c01/lift' });
   if (c.jammed) {
     jamSteps += 1;
     if (eff || jamSteps >= 20) {
@@ -152,56 +152,46 @@ function officeNight(s: CampaignState, r: Route) {
     }
   }
   const minutes = s.simMs / 60000;
-  // Hand bending and tending.
-  // Reasonable: ~2/s for two minutes, then bursts of ~2.5/s for 15 s in every minute.
-  // Engaged: 4/s until the feeder, then bursts of 3/s for 30 s in every minute.
   const sec = s.simMs % 60_000;
-  const rate = eff ? (owns(c, 'feeder') ? (sec < 30_000 ? 0.3 : 0) : 0.4) : minutes < 2 ? 0.2 : sec < 15_000 ? 0.25 : 0;
+  const rate = eff ? (minutes < 4 ? 0.4 : sec < 30_000 ? 0.3 : 0) : minutes < 3 ? 0.2 : sec < 15_000 ? 0.25 : 0;
   clickCredit += rate;
   while (clickCredit >= 1) {
     clickCredit -= 1;
     dispatch(s, { type: 'c01/make' });
   }
-  // True wire. Reasonable: notices after ~2.5 s and catches two in three. Engaged: after ~1 s, nine in ten.
-  if (glintActive(s)) {
-    const shownFor = s.simMs - (c.glintUntilMs - OFFICE.active.trueWire.windowMs);
-    if (shownFor >= (eff ? 1000 : 2500) && glintDecided !== c.glintUntilMs) {
-      glintDecided = c.glintUntilMs;
+  if (burstReady(s)) {
+    const shownFor = s.simMs - (c.burstReadyUntilMs - OFFICE.bursts.windowMs);
+    if (shownFor >= (eff ? 1000 : 2500) && glintDecided !== c.burstReadyUntilMs) {
+      glintDecided = c.burstReadyUntilMs;
       glintSeen += 1;
       if (eff ? glintSeen % 10 !== 0 : glintSeen % 3 !== 0) dispatch(s, { type: 'c01/catch' });
     }
   }
-  // Tuning. Reasonable: tries every 20 s, hits half the time. Engaged: tries every 8 s, hits two in three.
-  if (tuningOpen(c) && c.tuneLevel < OFFICE.active.tuning.levels && s.simMs >= c.tuneCooldownUntilMs && c.slowTuneMs === null) {
-    const band = tuneBand(c);
-    if (s.simMs % (eff ? 8_000 : 20_000) < 100) {
-      const hit = eff ? c.tuneAttempts % 3 !== 2 : c.tuneAttempts % 2 === 1;
-      dispatch(s, { type: 'c01/tune', needle: hit ? band.center : band.center + band.width });
-    }
+  if (c.capped || c.installing) return;
+  const l = loose(s);
+  // The one either/or: overnight mode for a relaxed player, the foot pedal for an engaged one.
+  const avoid = eff ? 'governor' : 'pedal';
+  const offered = offeredProjects(s).filter((p) => p.id !== avoid);
+  // Before the big order: buy whatever is on offer, then pack the carton.
+  if (c.sealed === 0) {
+    const buy = offered.find((p) => !canStart(s, p.id));
+    if (buy) dispatch(s, { type: 'c01/project', id: buy.id });
+    else if (c.trial === 'approved' && owns(c, 'calibrate') && l >= OFFICE.boxSize) dispatch(s, { type: 'c01/pack' });
+    return;
   }
-  // Forks. Reasonable: the smooth die, the governor and the careful finish (a calm line).
-  // Engaged: the high-tension die, the foot pedal and overdrive (a line played hard).
-  const prefers = eff ? ['dieHigh', 'pedal', 'overdrive'] : ['dieSmooth', 'governor', 'careful'];
-  const offered = offeredProjects(s).filter((p) => !p.exclusive || prefers.includes(p.id));
-  for (const p of offered) if (!canStart(s, p.id)) dispatch(s, { type: 'c01/project', id: p.id });
-  const pending = offeredProjects(s).filter((p) => (!p.exclusive || prefers.includes(p.id)) && p.id !== 'straightener' && p.id !== 'tensioner');
-  const nextCost = pending.length ? Math.min(...pending.map((p) => p.costClips)) : 0;
-  const allBought = pending.length === 0 && !c.installing && owns(c, 'station6');
-  if (owns(c, 'jig') && c.lineSpeed !== (eff ? 'hard' : 'brisk')) dispatch(s, { type: 'c01/speed', speed: eff ? 'hard' : 'brisk' });
-  // The packer's full carton waits for a hand to seal it. Reasonable: notices after ~4 s. Engaged: ~1 s.
-  if (boxFull(c)) {
-    fullSteps += 1;
-    if (fullSteps >= (eff ? 10 : 40)) {
-      dispatch(s, { type: 'c01/pack' });
-      fullSteps = 0;
-    }
-  } else fullSteps = 0;
-  const reserve = pending.length ? nextCost + (eff ? 0 : 20) : 0;
-  // The one-carton order: packed as soon as the clips are there, as the goal line says (it brings the feeder).
-  if (c.sealed === 0 && c.trial === 'approved' && loose(s) >= OFFICE.boxSize) dispatch(s, { type: 'c01/pack' });
-  // Everyone seals the first carton by hand (that is what reveals the auto-packer).
-  const wantsCarton = !eff || allBought || (c.sealed < 1 && owns(c, 'feeder'));
-  if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton && !owns(c, 'packer')) dispatch(s, { type: 'c01/pack' });
+  // The big order: the wire spring if it is still on offer, then the best-paying upgrade if it pays before the van, else pack.
+  for (const p of offered) if (p.id === 'tensioner' && !canStart(s, p.id)) dispatch(s, { type: 'c01/project', id: p.id });
+  if (c.installing) return;
+  const best = bestUpgrade(s);
+  const chosen = best && best.id === avoid ? null : best;
+  const target = chosen && paysBeforeVan(s, chosen) ? chosen : (offered.find((p) => p.exclusive && paysBeforeVan(s, p)) ?? null);
+  if (target && !canStart(s, target.id)) {
+    dispatch(s, { type: 'c01/project', id: target.id });
+    return;
+  }
+  // Pack when the clips are not needed for something worth saving for.
+  const saving = target ? target.costClips : 0;
+  if (l >= OFFICE.boxSize && l - OFFICE.boxSize >= saving) dispatch(s, { type: 'c01/pack' });
 }
 
 let handCredit = 0;
@@ -353,7 +343,6 @@ export function autoplay(route: Route = CANONICAL, until: ChapterId | 'end' = 'e
   jamSteps = 0;
   glintSeen = 0;
   glintDecided = 0;
-  fullSteps = 0;
   handCredit = 0;
   buildSteps = 0;
   buildBuys = 0;

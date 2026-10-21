@@ -6,337 +6,267 @@ import { mulMilli } from '../fixed';
 import { hasFired, log, once } from '../state';
 import type { Controller } from '../engine';
 import { ask, beatNow, bump, emit, hold } from '../engine';
-import type { C01State, CampaignState, LineSpeed, OfficeProjectId } from '../types';
+import type { C01State, CampaignState, OfficeProjectId } from '../types';
 
 // The night desk: a trial run of 100 loose clips, then one carton of 250, then eleven more cartons.
-// Clips spent on machinery have to be made again, so every purchase is a real trade.
+// Every clip on the desk is both the product and the money: spend it to go faster, or pack it
+// before the 5:22 van. Every press of the button makes clips; nine upgrades each roughly double
+// what the machines make.
 
 const cs = (s: CampaignState) => s.chapterState as C01State;
-const CARTONS = OFFICE.quota / OFFICE.boxSize;
+const CARTONS = 12;
+/** The big order: the eleven cartons after the first. */
+export const BIG_ORDER = CARTONS - 1;
 
 export const owns = (c: C01State, id: OfficeProjectId) => c.owned.includes(id);
-export const packed = (c: C01State) => c.trialClips + c.sealed * OFFICE.boxSize + c.openBox;
 export const project = (id: OfficeProjectId) => OFFICE.projects.find((p) => p.id === id)!;
+/** Clips that have left the desk: the trial run and every sealed carton. */
+export const packed = (c: C01State) => c.trialClips + c.sealed * OFFICE.boxSize;
 
-/** Clips on the desk that are not in a carton: the only clips that can be spent. */
+/** Clips on the desk: the only clips that can be spent or packed. */
 export function loose(s: CampaignState): number {
-  const c = cs(s);
-  return Math.max(0, Number(s.clips.currentMicrograms / CLIP) - packed(c));
+  return Math.max(0, Number(s.clips.currentMicrograms / CLIP) - packed(cs(s)));
 }
 
 export function wireGrams(s: CampaignState): number {
   return Number(mass(s, 'office.wire') / CLIP);
 }
 
-export function speedOf(c: C01State) {
-  return OFFICE.lineSpeeds.find((x) => x.id === c.lineSpeed) ?? OFFICE.lineSpeeds[0];
-}
-
-const ACTIVE = OFFICE.active;
-
-/** Practice: every 150 hand presses, each press tends the line half again as much. */
-export function handLevel(c: C01State): number {
-  return Math.min(ACTIVE.practice.maxExtra, Math.floor(c.handBends / ACTIVE.practice.bendsPerLevel));
-}
-
-export const glintActive = (s: CampaignState) => cs(s).glintUntilMs > s.simMs;
-export const cleanRunActive = (s: CampaignState) => cs(s).cleanRunUntilMs > s.simMs;
-
-/** Whether hand presses tend the line (after the feeder) rather than bend clips. */
-export const tendsLine = (c: C01State) => owns(c, 'feeder');
-
-/** The governor keeps the meter from draining below half. */
-export const tendingFloor = (c: C01State) => (owns(c, 'governor') ? Math.floor((100_000 * ACTIVE.tending.governorFloor) / 1000) : 0);
-
-/** Fine-tuning opens once the wire guide is in, so it never arrives alongside the feeder and the packer. */
-export const tuningOpen = (c: C01State) => owns(c, 'roller');
-
-/** Speed bursts (the wire running perfectly straight) start once the feeder is in. */
-export const burstsOpen = (c: C01State) => owns(c, 'feeder');
-
-/** The most tending can add, in thousandths: +25%, or +50% with the foot pedal. */
-export const tendingMax = (c: C01State) => (owns(c, 'pedal') ? ACTIVE.tending.pedalMaxBonus : ACTIVE.tending.maxBonus);
-
-/** Machine bonus from tending, in thousandths. */
-export function tendingBonus(c: C01State): number {
-  return Math.floor((c.tending * tendingMax(c)) / 100_000);
-}
-
-/** Ruined clips in parts per million: the line speed, plus overdrive; none with the careful finish. */
-export function rejectPpm(c: C01State): number {
-  if (owns(c, 'careful')) return 0;
-  return speedOf(c).rejectPpm + (owns(c, 'overdrive') ? OFFICE.overdriveRejectPpm : 0);
-}
-
-/** Machine clips between catches of the wire, or 0 when it does not catch. */
-export function jamInterval(c: C01State): number {
-  if (!owns(c, 'feeder')) return owns(c, 'tensioner') ? OFFICE.tensionedJamInterval : OFFICE.jamInterval;
-  let n = 0;
-  if (owns(c, 'dieHigh')) n = OFFICE.highTensionJamInterval;
-  if (c.lineSpeed === 'hard' && !owns(c, 'straightener')) n = n ? Math.min(n, OFFICE.hardSpeedJamInterval) : OFFICE.hardSpeedJamInterval;
-  return n;
-}
-
-export const stations = (c: C01State) => c.owned.filter((id) => id.startsWith('station')).length;
-
-/** The gauge band for the next tuning attempt, in needle units 0–100. */
-export function tuneBand(c: C01State): { center: number; width: number } {
-  const width = Math.max(8, ACTIVE.tuning.bandWidth - c.tuneLevel * ACTIVE.tuning.bandShrink);
-  const center = 15 + ((c.tuneAttempts * 37 + 11) % 70);
-  return { center, width };
-}
-
-/** Machine output in milli-clips per second (gross, before ruined clips), with every active bonus. */
-export function machineRate(s: CampaignState): number {
-  const c = cs(s);
-  let r = baseRate(c);
-  if (r <= 0) return 0;
-  r = mulMilli(r, 1000 + tendingBonus(c));
-  r = mulMilli(r, 1000 + c.tuneLevel * ACTIVE.tuning.bonusPerLevel);
-  if (cleanRunActive(s)) r = mulMilli(r, ACTIVE.trueWire.multiplier);
-  return r;
-}
-
-function baseRate(c: C01State): number {
-  if (c.jammed || c.capped) return 0;
-  let bender = 0;
-  let benderMult = 1000;
-  let line = 0;
-  let lineMult = 1000;
-  for (const id of c.owned) {
-    const p = project(id);
-    if (p.group === 'bender') {
-      bender += p.addedRate;
-      benderMult = mulMilli(benderMult, p.multiplier);
-    } else if (p.group === 'line') line += p.addedRate;
-    lineMult = mulMilli(lineMult, p.lineMultiplier);
-  }
-  const base = mulMilli(mulMilli(bender, benderMult) + line, lineMult);
-  return mulMilli(base, speedOf(c).factor);
-}
-
-/** Good clips per second after ruined clips, for display. */
-export function goodRate(s: CampaignState): number {
-  const r = machineRate(s);
-  return r - Math.floor((r * rejectPpm(cs(s))) / 1_000_000);
-}
-
 /** Simulated ms since the night began. */
 const nightMs = (s: CampaignState) => s.simMs - s.chapterEnteredSimMs;
+
+// ---------- the dust sheet and the orders ----------
 
 /** The clip machine is out from under its sheet (older saves that already own it count as lifted). */
 export const uncovered = (c: C01State) => c.sheetLifted || owns(c, 'calibrate');
 
-/** The dust sheet can be lifted once a few clips have been made by hand and the room has had a minute to settle. */
+/** The sheet is noticed once the trial run has been approved: the machine is how a carton's worth gets made. */
 export function sheetReady(s: CampaignState): boolean {
   const c = cs(s);
   return !uncovered(c) && c.trial === 'approved' && c.madeClips >= OFFICE.opening.sheetAfterClips && nightMs(s) >= OFFICE.opening.sheetAfterMs;
 }
+
+/** Which order the night is on. */
+export function act(c: C01State): 'trial' | 'carton' | 'big' | 'done' {
+  if (c.capped) return 'done';
+  if (c.trial !== 'approved') return 'trial';
+  return c.sealed === 0 ? 'carton' : 'big';
+}
+
+/** Cartons of the big order packed so far. */
+export const bigPacked = (c: C01State) => Math.max(0, c.sealed - 1);
+
+// ---------- what the machines and the hands make ----------
+
+/** Machine output in milli-clips per second for a set of upgrades, without bursts or snags. */
+function rateFor(owned: OfficeProjectId[]): number {
+  let add = 0;
+  let mult = 1000;
+  let rack = 0;
+  let line = 1000;
+  for (const id of owned) {
+    const p = OFFICE.projects.find((q) => q.id === id);
+    if (!p) continue;
+    add += p.addedRate;
+    mult = mulMilli(mult, p.multiplier);
+    rack += p.rackRate;
+    line = mulMilli(line, p.lineMultiplier);
+  }
+  return mulMilli(mulMilli(add, mult) + rack, line);
+}
+
+/** What the machines make in a steady minute: no burst, no snag (milli-clips per second). */
+export const steadyRate = (s: CampaignState) => rateFor(cs(s).owned);
+
+export const burstReady = (s: CampaignState) => cs(s).burstReadyUntilMs > s.simMs;
+export const burstRunning = (s: CampaignState) => cs(s).burstUntilMs > s.simMs;
+
+/** What the machines are making right now (milli-clips per second). */
+export function machineRate(s: CampaignState): number {
+  const c = cs(s);
+  if (c.jammed || c.capped) return 0;
+  const r = steadyRate(s);
+  return burstRunning(s) ? mulMilli(r, OFFICE.bursts.multiplier) : r;
+}
+
+/** Clips per press of the main button: the hands, plus a second of the machines with the foot pedal. */
+export function pressYield(s: CampaignState): number {
+  const c = cs(s);
+  let hands = OFFICE.handClips;
+  let pedal = 0;
+  for (const id of c.owned) {
+    const p = project(id);
+    if (!p) continue;
+    hands = Math.max(hands, p.handClips);
+    pedal += p.pedalSeconds;
+  }
+  return hands + Math.floor((machineRate(s) * pedal) / 1000);
+}
+
+/** Small clip machines on the side-table rack (0, 3 or 6), for the room and the sound. */
+export const rackMachines = (c: C01State) => (owns(c, 'jig') ? 3 : 0) + (owns(c, 'station6') ? 3 : 0);
+
+// ---------- upgrades ----------
 
 export function unlocked(s: CampaignState, p: OfficeProject): boolean {
   const c = cs(s);
   const u = p.unlock;
   // The clip machine is under the dust sheet until it is lifted.
   if (p.id === 'calibrate' && !uncovered(c)) return false;
-  if (u.seconds !== undefined && nightMs(s) < u.seconds * 1000) return false;
   if (u.after && !owns(c, u.after)) return false;
   if (u.made !== undefined && c.madeClips < u.made) return false;
   if (u.jams !== undefined && c.jams < u.jams) return false;
   if (u.boxes !== undefined && c.sealed < u.boxes) return false;
-  if (u.rejects !== undefined && c.rejects < u.rejects) return false;
   return true;
 }
 
-/** An either/or group is decided once one of its members is installed or being installed. */
+/** An either/or pair is decided once one of them is bought or being installed. */
 export function forkTaken(c: C01State, p: OfficeProject): boolean {
   if (!p.exclusive) return false;
   return OFFICE.projects.some((q) => q.exclusive === p.exclusive && q.id !== p.id && (owns(c, q.id) || c.installing?.id === q.id));
 }
 
-/** Projects that have appeared and are not yet installed, in campaign order. */
+/** Upgrades on offer now, in order. */
 export function offeredProjects(s: CampaignState): OfficeProject[] {
   const c = cs(s);
   return OFFICE.projects.filter((p) => !owns(c, p.id) && unlocked(s, p) && !forkTaken(c, p));
 }
 
-const OPTIONAL: OfficeProjectId[] = ['straightener', 'tensioner'];
-const FORK_GOALS = { die: 'a bending upgrade', hands: 'a boost upgrade', finish: 'a line upgrade' } as const;
-
-/** The installation the player is most plausibly working toward: the first main-line one offered and not yet under way. */
-export function nextProject(s: CampaignState, optional = false): OfficeProject | null {
+export function canStart(s: CampaignState, id: OfficeProjectId): string | null {
   const c = cs(s);
-  return offeredProjects(s).find((p) => c.installing?.id !== p.id && optional === OPTIONAL.includes(p.id)) ?? null;
+  const p = project(id);
+  if (!p) return 'Not available.';
+  if (c.capped) return 'The order is complete.';
+  if (owns(c, id)) return 'Already bought.';
+  if (!unlocked(s, p)) return 'Not available yet.';
+  if (forkTaken(c, p)) return 'The other one was chosen.';
+  if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}.`;
+  if (loose(s) < p.costClips) return `Needs ${p.costClips} clips on the desk.`;
+  return null;
 }
 
-/** A short name for what is being saved for: a fork is named by its choice, not by one side of it. */
-const goalName = (p: OfficeProject) => (p.exclusive ? FORK_GOALS[p.exclusive] : `the ${p.name.toLowerCase()}`);
-
-/** The next main-line installation that is waiting only on sealed cartons, if any. */
-function cartonGated(s: CampaignState): OfficeProject | undefined {
+/** How much faster the machines would run with this upgrade (milli-clips per second; 0 for hands and utilities). */
+export function rateGain(s: CampaignState, p: OfficeProject): number {
   const c = cs(s);
-  return OFFICE.projects.find(
-    (p) => !owns(c, p.id) && !forkTaken(c, p) && p.unlock.boxes !== undefined && c.sealed < p.unlock.boxes && unlocked(s, { ...p, unlock: { ...p.unlock, boxes: undefined } }),
-  );
+  return rateFor([...c.owned, p.id]) - rateFor(c.owned);
 }
 
-/** The next main-line installation that is waiting only on clips made or on the night going on, if any. */
-function madeGated(s: CampaignState): OfficeProject | undefined {
+/** Simulated seconds until the 5:22 van, or null once it has been. */
+export function secondsToVan(s: CampaignState): number | null {
   const c = cs(s);
-  return OFFICE.projects.find(
-    (p) =>
-      !owns(c, p.id) &&
-      !OPTIONAL.includes(p.id) &&
-      (p.unlock.made !== undefined || p.unlock.seconds !== undefined) &&
-      !unlocked(s, p) &&
-      unlocked(s, { ...p, unlock: { ...p.unlock, made: undefined, seconds: undefined } }),
-  );
+  if (c.vanCartons !== null) return null;
+  const story = OFFICE.vanMinute * 60 - s.storySeconds;
+  return Math.max(0, (story * 1000) / OFFICE.storyPerSecond);
 }
 
-/** One short line for the rail: what the night is waiting on right now. */
+/** Seconds for an upgrade's extra output to make back its price, or null when it doesn't add machine output. */
+export function paybackSeconds(s: CampaignState, p: OfficeProject): number | null {
+  const gain = rateGain(s, p);
+  if (gain <= 0) return null;
+  return (p.costClips * 1000) / gain;
+}
+
+/**
+ * Cartons of the big order on the 5:22 van if the player stops buying now and packs everything:
+ * what is packed, plus what is on the desk and what the machines make before the van.
+ */
+export function vanForecast(s: CampaignState): number | null {
+  const c = cs(s);
+  const left = secondsToVan(s);
+  if (left === null || c.sealed === 0 || c.capped) return null;
+  const clips = loose(s) + (steadyRate(s) * left) / 1000;
+  return Math.min(BIG_ORDER, bigPacked(c) + Math.floor(clips / OFFICE.boxSize));
+}
+
+/** The upgrade most worth buying next: the best payback among those on offer (or the first, before the big order). */
+export function bestUpgrade(s: CampaignState): OfficeProject | null {
+  const offered = offeredProjects(s).filter((p) => p.id !== 'tensioner');
+  if (offered.length === 0) return null;
+  const scored = offered.map((p) => ({ p, t: paybackSeconds(s, p) ?? (p.kind === 'hands' ? p.costClips / 2 : Infinity) }));
+  scored.sort((a, b) => a.t - b.t);
+  return scored[0].p;
+}
+
+/** Whether an upgrade pays for itself before the van (always true before the big order or after the van). */
+export function paysBeforeVan(s: CampaignState, p: OfficeProject): boolean {
+  const left = secondsToVan(s);
+  const t = paybackSeconds(s, p);
+  if (left === null || cs(s).sealed === 0 || t === null) return true;
+  return t <= left;
+}
+
+// ---------- goals ----------
+
+const fmtTime = (sec: number) => {
+  const m = Math.floor(sec / 60);
+  const ss = Math.round(sec % 60);
+  return m > 0 ? `${m}:${String(ss).padStart(2, '0')}` : `${Math.round(sec)} s`;
+};
+export { fmtTime as fmtPayback };
+
+/** One short line for the order card: the single most useful next step. */
+export function nextGoal(s: CampaignState): string {
+  const c = cs(s);
+  const l = loose(s);
+  if (c.capped) return 'Every carton is packed. The machines are off.';
+  if (c.madeClips === 0) return 'Press the button to make a clip from the coil of wire.';
+  if (c.jammed) return 'The wire snagged and the clip machine stopped. Free it.';
+  if (c.trial === 'open') return l >= OFFICE.trial.clips ? 'The trial run is ready. Send it.' : `Make ${OFFICE.trial.clips - l} more clip${OFFICE.trial.clips - l === 1 ? '' : 's'} for the trial run.`;
+  if (c.trial === 'sent') return 'Waiting to hear back. Keep making clips: you will need them.';
+  if (!uncovered(c)) return 'There is something under a dust sheet on the desk.';
+  if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}…`;
+  if (c.sealed === 0) {
+    if (!owns(c, 'calibrate')) return l >= 100 ? 'Buy the clip machine: it makes clips while you do other things.' : `Save ${100 - l} more clips for the clip machine.`;
+    if (l >= OFFICE.boxSize) return 'You have 250 clips. Pack the carton.';
+    const best = bestUpgrade(s);
+    if (best && l >= best.costClips) return `You can buy the ${best.name.toLowerCase()} now, or keep filling the carton.`;
+    return `Keep making clips: ${OFFICE.boxSize - l} more fill the carton.`;
+  }
+  const best = bestUpgrade(s);
+  if (best && paysBeforeVan(s, best)) {
+    const t = paybackSeconds(s, best);
+    const pays = t !== null ? ` It pays for itself in ${fmtTime(t)}.` : '';
+    if (l >= best.costClips) return `Buy the ${best.name.toLowerCase()}.${pays}`;
+    if (l < OFFICE.boxSize || best.costClips - l < OFFICE.boxSize) return `Saving for the ${best.name.toLowerCase()}: ${l} of ${best.costClips}.${pays}`;
+  }
+  if (l >= OFFICE.boxSize) return 'Pack a carton.';
+  if (secondsToVan(s) !== null && best && !paysBeforeVan(s, best)) return `Pack for the van: the ${best.name.toLowerCase()} would not pay back in time.`;
+  return `Next carton: ${l} of 250.`;
+}
+
+/** A short status for places that need one (the log and debug tools). */
 export function officeStatus(s: CampaignState): string {
   const c = cs(s);
   if (c.capped) return 'Order complete';
   if (c.jammed) return 'Wire snagged';
-  if (boxFull(c)) return 'Carton full: tape it shut';
-  if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}`;
-  if (c.madeClips === 0) return 'Waiting for the first clip';
   if (c.trial === 'open') return `Trial run: ${Math.min(loose(s), OFFICE.trial.clips)} of ${OFFICE.trial.clips}`;
   if (c.trial === 'sent') return 'Waiting to hear back';
-  if (!uncovered(c)) return sheetReady(s) ? 'Something under a dust sheet' : 'Making clips by hand';
-  const next = nextProject(s);
-  if (next && loose(s) < next.costClips) return `Saving for ${goalName(next)}`;
-  if (next) return `Ready: ${goalName(next)}`;
-  if (stations(c) >= 6) return 'Every machine running';
-  const made = madeGated(s);
-  if (made) return `Working toward ${goalName(made)}`;
-  if (!owns(c, 'calibrate')) return 'Making clips by hand';
-  if (cartonGated(s)) return c.sealed === 0 ? 'Filling the one-carton order' : 'Filling cartons';
-  const extra = nextProject(s, true);
-  if (extra && loose(s) < extra.costClips) return `Saving for ${goalName(extra)}`;
-  return 'Filling cartons';
-}
-
-/** A single next step for the action dock. */
-export function nextGoal(s: CampaignState): string {
-  const c = cs(s);
-  if (c.capped) return 'The order is complete.';
-  if (c.madeClips === 0) return 'Make a clip by hand from the coil of wire.';
-  if (c.jammed) return 'The wire snagged: free it to restart the clip machine.';
-  if (c.trial === 'open') {
-    const l = loose(s);
-    return l >= OFFICE.trial.clips ? `The trial run is ready: send the ${OFFICE.trial.clips} clips.` : `Trial run: make ${OFFICE.trial.clips} clips by hand. ${l} of ${OFFICE.trial.clips}.`;
-  }
-  if (c.trial === 'sent') return 'Trial run sent. Keep making clips while you wait to hear back.';
-  if (!uncovered(c)) return sheetReady(s) ? 'There is something on the desk under a dust sheet.' : 'Keep making clips by hand.';
-  if (boxFull(c)) return 'The packer’s carton is full: tape it shut.';
-  const l = loose(s);
-  const saving = (p: OfficeProject) => {
-    if (l >= p.costClips) return p.exclusive ? `Enough clips to choose ${goalName(p)}.` : `${p.name}: ready to buy for ${p.costClips} clips.`;
-    return `Saving for ${goalName(p)}: ${l} of ${p.costClips} clips.`;
-  };
-  // The one-carton order comes first once its clips are on the desk: packing it brings the big order.
-  if (c.sealed === 0 && l >= OFFICE.boxSize) return `You have ${OFFICE.boxSize} clips: pack the carton for order 4472.`;
-  const next = nextProject(s);
-  if (next && !c.installing) return saving(next);
-  if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}.`;
-  // Something is waiting only on clips made or cartons sealed: say so, so the wait is a goal.
-  const made = madeGated(s);
-  if (made) {
-    const n = (made.unlock.made ?? 0) - c.madeClips;
-    if (n > 0) return `Make ${n} more clip${n === 1 ? '' : 's'} to unlock the ${made.name.toLowerCase()}.`;
-    return `Let the machine run: the ${made.name.toLowerCase()} comes a little later in the night.`;
-  }
-  const gated = cartonGated(s);
-  if (gated) {
-    const n = gated.unlock.boxes! - c.sealed;
-    const room = `to make room for the ${gated.name.toLowerCase()}`;
-    // Before the auto-packer, a carton is packed by hand from the clips on the desk: say how far off that is.
-    if (!owns(c, 'packer') && l < OFFICE.boxSize + handPackKeeps(s)) return `Pack ${n} more carton${n === 1 ? '' : 's'} ${room}: ${l} of ${OFFICE.boxSize + handPackKeeps(s)} clips on the desk.`;
-    return `Pack ${n} more carton${n === 1 ? '' : 's'} ${room}.`;
-  }
-  if (!owns(c, 'packer') && l >= OFFICE.boxSize + handPackKeeps(s)) return c.sealed === 0 ? 'Pack your first carton: 250 clips.' : 'Pack a carton: 250 clips.';
-  const extra = nextProject(s, true);
-  if (extra) return `Optional: ${saving(extra).replace(/^./, (x) => x.toLowerCase())}`;
-  return `Fill the order: ${c.sealed} of ${CARTONS} cartons packed.`;
-}
-
-export function canStart(s: CampaignState, id: OfficeProjectId): string | null {
-  const c = cs(s);
-  const p = project(id);
-  if (c.capped) return 'The order is complete.';
-  if (owns(c, id)) return 'Already bought.';
-  if (!unlocked(s, p)) return 'Not available yet.';
-  if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}.`;
-  if (forkTaken(c, p)) return 'The other option was chosen.';
-  if (loose(s) < p.costClips) return `Needs ${p.costClips} clips on the desk.`;
-  return null;
+  if (c.sealed === 0) return 'Filling the first carton';
+  return `${bigPacked(c)} of ${BIG_ORDER} cartons`;
 }
 
 /** The spare coil can be taken once the inventory has been read, or as soon as wire runs low. */
 export function spareOffered(s: CampaignState): boolean {
   const c = cs(s);
-  return !c.spareTaken && mass(s, 'office.spare') > 0n && (c.files.inventory === 'read' || wireGrams(s) < 600);
+  return !c.spareTaken && mass(s, 'office.spare') > 0n && (c.files.inventory === 'read' || wireGrams(s) < 800);
 }
 
-/** Bend clips from the wire coil. Ruined clips go to the rejects account; nothing is lost. */
-function bend(s: CampaignState, n: number, rejectPpm = 0): number {
+/** Clips the building starts with for the cartons that made the early van. */
+export const vanBonus = (c: C01State) => (c.vanCartons ?? 0) * OFFICE.vanBonusPerCarton;
+
+// ---------- making clips ----------
+
+/** Make clips from the coil of wire. */
+function make(s: CampaignState, n: number): number {
   const c = cs(s);
   const k = Math.min(n, wireGrams(s));
   if (k <= 0) return 0;
-  let bad = 0;
-  if (rejectPpm > 0) {
-    const total = c.rejectCredit + k * rejectPpm;
-    bad = Math.floor(total / 1_000_000);
-    c.rejectCredit = total - bad * 1_000_000;
-  }
-  const good = k - bad;
-  const outputs: Array<[string, bigint]> = [['clips', BigInt(good) * CLIP]];
-  if (bad > 0) outputs.push(['office.rejects', BigInt(bad) * CLIP]);
-  const r = commit(s, { id: 'c01.bend', from: 'office.wire', input: BigInt(k) * CLIP, outputs, periodic: true });
+  const r = commit(s, { id: 'c01.bend', from: 'office.wire', input: BigInt(k) * CLIP, outputs: [['clips', BigInt(k) * CLIP]], periodic: true });
   if (!r.ok) return 0;
-  c.madeClips += good;
-  c.rejects += bad;
-  s.clips.lifetimeMadeMicrograms += BigInt(good) * CLIP;
+  c.madeClips += k;
+  s.clips.lifetimeMadeMicrograms += BigInt(k) * CLIP;
   return k;
 }
-
-/**
- * What the auto-packer leaves on the desk: enough for the next upgrade, so packing never gets in
- * the way of buying. Once nothing on the main line is left to buy, it packs everything.
- */
-export function packerKeeps(s: CampaignState): number {
-  const c = cs(s);
-  if (c.installing) return 0;
-  const next = nextProject(s) ?? OFFICE.projects.find((p) => !owns(c, p.id) && !OPTIONAL.includes(p.id) && !forkTaken(c, p));
-  return next ? next.costClips : 0;
-}
-
-/**
- * What packing a carton by hand should leave on the desk: the price of an upgrade that is on
- * offer now. (An upgrade that is itself waiting for a packed carton doesn't count.)
- */
-export function handPackKeeps(s: CampaignState): number {
-  // The first carton is an order in its own right; nothing is held back for it.
-  if (cs(s).sealed === 0) return 0;
-  return nextProject(s)?.costClips ?? 0;
-}
-
-/** The auto-packer fills the open carton with every clip above what it keeps for the next upgrade. Taping it shut is the player's job. */
-function runPacker(s: CampaignState) {
-  const c = cs(s);
-  if (!owns(c, 'packer') || c.capped || c.sealed >= CARTONS || boxFull(c)) return;
-  c.reserve = packerKeeps(s);
-  const excess = loose(s) - c.reserve;
-  if (excess <= 0) return;
-  c.openBox += Math.min(excess, OFFICE.boxSize - c.openBox);
-  if (boxFull(c)) {
-    emit({ type: 'sound', id: 'boxFull' });
-    bump(s);
-  }
-}
-
-/** The packer's carton is full and waiting to be taped shut. */
-export const boxFull = (c: C01State) => c.openBox >= OFFICE.boxSize;
 
 function sealCarton(s: CampaignState) {
   const c = cs(s);
@@ -357,14 +287,15 @@ function finishInstall(s: CampaignState, id: OfficeProjectId) {
     c.sinceJam = 0;
   }
   if (id === 'jig') s.projects.jig = 'complete';
-  if (id === 'straightener' && c.jammed && jamInterval(c) === 0) c.jammed = false;
   emit({ type: 'sound', id: 'install' });
   // The two-note motif marks the night's turning points.
-  if (id === 'feeder' || id === 'jig') emit({ type: 'sound', id: 'motif' });
+  if (id === 'calibrate' || id === 'feeder' || id === 'jig') emit({ type: 'sound', id: 'motif' });
   if (id === 'station6') emit({ type: 'sound', id: 'fullSpeed' });
   emit({ type: 'save', reason: 'install' });
   bump(s);
 }
+
+const jamInterval = (c: C01State) => (owns(c, 'feeder') ? 0 : owns(c, 'tensioner') ? OFFICE.tensionedJamInterval : OFFICE.jamInterval);
 
 export const c01: Controller = {
   id: '01',
@@ -378,16 +309,13 @@ export const c01: Controller = {
 
   step(s, dt) {
     const c = cs(s);
-    // The night's clock: about seventeen story seconds per second, so the 5:22 van comes a
-    // little over nineteen minutes in. Once the order is done the sky catches up to dawn.
     const night = OFFICE.nightStorySeconds;
     if (c.capped) {
       const from = Number(s.flags['c01.cappedStory'] ?? night);
       s.storySeconds = Math.min(night, Math.max(s.storySeconds, s.storySeconds + Math.max(1, (night - from) / 50)));
       return;
     }
-    const elapsed = s.simMs - s.chapterEnteredSimMs;
-    const target = Math.min(Math.floor(night * 0.985), Math.floor((elapsed * OFFICE.storyPerSecond) / 1_000_000));
+    const target = Math.min(Math.floor(night * 0.985), Math.floor((nightMs(s) * OFFICE.storyPerSecond) / 1_000_000));
     s.storySeconds = Math.max(s.storySeconds, target);
 
     if (c.installing) {
@@ -395,45 +323,26 @@ export const c01: Controller = {
       if (c.installing.ms >= project(c.installing.id).installMs) finishInstall(s, c.installing.id);
     }
 
-    // Tending drains when the hands stop; the smooth die holds it twice as long.
-    const decay = Math.floor((ACTIVE.tending.decayPerSecond * dt) / 1000);
-    c.tending = Math.max(tendingFloor(c), c.tending - (owns(c, 'dieSmooth') ? Math.floor(decay / 2) : decay));
-
-    // Speed bursts: once the feeder runs, the wire now and then runs perfectly straight for a few seconds.
-    if (burstsOpen(c)) {
-      if (c.nextGlintMs === 0) c.nextGlintMs = s.simMs + ACTIVE.trueWire.firstAfterMs;
-      if (c.glintUntilMs !== 0 && s.simMs >= c.glintUntilMs) {
-        c.glintUntilMs = 0;
+    // Speed bursts: once the clip machine runs, now and then the wire runs perfectly straight.
+    const B = OFFICE.bursts;
+    if (owns(c, 'calibrate')) {
+      if (c.nextBurstMs === 0) c.nextBurstMs = s.simMs + B.firstAfterMs;
+      if (c.burstReadyUntilMs !== 0 && s.simMs >= c.burstReadyUntilMs) {
+        c.burstReadyUntilMs = 0;
         bump(s);
       }
-      // A well-tended line brings the light round sooner.
-      if (c.glintUntilMs === 0 && c.tending > 50_000) c.nextGlintMs -= Math.floor(dt / 2);
-      if (c.glintUntilMs === 0 && s.simMs >= c.nextGlintMs) {
-        c.glintUntilMs = s.simMs + ACTIVE.trueWire.windowMs;
-        const n = c.glintsCaught + Math.floor(s.simMs / 1000);
-        c.nextGlintMs = c.glintUntilMs + ACTIVE.trueWire.intervalMs + ((n * 7919) % (ACTIVE.trueWire.spreadMs / 1000)) * 1000;
+      if (c.burstReadyUntilMs === 0 && !burstRunning(s) && s.simMs >= c.nextBurstMs) {
+        c.burstReadyUntilMs = s.simMs + B.windowMs;
+        const n = c.burstsCaught * 7 + Math.floor(s.simMs / 1000);
+        c.nextBurstMs = c.burstReadyUntilMs + B.runMs + B.everyMs + ((n * 7919) % Math.max(1, B.spreadMs / 1000)) * 1000;
         emit({ type: 'sound', id: 'glint' });
         bump(s);
       }
     }
-    if (c.cleanRunUntilMs !== 0 && s.simMs >= c.cleanRunUntilMs) {
-      c.cleanRunUntilMs = 0;
+    if (c.burstUntilMs !== 0 && s.simMs >= c.burstUntilMs) {
+      c.burstUntilMs = 0;
       emit({ type: 'sound', id: 'cleanEnd' });
       bump(s);
-    }
-
-    // Careful tuning by hand always succeeds; it just takes time.
-    if (c.slowTuneMs !== null) {
-      c.slowTuneMs += dt;
-      if (c.slowTuneMs >= ACTIVE.tuning.slowMs) {
-        c.slowTuneMs = null;
-        c.tuneLevel = Math.min(ACTIVE.tuning.levels, c.tuneLevel + 1);
-        c.tuneAttempts += 1;
-        c.wearMs = 0;
-        c.lastTune = 'hit';
-        emit({ type: 'sound', id: 'tuneHit' });
-        bump(s);
-      }
     }
 
     const rate = machineRate(s);
@@ -443,7 +352,7 @@ export const c01: Controller = {
       const whole = Math.floor(c.rateResidue / 1_000_000);
       c.rateResidue -= whole * 1_000_000;
       if (whole > 0) {
-        const made = bend(s, whole, rejectPpm(c));
+        const made = make(s, whole);
         const interval = jamInterval(c);
         if (interval > 0 && made > 0) {
           c.sinceJam += made;
@@ -457,16 +366,6 @@ export const c01: Controller = {
           }
         }
       }
-    }
-
-    runPacker(s);
-
-    // The straightener draws ruined clips back into usable wire.
-    if (owns(c, 'straightener')) {
-      const amount = BigInt(OFFICE.straightenerRate * dt); // µg
-      const have = mass(s, 'office.rejects');
-      const take = amount < have ? amount : have;
-      if (take > 0n) commit(s, { id: 'c01.straighten', from: 'office.rejects', input: take, outputs: [['office.wire', take]], periodic: true });
     }
   },
 
@@ -488,17 +387,16 @@ export const c01: Controller = {
       }
     }
 
-    // The shape under the dust sheet is noticed once: a quiet caption, nothing more.
-    if (sheetReady(s) && once(s, 'c01.sheetNoticed')) {
-      emit({ type: 'beat', title: 'On the desk', text: 'Something sits under a dust sheet beside the terminal.' });
-      emit({ type: 'sound', id: 'notice' });
-      bump(s);
-    }
-
     // The trial run's reply: approved, and an order for one carton.
     if (c.trial === 'sent' && s.simMs - c.trialAtMs >= OFFICE.trial.replyMs) {
       c.trial = 'approved';
       emit({ type: 'beat', title: 'Sample approved', text: 'The customer liked the trial run. Next: one carton of 250.' });
+      bump(s);
+    }
+    // The shape under the dust sheet is noticed once: a quiet caption.
+    if (sheetReady(s) && once(s, 'c01.sheetNoticed')) {
+      emit({ type: 'beat', title: 'On the desk', text: 'Something sits under a dust sheet beside the terminal.' });
+      emit({ type: 'sound', id: 'notice' });
       bump(s);
     }
     // The big order arrives with the first carton.
@@ -523,12 +421,11 @@ export const c01: Controller = {
     const fileRules: Array<[string, boolean]> = [
       ['contract', c.madeClips >= 15],
       ['manual', uncovered(c)],
-      ['inventory', owns(c, 'calibrate') && c.madeClips >= 100],
-      ['ticket', c.madeClips >= 200],
+      ['inventory', owns(c, 'calibrate') && c.madeClips >= 300],
+      ['ticket', c.madeClips >= 600],
       ['memo', owns(c, 'feeder')],
     ];
-    const gapOk = s.simMs - c.lastFileMs >= OFFICE.opening.fileGapMs;
-    const due = gapOk ? fileRules.find(([id, ok]) => ok && !c.files[id]) : undefined;
+    const due = s.simMs - c.lastFileMs >= OFFICE.opening.fileGapMs ? fileRules.find(([id, ok]) => ok && !c.files[id]) : undefined;
     if (due) {
       c.files[due[0]] = 'unread';
       c.lastFileMs = s.simMs;
@@ -536,21 +433,14 @@ export const c01: Controller = {
       bump(s);
     }
 
-    const offered = offeredProjects(s);
-    for (const p of offered) {
-      const fresh = once(s, `c01.offer.${p.id}`);
-      if (fresh) {
+    for (const p of offeredProjects(s)) {
+      if (once(s, `c01.offer.${p.id}`)) {
         emit({ type: 'sound', id: 'notice' });
-        bump(s);
-      }
-      // A soft ping the first time each installation becomes affordable (the offer's own chime covers it if both happen at once).
-      if (!c.installing && loose(s) >= p.costClips && once(s, `c01.ready.${p.id}`) && !fresh) {
-        emit({ type: 'sound', id: 'ready' });
         bump(s);
       }
     }
 
-    // Mara's last note arrives when the jig frame goes in on the side table, beside the photograph.
+    // Mara's last note arrives when the rack goes in on the side table, beside the photograph.
     if (owns(c, 'jig') && once(s, 'c01.mara.photograph')) {
       log(s, { id: MARA.photograph.id, kind: 'note', title: 'Mara Venn', text: MARA.photograph.text, dateline: MARA.photograph.dateline, author: 'Mara Venn' });
       bump(s);
@@ -560,23 +450,24 @@ export const c01: Controller = {
     for (const ev of NIGHT_EVENTS) {
       if (minute >= ev.atMinute && once(s, ev.id)) {
         if (ev.id === 'night.van') {
-          // The early van takes whatever is sealed. The rest go on the seven o'clock run.
-          c.vanCartons = c.sealed;
-          const rest = CARTONS - c.sealed;
+          // The early van takes the big order's sealed cartons; the rest go on the seven o'clock run.
+          c.vanCartons = bigPacked(c);
+          s.flags['c01.vanBonus'] = vanBonus(c);
+          const rest = BIG_ORDER - c.vanCartons;
           const text =
-            rest === 0
-              ? 'The delivery van took all twelve cartons.'
-              : c.sealed === 0
-                ? 'The delivery van waited a minute across the street, then left empty. The order goes on the 7:00 run.'
-                : `The delivery van took ${c.sealed} carton${c.sealed === 1 ? '' : 's'}. The other ${rest} go on the 7:00 run.`;
+            c.sealed === 0
+              ? 'A delivery van waited across the street, then left. Nothing was ready for it.'
+              : rest === 0
+                ? `The delivery van took all eleven cartons. The customer adds ${vanBonus(c)} clips for the early delivery.`
+                : c.vanCartons === 0
+                  ? 'The delivery van waited a minute across the street, then left empty. The order goes on the 7:00 run.'
+                  : `The delivery van took ${c.vanCartons} carton${c.vanCartons === 1 ? '' : 's'}, with ${vanBonus(c)} clips added for the early delivery. The other ${rest} go on the 7:00 run.`;
           log(s, { id: ev.id, kind: 'system', title: ev.title, text });
           if (!c.capped) emit({ type: 'beat', title: ev.title, text });
           emit({ type: 'sound', id: 'van' });
           bump(s);
         } else {
           log(s, { id: ev.id, kind: 'system', title: ev.title, text: ev.text });
-          // The night outside is told in the caption strip, not only in the log.
-          // (After the last carton the room goes quiet; the order's own caption stays up.)
           if (!c.capped) emit({ type: 'beat', title: ev.title, text: ev.text });
         }
       }
@@ -586,9 +477,14 @@ export const c01: Controller = {
       c.capped = true;
       s.flags['c01.cappedAt'] = s.simMs;
       s.flags['c01.cappedStory'] = s.storySeconds;
+      // If the order is done before the van, every carton goes on it.
+      if (c.vanCartons === null) {
+        c.vanCartons = BIG_ORDER;
+        s.flags['c01.vanBonus'] = vanBonus(c);
+      }
       c.jammed = false;
-      c.openBox = 0;
       c.installing = null;
+      c.burstReadyUntilMs = 0;
       const [t, x] = beat('01', 2);
       beatNow(s, '01', 2, t, x);
       emit({ type: 'sound', id: 'orderComplete' });
@@ -606,104 +502,21 @@ export const c01: Controller = {
     switch (a.type) {
       case 'c01/make': {
         if (c.capped) return 'The order is complete.';
-        const before = handLevel(c);
-        // Before the feeder, hands bend clips. After it, the feeder owns the wire and hands tend the line.
-        if (!owns(c, 'feeder')) {
-          if (!bend(s, 1)) return 'There is no wire left on the coil.';
-          emit({ type: 'sound', id: 'bend' });
-        } else {
-          emit({ type: 'sound', id: 'tend' });
-        }
-        c.handBends += 1;
-        const gain = Math.floor((ACTIVE.tending.perBend * (2 + before)) / 2);
-        c.tending = Math.min(100_000, c.tending + gain);
-        if (handLevel(c) > before) {
-          log(s, { id: `c01.practice.${handLevel(c)}`, kind: 'system', title: 'Practice', text: 'Your hands are getting quicker. Each press now boosts the machines a little more.' });
-          emit({ type: 'sound', id: 'handLevel' });
-          bump(s);
-        }
+        if (!make(s, pressYield(s))) return 'There is no wire left on the coil.';
+        c.handPresses += 1;
+        emit({ type: 'sound', id: 'bend' });
         return null;
       }
       case 'c01/catch': {
-        if (!glintActive(s)) return 'The moment has passed.';
-        c.glintUntilMs = 0;
-        c.cleanRunUntilMs = s.simMs + (owns(c, 'careful') ? OFFICE.carefulRunMs : ACTIVE.trueWire.runMs);
-        c.glintsCaught += 1;
+        if (!burstReady(s)) return 'The moment has passed.';
+        c.burstReadyUntilMs = 0;
+        c.burstUntilMs = s.simMs + OFFICE.bursts.runMs;
+        c.burstsCaught += 1;
         c.jammed = false;
         emit({ type: 'sound', id: 'catch' });
         bump(s);
         return null;
       }
-      case 'c01/tune': {
-        if (!tuningOpen(c)) return 'Needs the wire guide.';
-        if (c.tuneLevel >= ACTIVE.tuning.levels) return 'The machine is tuned as far as it will go.';
-        if (c.slowTuneMs !== null) return 'Slow tuning is under way.';
-        if (s.simMs < c.tuneCooldownUntilMs) return 'Wait for the needle to settle.';
-        const needle = Math.max(0, Math.min(100, a.needle));
-        const band = tuneBand(c);
-        c.tuneAttempts += 1;
-        if (Math.abs(needle - band.center) <= band.width / 2) {
-          c.tuneLevel += 1;
-          c.lastTune = 'hit';
-          c.wearMs = 0;
-          // A newly set die has to run in before it can be set again.
-          if (c.tuneLevel < ACTIVE.tuning.levels) c.tuneCooldownUntilMs = s.simMs + ACTIVE.tuning.settleMs;
-          emit({ type: 'sound', id: 'tuneHit' });
-          bump(s);
-        } else {
-          c.lastTune = 'miss';
-          c.tuneCooldownUntilMs = s.simMs + ACTIVE.tuning.cooldownMs;
-          emit({ type: 'sound', id: 'tuneMiss' });
-        }
-        return null;
-      }
-      case 'c01/tuneSlow': {
-        if (!tuningOpen(c)) return 'Needs the wire guide.';
-        if (c.tuneLevel >= ACTIVE.tuning.levels) return 'The machine is tuned as far as it will go.';
-        if (c.slowTuneMs !== null) return null;
-        c.slowTuneMs = 0;
-        emit({ type: 'sound', id: 'startInstall' });
-        return null;
-      }
-      case 'c01/project': {
-        const err = canStart(s, a.id);
-        if (err) return err;
-        const p = project(a.id);
-        const cost = BigInt(p.costClips) * CLIP;
-        mustCommit(s, { id: `c01.project.${a.id}`, from: 'clips', input: cost, outputs: [['office.machines', cost]] });
-        c.installing = { id: a.id, ms: 0 };
-        emit({ type: 'sound', id: 'startInstall' });
-        bump(s);
-        return null;
-      }
-      case 'c01/free':
-        if (!c.jammed) return null;
-        c.jammed = false;
-        emit({ type: 'sound', id: 'free' });
-        return null;
-      case 'c01/pack': {
-        if (c.capped || c.sealed >= CARTONS) return 'All twelve cartons are sealed.';
-        if (c.trial !== 'approved') return 'There is no carton order yet.';
-        if (boxFull(c)) {
-          c.openBox = 0;
-          sealCarton(s);
-          return null;
-        }
-        // Once the packer is in, cartons are filled there; the hands only tape them shut.
-        if (owns(c, 'packer')) return `The auto-packer is filling the carton: ${c.openBox} of ${OFFICE.boxSize}.`;
-        if (loose(s) < OFFICE.boxSize) return `A carton needs ${OFFICE.boxSize} clips on the desk.`;
-        sealCarton(s);
-        return null;
-      }
-      case 'c01/speed':
-        if (!owns(c, 'jig')) return 'Needs the side-table rack.';
-        c.lineSpeed = a.speed as LineSpeed;
-        emit({ type: 'sound', id: 'switch' });
-        return null;
-      case 'c01/read':
-        if (!c.files[a.file]) return 'No such file.';
-        c.files[a.file] = 'read';
-        return null;
       case 'c01/sendTrial': {
         if (c.trial !== 'open') return 'The trial run has gone.';
         if (loose(s) < OFFICE.trial.clips) return `The trial run is ${OFFICE.trial.clips} clips.`;
@@ -726,12 +539,39 @@ export const c01: Controller = {
         bump(s);
         return null;
       }
+      case 'c01/project': {
+        const err = canStart(s, a.id);
+        if (err) return err;
+        const p = project(a.id);
+        const cost = BigInt(p.costClips) * CLIP;
+        mustCommit(s, { id: `c01.project.${a.id}`, from: 'clips', input: cost, outputs: [['office.machines', cost]] });
+        c.installing = { id: a.id, ms: 0 };
+        emit({ type: 'sound', id: 'startInstall' });
+        bump(s);
+        return null;
+      }
+      case 'c01/free':
+        if (!c.jammed) return null;
+        c.jammed = false;
+        emit({ type: 'sound', id: 'free' });
+        return null;
+      case 'c01/pack': {
+        if (c.capped || c.sealed >= CARTONS) return 'Every carton is packed.';
+        if (c.trial !== 'approved') return 'There is no carton order yet.';
+        if (loose(s) < OFFICE.boxSize) return `A carton needs ${OFFICE.boxSize} clips on the desk.`;
+        sealCarton(s);
+        return null;
+      }
+      case 'c01/read':
+        if (!c.files[a.file]) return 'No such file.';
+        c.files[a.file] = 'read';
+        return null;
       case 'c01/takeSpare': {
         if (!spareOffered(s)) return 'Not available.';
         const m = mass(s, 'office.spare');
         mustCommit(s, { id: 'c01.spare', from: 'office.spare', input: m, outputs: [['office.wire', m]] });
         c.spareTaken = true;
-        log(s, { id: 'c01.spare', kind: 'system', title: 'Spare coil', text: 'The 4 kg coil from the cabinet’s bottom drawer is on the spindle.' });
+        log(s, { id: 'c01.spare', kind: 'system', title: 'Spare coil', text: 'The spare coil from the cabinet’s bottom drawer is on the spindle.' });
         emit({ type: 'sound', id: 'install' });
         bump(s);
         return null;

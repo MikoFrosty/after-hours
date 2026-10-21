@@ -12,7 +12,7 @@ import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
 import { schedulePreview } from './chapters/c08';
 import { protectedLines } from './chapters/c07';
-import { glintActive, handPackKeeps, jamInterval, loose, machineRate, nextGoal, offeredProjects, packerKeeps, sheetReady, tendingBonus, tuneBand } from './chapters/c01';
+import { burstReady, loose, machineRate, nextGoal, offeredProjects, paybackSeconds, paysBeforeVan, pressYield, rateGain, secondsToVan, sheetReady, steadyRate, vanForecast } from './chapters/c01';
 import type { C01State, C02State, C03State, C05State, C07State, C08State, CampaignState } from './types';
 
 function invariantEveryStep(s: CampaignState, steps: number) {
@@ -51,11 +51,23 @@ describe('ledger', () => {
 
 describe('chapter 01 office', () => {
   const night = (s: CampaignState) => s.chapterState as C01State;
+  /** Put clips on the desk without going through play. */
+  let grant = 0;
+  const give = (s: CampaignState, n: number) => {
+    commit(s, { id: `test.give.${grant++}`, from: 'office.wire', input: BigInt(n) * CLIP, outputs: [['clips', BigInt(n) * CLIP]] });
+    night(s).madeClips += n;
+  };
+  /** A night past the trial run with the clip machine uncovered. */
+  const approved = () => {
+    const s = newCampaign();
+    night(s).trial = 'approved';
+    night(s).sheetLifted = true;
+    return s;
+  };
 
   it('reinvestment spends clips that must be made again; lifetime is unchanged', () => {
-    const s = newCampaign();
+    const s = approved();
     for (let i = 0; i < 100; i++) dispatch(s, { type: 'c01/make' });
-    night(s).sheetLifted = true;
     const life = s.clips.lifetimeMadeMicrograms;
     expect(dispatch(s, { type: 'c01/project', id: 'calibrate' })).toBeNull();
     expect(s.clips.currentMicrograms).toBe(0n);
@@ -64,36 +76,43 @@ describe('chapter 01 office', () => {
     expect(checkInvariant(s)).toBeNull();
   });
 
-  it('hand bending has no speed limit', () => {
+  it('every press makes clips, all night; the foot pedal adds a moment of the machines', () => {
     const s = newCampaign();
     for (let i = 0; i < 200; i++) expect(dispatch(s, { type: 'c01/make' })).toBeNull();
     expect(night(s).madeClips).toBe(200);
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder', 'die2', 'pedal');
+    // 8 clips a second from the machines; a quarter second of that rides on each press.
+    expect(steadyRate(s)).toBe(8000);
+    expect(pressYield(s)).toBe(1 + 2);
   });
 
-  it('the wire catches until a feeder is installed, and freeing it resumes the bender', () => {
-    const s = newCampaign();
+  it('the wire snags until the feeder is in; the spring makes it rarer, and freeing it resumes the machine', () => {
+    const s = approved();
     for (let i = 0; i < 100; i++) dispatch(s, { type: 'c01/make' });
-    night(s).sheetLifted = true;
     dispatch(s, { type: 'c01/project', id: 'calibrate' });
     let guard = 0;
     while (!night(s).jammed && guard++ < 5000) step(s);
     expect(night(s).jammed).toBe(true);
+    expect(night(s).madeClips).toBeGreaterThanOrEqual(100 + OFFICE.jamInterval);
     const made = night(s).madeClips;
     run(s, 50);
     expect(night(s).madeClips).toBe(made);
     dispatch(s, { type: 'c01/free' });
     run(s, 50);
     expect(night(s).madeClips).toBeGreaterThan(made);
+    night(s).owned.push('oil', 'feeder');
+    night(s).jammed = false;
+    run(s, 2000);
+    expect(night(s).jammed).toBe(false);
   });
 
   it('sealed cartons cannot be spent', () => {
-    const s = newCampaign();
-    night(s).trial = 'approved';
-    night(s).sheetLifted = true;
+    const s = approved();
     for (let i = 0; i < 260; i++) dispatch(s, { type: 'c01/make' });
     expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
     expect(night(s).sealed).toBe(1);
-    // 260 clips exist, but only 10 are loose: the 100-clip machine cannot be paid from the carton.
+    // 260 clips exist, but only 10 are on the desk: the 100-clip machine cannot be paid from the carton.
     expect(dispatch(s, { type: 'c01/project', id: 'calibrate' })).not.toBeNull();
     expect(s.clips.currentMicrograms).toBe(260n * CLIP);
   });
@@ -137,164 +156,95 @@ describe('chapter 01 office', () => {
     expect(s.clips.currentMicrograms >= BigInt(OFFICE.quota) * CLIP).toBe(true);
   });
 
-  it('the night lasts 20+ minutes for a relaxed player; skill shortens it but not to a sprint', () => {
-    const reasonable = autoplay(CANONICAL, '02').summaries['01']!.simMs / 60000;
+  it('the night takes about 9–14 minutes for a relaxed player and is shorter, not a sprint, played hard', () => {
+    const relaxed = autoplay(CANONICAL, '02').summaries['01']!.simMs / 60000;
     const engaged = autoplay(EFFICIENT, '02').summaries['01']!.simMs / 60000;
-    expect(reasonable).toBeGreaterThanOrEqual(20);
-    expect(engaged).toBeGreaterThanOrEqual(12);
-    expect(engaged).toBeLessThan(reasonable);
+    expect(relaxed).toBeGreaterThanOrEqual(9);
+    expect(relaxed).toBeLessThanOrEqual(14);
+    expect(engaged).toBeGreaterThanOrEqual(6);
+    expect(engaged).toBeLessThan(relaxed);
   });
 
-  it('after the feeder, hands tend the line instead of bending clips', () => {
-    const s = newCampaign();
+  it('each big upgrade roughly doubles what the machines make, and says how fast it pays for itself', () => {
+    const s = approved();
     const c = night(s);
-    c.owned.push('calibrate', 'oil', 'feeder');
-    const made = c.madeClips;
-    for (let i = 0; i < 20; i++) dispatch(s, { type: 'c01/make' });
-    expect(c.madeClips).toBe(made);
-    expect(c.tending).toBe(100_000);
-    expect(tendingBonus(c)).toBe(250);
-    const tended = machineRate(s);
-    c.tending = 0;
-    expect(tended).toBeGreaterThan(machineRate(s));
+    const rates: number[] = [];
+    for (const id of ['calibrate', 'oil', 'feeder', 'die2', 'jig', 'station6'] as const) {
+      c.owned.push(id);
+      rates.push(steadyRate(s));
+    }
+    expect(rates).toEqual([1000, 2000, 4000, 8000, 14_000, 24_000]);
+    c.owned = ['calibrate', 'oil', 'feeder'];
+    const die2 = OFFICE.projects.find((p) => p.id === 'die2')!;
+    expect(rateGain(s, die2)).toBe(4000);
+    expect(paybackSeconds(s, die2)).toBe(die2.costClips / 4);
   });
 
-  it('speed bursts start with the feeder; catching one speeds the line and frees a snagged wire', () => {
-    const s = newCampaign();
+  it('speed bursts start with the clip machine; grabbing one triples output and frees a snag', () => {
+    const s = approved();
     night(s).owned.push('calibrate', 'oil', 'feeder');
     let guard = 0;
-    while (!glintActive(s) && guard++ < 20000) {
-      if (night(s).jammed) dispatch(s, { type: 'c01/free' });
-      step(s);
-    }
-    expect(glintActive(s)).toBe(true);
+    while (!burstReady(s) && guard++ < 20000) step(s);
+    expect(burstReady(s)).toBe(true);
     night(s).jammed = true;
-    const before = machineRate(s);
     expect(dispatch(s, { type: 'c01/catch' })).toBeNull();
     expect(night(s).jammed).toBe(false);
-    expect(machineRate(s)).toBeGreaterThan(before);
+    expect(machineRate(s)).toBe(steadyRate(s) * 3);
     expect(dispatch(s, { type: 'c01/catch' })).not.toBeNull();
+    run(s, OFFICE.bursts.runMs / 100 + 1);
+    expect(machineRate(s)).toBe(steadyRate(s));
   });
 
-  it('tuning: a hit is permanent, a miss only costs a few seconds, and careful tuning always works', () => {
-    const s = newCampaign();
+  it('the foot pedal and overnight mode are one or the other', () => {
+    const s = approved();
     const c = night(s);
-    c.owned.push('calibrate', 'oil', 'feeder', 'packer', 'roller');
-    const band = tuneBand(c);
-    dispatch(s, { type: 'c01/tune', needle: band.center });
-    expect(c.tuneLevel).toBe(1);
-    const next = tuneBand(c);
-    expect(next.width).toBeLessThan(band.width);
-    dispatch(s, { type: 'c01/tune', needle: (next.center + 50) % 100 });
-    expect(c.tuneLevel).toBe(1);
-    expect(dispatch(s, { type: 'c01/tune', needle: next.center })).not.toBeNull();
-    dispatch(s, { type: 'c01/tuneSlow' });
+    c.owned.push('calibrate', 'oil', 'feeder', 'die2');
+    give(s, 2000);
+    expect(offeredProjects(s).map((p) => p.id)).toEqual(expect.arrayContaining(['pedal', 'governor']));
+    expect(dispatch(s, { type: 'c01/project', id: 'governor' })).toBeNull();
+    expect(offeredProjects(s).map((p) => p.id)).not.toContain('pedal');
     run(s, 200);
-    expect(c.tuneLevel).toBe(2);
-  });
-
-  it('story time reaches dawn as the order completes', () => {
-    const s = autoplay({ ...CANONICAL, holdAt: '01' });
-    expect(s.storySeconds).toBe(OFFICE.nightStorySeconds);
-  });
-
-  it('either/or installations: choosing one removes the other', () => {
-    const s = newCampaign();
-    const c = night(s);
-    c.owned.push('calibrate', 'oil', 'feeder');
-    s.clips.currentMicrograms = 0n;
-    commit(s, { id: 'test.wire', from: 'office.wire', input: 500n * CLIP, outputs: [['clips', 500n * CLIP]] });
-    expect(offeredProjects(s).map((p) => p.id)).toEqual(expect.arrayContaining(['dieHigh', 'dieSmooth']));
-    expect(dispatch(s, { type: 'c01/project', id: 'dieSmooth' })).toBeNull();
-    expect(offeredProjects(s).map((p) => p.id)).not.toContain('dieHigh');
-    run(s, 200);
-    expect(c.owned).toContain('dieSmooth');
-    expect(dispatch(s, { type: 'c01/project', id: 'dieHigh' })).not.toBeNull();
+    expect(c.owned).toContain('governor');
+    expect(dispatch(s, { type: 'c01/project', id: 'pedal' })).not.toBeNull();
     expect(checkInvariant(s)).toBeNull();
   });
 
-  it('the high-tension die catches the wire again; hard speed does until the straightener', () => {
-    const c = newCampaign().chapterState as C01State;
-    c.owned.push('calibrate', 'oil', 'feeder');
-    expect(jamInterval(c)).toBe(0);
-    c.lineSpeed = 'hard';
-    expect(jamInterval(c)).toBe(OFFICE.hardSpeedJamInterval);
-    c.owned.push('dieHigh');
-    expect(jamInterval(c)).toBe(Math.min(OFFICE.highTensionJamInterval, OFFICE.hardSpeedJamInterval));
-    c.owned.push('straightener');
-    expect(jamInterval(c)).toBe(OFFICE.highTensionJamInterval);
-    c.lineSpeed = 'steady';
-    c.owned = ['calibrate', 'oil', 'feeder', 'dieSmooth'];
-    expect(jamInterval(c)).toBe(0);
-  });
-
-  it('the pedal raises what tending can add; the governor keeps the meter from falling below half', () => {
-    const s = newCampaign();
+  it('the van forecast counts what is packed and what the machines will make before 5:22', () => {
+    const s = approved();
     const c = night(s);
-    c.owned.push('calibrate', 'oil', 'feeder', 'pedal');
-    for (let i = 0; i < 20; i++) dispatch(s, { type: 'c01/make' });
-    expect(tendingBonus(c)).toBe(400);
-    c.owned = ['calibrate', 'oil', 'feeder', 'governor'];
-    run(s, 600);
-    expect(c.tending).toBe(50_000);
-    expect(tendingBonus(c)).toBe(125);
-    expect(dispatch(s, { type: 'c01/make' })).toBeNull();
-    expect(c.tending).toBeGreaterThan(50_000);
+    c.owned.push('calibrate', 'oil', 'feeder', 'die2');
+    c.sealed = 3;
+    give(s, 3 * 250 + 100);
+    const left = secondsToVan(s)!;
+    expect(left).toBeGreaterThan(0);
+    expect(vanForecast(s)).toBe(Math.min(11, 2 + Math.floor((100 + 8 * left) / 250)));
+    // Close to the van, an upgrade that cannot make its price back in time is called out.
+    s.storySeconds = OFFICE.vanMinute * 60 - 38 * 20; // twenty seconds before the van
+    const jig = OFFICE.projects.find((p) => p.id === 'jig')!;
+    expect(paysBeforeVan(s, jig)).toBe(false);
+    expect(nextGoal(s)).toMatch(/Pack/);
   });
 
-  it('fine-tuning opens with the wire guide; a level, once set, stays at any speed', () => {
-    const s = newCampaign();
-    const c = night(s);
-    c.owned.push('calibrate', 'oil', 'feeder', 'jig', 'straightener');
-    expect(dispatch(s, { type: 'c01/tune', needle: tuneBand(c).center })).not.toBeNull();
-    c.owned.push('roller');
-    dispatch(s, { type: 'c01/tune', needle: tuneBand(c).center });
-    expect(c.tuneLevel).toBe(1);
-    expect(dispatch(s, { type: 'c01/tune', needle: tuneBand(c).center })).not.toBeNull();
-    dispatch(s, { type: 'c01/speed', speed: 'hard' });
-    run(s, 2000);
-    expect(c.tuneLevel).toBe(1);
-  });
-
-  it('the auto-packer keeps enough on the desk for the next upgrade and packs the rest', () => {
-    const s = newCampaign();
-    const c = night(s);
-    c.trial = 'approved';
-    c.owned.push('calibrate', 'oil', 'feeder', 'packer');
-    commit(s, { id: 'test.wire', from: 'office.wire', input: 400n * CLIP, outputs: [['clips', 400n * CLIP]] });
-    // The next upgrade is a bending upgrade at 80 clips: that much stays on the desk.
-    expect(packerKeeps(s)).toBe(80);
-    // With the packer in, desk clips are not taped up by hand: the packer fills, the hands seal.
-    expect(dispatch(s, { type: 'c01/pack' })).not.toBeNull();
-    step(s);
-    // The packer fills the carton; a hand seals it.
-    expect(c.openBox).toBe(250);
-    expect(c.sealed).toBe(0);
-    step(s);
-    expect(c.openBox).toBe(250);
-    expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
-    expect(c.sealed).toBe(1);
-    step(s);
-    expect(c.openBox).toBe(70);
-    expect(loose(s)).toBe(80);
-    expect(checkInvariant(s)).toBeNull();
-  });
-
-  it('the 5:22 van takes what is sealed; the shift report says how many', () => {
+  it('the 5:22 van takes the big order’s packed cartons, and the bonus becomes the building’s first clips', () => {
     const s = autoplay({ ...CANONICAL, holdAt: '01' });
     const c = night(s);
     expect(c.vanCartons).not.toBeNull();
-    expect(c.vanCartons!).toBeGreaterThanOrEqual(0);
-    expect(c.vanCartons!).toBeLessThanOrEqual(12);
+    expect(c.vanCartons!).toBeGreaterThanOrEqual(1);
+    expect(c.vanCartons!).toBeLessThanOrEqual(11);
+    expect(s.flags['c01.vanBonus']).toBe(c.vanCartons! * OFFICE.vanBonusPerCarton);
     const fast = autoplay({ ...EFFICIENT, holdAt: '01' });
-    expect(night(fast).vanCartons).toBe(12);
+    expect(night(fast).vanCartons).toBe(11);
+    const b = autoplay(CANONICAL, '02');
+    const bonus = Number(b.flags['c01.vanBonus']);
+    expect((b.chapterState as C02State).stock).toBeGreaterThanOrEqual(bonus);
+    expect(checkInvariant(b)).toBeNull();
   });
 
   it('the night is three orders: a trial run of 100, one carton, then eleven more', () => {
     const s = newCampaign();
     const c = night(s);
     for (let i = 0; i < 99; i++) dispatch(s, { type: 'c01/make' });
-    expect(nextGoal(s)).toBe('Trial run: make 100 clips by hand. 99 of 100.');
+    expect(nextGoal(s)).toBe('Make 1 more clip for the trial run.');
     expect(dispatch(s, { type: 'c01/sendTrial' })).not.toBeNull();
     // No carton order exists yet, and nothing under the dust sheet is offered.
     expect(dispatch(s, { type: 'c01/pack' })).not.toBeNull();
@@ -313,7 +263,6 @@ describe('chapter 01 office', () => {
     expect(dispatch(s, { type: 'c01/lift' })).toBeNull();
     expect(offeredProjects(s).map((p) => p.id)).toEqual(['calibrate']);
     for (let i = 0; i < 250; i++) dispatch(s, { type: 'c01/make' });
-    expect(nextGoal(s)).toMatch(/pack the carton for order 4472/);
     expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
     step(s);
     expect(c.files.order3).toBe('unread');
@@ -330,33 +279,23 @@ describe('chapter 01 office', () => {
     expect(Object.keys(c.files)).toEqual(['order', 'contract']);
   });
 
-  it('the wire feeder waits on the one-carton order, and the goal counts toward it', () => {
-    const s = newCampaign();
+  it('the wire feeder waits on the first carton, and the goal points at the carton', () => {
+    const s = approved();
     const c = night(s);
-    c.trial = 'approved';
-    c.sheetLifted = true;
     c.owned.push('calibrate', 'oil');
-    c.madeClips = 400;
-    commit(s, { id: 'test.wire', from: 'office.wire', input: 100n * CLIP, outputs: [['clips', 100n * CLIP]] });
-    expect(handPackKeeps(s)).toBe(0);
+    give(s, 100);
     expect(offeredProjects(s).map((p) => p.id)).not.toContain('feeder');
-    expect(nextGoal(s)).toBe('Pack 1 more carton to make room for the wire feeder: 100 of 250 clips on the desk.');
-    commit(s, { id: 'test.wire2', from: 'office.wire', input: 150n * CLIP, outputs: [['clips', 150n * CLIP]] });
-    expect(nextGoal(s)).toBe('You have 250 clips: pack the carton for order 4472.');
+    expect(nextGoal(s)).toBe('Keep making clips: 150 more fill the carton.');
+    give(s, 150);
+    expect(nextGoal(s)).toBe('You have 250 clips. Pack the carton.');
     expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
     expect(c.sealed).toBe(1);
     expect(offeredProjects(s).map((p) => p.id)).toContain('feeder');
   });
 
-  it('a wait on sealed cartons is named as a goal', () => {
-    const s = newCampaign();
-    const c = night(s);
-    c.trial = 'approved';
-    c.owned.push('calibrate', 'oil', 'feeder', 'dieSmooth', 'die2', 'packer', 'roller', 'governor', 'fan');
-    c.sealed = 1;
-    c.madeClips = 600;
-    s.simMs = 10 * 60_000;
-    expect(nextGoal(s)).toMatch(/1 more carton .* side-table rack/);
+  it('story time reaches dawn as the order completes', () => {
+    const s = autoplay({ ...CANONICAL, holdAt: '01' });
+    expect(s.storySeconds).toBe(OFFICE.nightStorySeconds);
   });
 
   it('declining the lease is an honest holding ending', () => {
@@ -734,7 +673,7 @@ describe('office migration', () => {
     }
   });
 
-  it('maps the packer share and the single jig of an interim save', () => {
+  it('maps an interim save onto the current upgrades', () => {
     const st = newCampaign();
     const c = st.chapterState as unknown as Record<string, unknown>;
     delete c.reserve;
@@ -746,10 +685,10 @@ describe('office migration', () => {
     expect(r.status).toBe('ok');
     if (r.status === 'ok') {
       const n = r.state.chapterState as C01State;
-      expect(n.reserve).toBe(100);
       expect(n.vanCartons).toBeNull();
-      expect(n.owned.filter((id) => id.startsWith('station')).length).toBe(5);
-      expect(n.owned.some((id) => (id as string).startsWith('head'))).toBe(false);
+      // Upgrades that no longer exist are dropped; the rest carry on.
+      expect(n.owned).toEqual(['calibrate', 'oil', 'feeder', 'die2', 'jig']);
+      expect(checkInvariant(r.state)).toBeNull();
     }
   });
 });

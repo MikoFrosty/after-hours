@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import type { CampaignState, C01State, OfficeProjectId } from '../../game/types';
-import { cleanRunActive, glintActive, goodRate, loose, project, uncovered } from '../../game/chapters/c01';
+import { burstReady, burstRunning, loose, machineRate, project, rackMachines, uncovered } from '../../game/chapters/c01';
 import { mass } from '../../game/ledger';
 import { OFFICE } from '../../content/campaign';
 import { CLIP } from '../../game/mass';
@@ -171,7 +171,7 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
         : [
             c1.sealed > 0 ? `CARTONS ${c1.sealed - 1}/11` : c1.trial === 'approved' ? 'ORDER 4472' : c1.trial === 'sent' ? 'TRIAL SENT' : 'TRIAL 4471',
             c1.trial === 'sent' ? 'AWAITING REPLY' : `DESK ${desk.toLocaleString('en-US')}`,
-            c1.jammed ? 'WIRE SNAGGED' : unread > 0 ? `NEW FILE (${unread})` : has('calibrate') ? `${(goodRate(s) / 1000).toFixed(1)} CLIPS/S` : 'BY HAND',
+            c1.jammed ? 'WIRE SNAGGED' : unread > 0 ? `NEW FILE (${unread})` : has('calibrate') ? `${(machineRate(s) / 1000).toFixed(1)} CLIPS/S` : 'BY HAND',
             '>',
           ]
     : ['PRODUCTION LOG', `CHAPTER ${s.chapter}`, 'BOOKMARK', '>'];
@@ -195,15 +195,15 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
     jammed: Boolean(c1?.jammed),
     // Cartons that left on the 5:22 van are gone from the stack once it has pulled away.
     cartons: c1 ? c1.sealed - (c1.vanCartons !== null && s.storySeconds / 60 >= OFFICE.vanMinute + 15 ? c1.vanCartons : 0) : 0,
-    openBox: c1 && has('packer') && !c1.capped ? c1.openBox / OFFICE.boxSize : null,
+    openBox: null,
     tensioner: has('tensioner'),
     die2: has('die2'),
-    stations: c1 ? c1.owned.filter((id) => id.startsWith('station')).length : 6,
-    straightener: has('straightener'),
-    rejects: c1 ? c1.rejects > 0 : false,
+    stations: c1 ? rackMachines(c1) : 6,
+    straightener: false,
+    rejects: false,
     minute: c1 ? s.storySeconds / 60 : 0,
-    glint: c1 ? glintActive(s) : false,
-    cleanRun: c1 ? cleanRunActive(s) : false,
+    glint: c1 ? burstReady(s) : false,
+    cleanRun: c1 ? burstRunning(s) : false,
     installing:
       c1 && c1.installing
         ? {
@@ -217,7 +217,7 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
 function installSite(id: OfficeProjectId): 'bender' | 'jig' | 'packer' | 'desk' {
   if (id === 'jig' || id.startsWith('station') || id === 'overdrive' || id === 'careful' || id === 'straightener') return 'jig';
   if (id === 'packer') return 'packer';
-  if (id === 'fan' || id === 'governor' || id === 'pedal') return 'desk';
+  if (id === 'governor' || id === 'pedal') return 'desk';
   return 'bender';
 }
 
@@ -243,7 +243,7 @@ function Photo({ recorded }: { recorded: boolean }) {
   );
 }
 
-function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
+function OfficeSvg({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: () => void; onSheet?: () => void }) {
   const wire = v.mode === 'recorded';
   const recon = v.mode === 'reconstructed';
   const last = v.frozen;
@@ -639,7 +639,7 @@ function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
       )}
       {/* the clip machine under its dust sheet, before anyone has looked */}
       {v.sheet && (
-        <g>
+        <g onClick={onSheet} style={{ cursor: onSheet ? 'pointer' : undefined }} role={onSheet ? 'button' : undefined} aria-label={onSheet ? 'Lift the dust sheet' : undefined}>
           <Box at={[3.3, 2.65, 2.72]} size={[1.0, 0.85, 0.55]} color="#bdb8aa" st={st} />
           <Box at={[3.45, 2.8, 3.27]} size={[0.6, 0.5, 0.14]} color="#c9c4b6" st={st} />
         </g>
@@ -809,7 +809,7 @@ export function describeOffice(v: OfficeView): string {
   return parts.join(' ');
 }
 
-export const OfficeScene = memo(function OfficeScene({ view, label, onGlint }: { view: OfficeView; label?: string; onGlint?: () => void }) {
+export const OfficeScene = memo(function OfficeScene({ view, label, onGlint, onSheet }: { view: OfficeView; label?: string; onGlint?: () => void; onSheet?: () => void }) {
   const [pulse, setPulse] = useState(0);
   useEffect(() => setPulse(view.pulse), [view.pulse]);
   // Once a second, float what the machines added over the tray.
@@ -840,7 +840,7 @@ export const OfficeScene = memo(function OfficeScene({ view, label, onGlint }: {
         {view.mode === 'recorded' && <span className="pill accent">Archive · recorded</span>}
         {view.mode === 'reconstructed' && <span className="pill warn">Reconstruction · approximate</span>}
       </div>
-      <OfficeSvg v={v} onGlint={onGlint} />
+      <OfficeSvg v={v} onGlint={onGlint} onSheet={onSheet} />
     </div>
   );
 });

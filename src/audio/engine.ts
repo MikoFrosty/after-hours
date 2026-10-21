@@ -2,7 +2,7 @@
 // becomes warm synth progressions in the city, drifts apart across distant offices, and ends
 // with one note and a relay. Everything is synthesized; no audio files are required.
 // Music is optional and never required to understand a state.
-import { goodRate } from '../game/chapters/c01';
+import { machineRate, rackMachines } from '../game/chapters/c01';
 import type { CampaignState, ChapterId, C01State, C02State, C03State, C04State, C05State, C08State } from '../game/types';
 
 export interface AudioSettings {
@@ -162,8 +162,8 @@ class AudioEngine {
       const pad = this.layers.get('night');
       if (pad?.filter) pad.filter.frequency.setTargetAtTime(420 + 1500 * dawn, t, 2);
       // The machines: separate clicks at a slow rate blend into a soft running texture as the line speeds up.
-      const rate = c.capped || c.jammed ? 0 : goodRate(s) / 1000;
-      const blend = Math.max(0, Math.min(1, (rate - 2.5) / 6));
+      const rate = c.capped || c.jammed ? 0 : machineRate(s) / 1000;
+      const blend = Math.max(0, Math.min(1, (rate - 3) / 25));
       this.layerLevel('machine', s.mode === 'playing' ? 0.05 * blend : 0, t);
       const m = this.layers.get('machine');
       if (m?.filter) m.filter.frequency.setTargetAtTime(900 + 900 * blend, t, 1);
@@ -424,12 +424,12 @@ class AudioEngine {
     const c = s.chapterState as C01State;
     const now = ctx.currentTime;
     const horizon = now + 0.3;
-    const rate = c.capped || c.jammed ? 0 : goodRate(s) / 1000;
+    const rate = c.capped || c.jammed ? 0 : machineRate(s) / 1000;
     if (rate > 0) {
       if (this.nextClack < now) this.nextClack = now + 0.05;
       // One clack per clip at a slow rate, each a little different. As the line speeds up the
       // clacks thin and soften while the running texture (the 'machine' layer) takes over.
-      const blend = Math.max(0, Math.min(1, (rate - 2.5) / 6));
+      const blend = Math.max(0, Math.min(1, (rate - 3) / 25));
       const interval = 1 / Math.min(rate, 5);
       const g = 0.03 * (1 - 0.6 * blend);
       while (this.nextClack < horizon) {
@@ -439,9 +439,9 @@ class AudioEngine {
         this.nextClack += interval * (0.8 + Math.random() * 0.4);
       }
       if (c.owned.includes('jig')) {
-        // The jig's stations strike in an uneven rhythm: one long, two short, never quite even.
+        // The rack's small machines strike in an uneven rhythm: one long, two short, never quite even.
         if (this.nextThunk < now) this.nextThunk = now + 0.1;
-        const stations = c.owned.filter((id) => id.startsWith('station')).length;
+        const stations = rackMachines(c);
         while (this.nextThunk < horizon && stations > 0) {
           this.thump(this.nextThunk, 64 + Math.random() * 14, 0.022 + stations * 0.003);
           this.click(this.nextThunk + 0.02, 520 + Math.random() * 200, 0.018, 0.05);

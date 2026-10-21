@@ -2213,3 +2213,222 @@ details.exact .digits {
     font-size: 15px;
   }
 }
+
+/* ---------- office night v5: one block for the order and the button, then upgrades, then the desk ---------- */
+.o-dock {
+  gap: 12px;
+}
+.o-order {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.o-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.o-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.o-title {
+  font-family: var(--font-serif);
+  font-size: 1.45em;
+  line-height: 1.15;
+  color: #f3ead9;
+}
+.o-act {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.o-act .btn {
+  flex: none;
+}
+.o-next {
+  margin: 0;
+  font-size: 0.95em;
+  line-height: 1.35;
+}
+.o-note {
+  font-size: 0.92em;
+}
+.o-cartons {
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+}
+.carton.gone {
+  opacity: 0.35;
+}
+.o-forecast {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88em;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.o-forecast b {
+  color: var(--accent);
+  font-weight: 600;
+}
+.o-forecast.ok {
+  border-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
+  background: color-mix(in srgb, var(--accent-2) 8%, transparent);
+}
+.o-forecast.ok b {
+  color: var(--accent-2);
+}
+.o-forecast.done {
+  color: var(--muted);
+  border-color: var(--line);
+  background: transparent;
+}
+.o-hot {
+  color: #f6e2a8;
+}
+.o-shop .list {
+  gap: 6px;
+}
+.o-up {
+  padding: 8px 10px;
+}
+.o-up-main {
+  all: unset;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  min-width: 0;
+}
+.o-up-main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.o-up .t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.o-up .d:empty {
+  display: none;
+}
+.o-up .btn {
+  flex-direction: column;
+  gap: 0;
+  min-width: 92px;
+  line-height: 1.2;
+}
+.o-need {
+  opacity: 0.75;
+}
+.o-up.late {
+  opacity: 0.72;
+}
+.o-warn {
+  color: var(--warn);
+}
+.o-more {
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.o-up.locked {
+  opacity: 0.55;
+  border-style: dashed;
+}
+.o-pair {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+}
+.o-pair-head {
+  font-size: 0.7em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.o-desk summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+.o-desk summary::-webkit-details-marker {
+  display: none;
+}
+.o-desk-title {
+  font-size: 0.74em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+.o-desk-title::before {
+  content: '▸ ';
+}
+.o-desk[open] .o-desk-title::before {
+  content: '▾ ';
+}
+.o-unread {
+  margin-left: 8px;
+}
+.o-desk-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+@media (max-width: 520px) {
+  .o-title {
+    font-size: 1.2em;
+  }
+  .o-act {
+    flex-wrap: wrap;
+  }
+}
+/* In the office the rail keeps only the night's clock, set to the right and a little larger. */
+.app[data-chapter='01'] .rail .story-clock {
+  margin-left: auto;
+  font-size: 1.15em;
+}
+.app[data-chapter='01'] .rail .controls {
+  margin-left: 0;
+}
+@media (max-width: 520px) {
+  .app[data-chapter='01'] .rail {
+    flex-wrap: nowrap;
+  }
+  .app[data-chapter='01'] .rail {
+    align-items: center;
+  }
+  .app[data-chapter='01'] .rail .brand {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding-right: 0;
+  }
+  .app[data-chapter='01'] .rail .story-clock {
+    position: static;
+    font-size: 1em;
+  }
+  .app[data-chapter='01'] .rail .controls {
+    width: auto;
+  }
+  /* On a phone the order block is tall: let it scroll with the page instead of covering the upgrades. */
+  .o-dock.action-dock {
+    position: relative;
+    top: 0;
+  }
+}

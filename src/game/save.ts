@@ -298,6 +298,7 @@ export function migrateOffice(s: CampaignState): void {
   }
   // Fields added since the save was written take their defaults.
   if (s.chapterState?.kind === '01') s.chapterState = { ...newOfficeState(), ...(s.chapterState as C01State) };
+  if (s.chapterState?.kind === '01') migrateOfficeV5(s.chapterState as C01State);
   if (s.chapterState?.kind === '02' && !('levels' in s.chapterState)) migrateBuilding(s);
   // Salvage moved to chapter 2: an office save waiting on a salvage decision simply continues.
   if (s.choices?.some((c) => c.kind === 'c01/salvage')) {
@@ -313,7 +314,6 @@ export function migrateOffice(s: CampaignState): void {
 function migrateOfficeV3(c: C01State): void {
   const prev = c as unknown as { packShare?: number; packCredit?: number; owned: string[] };
   if (prev.packShare === undefined) return;
-  c.reserve = prev.packShare >= 100 ? 0 : prev.packShare > 0 ? 100 : 250;
   c.vanCartons = null;
   delete prev.packShare;
   delete prev.packCredit;
@@ -323,6 +323,20 @@ function migrateOfficeV3(c: C01State): void {
   for (let i = 1; i <= Math.min(6, stations); i++) owned.push(`station${i}`);
   c.owned = owned as C01State['owned'];
   if (c.installing && !OFFICE.projects.some((p) => p.id === c.installing!.id)) c.installing = null;
+}
+
+/**
+ * The fifth office night has fewer, bigger upgrades and no auto-packer. Upgrades that no longer
+ * exist are dropped (the bending and line choices, the packer, the small stations); a carton the
+ * packer had half-filled goes back on the desk, since only sealed cartons count as packed now.
+ */
+function migrateOfficeV5(c: C01State): void {
+  const ids = new Set(OFFICE.projects.map((p) => p.id));
+  const legacy = c as unknown as Record<string, unknown>;
+  for (const k of ['openBox', 'reserve', 'lineSpeed', 'rejectCredit', 'rejects', 'straightenResidue', 'tending', 'handBends', 'nextGlintMs', 'glintUntilMs', 'cleanRunUntilMs', 'glintsCaught', 'tuneLevel', 'tuneAttempts', 'tuneCooldownUntilMs', 'lastTune', 'wearMs', 'wornAtMs', 'slowTuneMs'])
+    delete legacy[k];
+  c.owned = c.owned.filter((id) => ids.has(id));
+  if (c.installing && !ids.has(c.installing.id)) c.installing = null;
 }
 
 // ---------- v1 office import ----------

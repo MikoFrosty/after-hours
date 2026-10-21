@@ -1,5 +1,5 @@
 import raw from './campaign.json';
-import type { ChapterId, Policy, RegionId } from '../game/types';
+import type { ChapterId, OfficeProjectId, Policy, RegionId } from '../game/types';
 
 /** Parse a decimal number from JSON into integer thousandths without float drift. */
 export function milli(value: number | string): number {
@@ -34,120 +34,88 @@ export const WORLD = {
   terminalMachine: big(c.world.terminalMachineMicrograms),
 };
 
-export type OfficeProjectId =
-  | 'calibrate'
-  | 'oil'
-  | 'tensioner'
-  | 'feeder'
-  | 'dieHigh'
-  | 'dieSmooth'
-  | 'die2'
-  | 'packer'
-  | 'roller'
-  | 'pedal'
-  | 'governor'
-  | 'fan'
-  | 'jig'
-  | 'station1'
-  | 'station2'
-  | 'station3'
-  | 'station4'
-  | 'station5'
-  | 'station6'
-  | 'overdrive'
-  | 'careful'
-  | 'straightener';
+export type { OfficeProjectId } from '../game/types';
 
 export interface OfficeProject {
   id: OfficeProjectId;
   name: string;
+  /** One short line: what it does, in the player's terms. */
+  short: string;
+  /** A sentence or two for the details view. */
+  text: string;
   costClips: number;
   installMs: number;
-  group: 'bender' | 'line' | 'none';
-  /** Added machine rate in milli-clips per second. */
+  kind: 'machine' | 'hands' | 'utility';
+  /** Added clip-machine rate in milli-clips per second (multiplied by the machine multipliers). */
   addedRate: number;
-  /** Multiplier on the bender group, in thousandths. */
+  /** Multiplier on the clip machine, in thousandths. */
   multiplier: number;
-  /** Multiplier on the whole machine rate, in thousandths. */
+  /** Flat rate from the side-table rack, in milli-clips per second. */
+  rackRate: number;
+  /** Multiplier on everything the machines make, in thousandths. */
   lineMultiplier: number;
-  /** Either/or installations: buying one member of a group removes the others. */
-  exclusive?: 'die' | 'hands' | 'finish';
-  unlock: { after?: OfficeProjectId; made?: number; jams?: number; boxes?: number; rejects?: number; seconds?: number };
+  /** Clips per press of the main button (the highest owned wins). */
+  handClips: number;
+  /** Each press also gives this many seconds of machine output. */
+  pedalSeconds: number;
+  /** Either/or upgrades: buying one member of a group removes the other. */
+  exclusive?: 'hands';
+  unlock: { after?: OfficeProjectId; made?: number; jams?: number; boxes?: number };
 }
 
-export type LineSpeed = 'steady' | 'brisk' | 'hard';
+const office = c.office;
+type RawProject = (typeof office.projects)[number] & Partial<Record<'addedRate' | 'multiplier' | 'rackRate' | 'lineMultiplier' | 'handClips' | 'pedalSeconds', number>> & { exclusive?: string };
 
 export const OFFICE = {
-  quota: c.office.quotaClips,
-  boxSize: c.office.boxSize,
-  wire: big(c.office.wireMicrograms),
-  spareWire: big(c.office.spareWireMicrograms),
-  nightStorySeconds: c.office.nightStorySeconds,
-  jamInterval: c.office.jam.intervalClips,
-  tensionedJamInterval: c.office.jam.tensionedIntervalClips,
-  highTensionJamInterval: c.office.jam.highTensionIntervalClips,
-  hardSpeedJamInterval: c.office.jam.hardSpeedIntervalClips,
-  packerReserves: c.office.packerReserves,
-  storyPerSecond: milli(c.office.storySecondsPerSecond),
-  vanMinute: c.office.vanMinute,
-  overdriveRejectPpm: c.office.overdriveRejectPpm,
-  carefulRunMs: c.office.carefulRunSeconds * 1000,
-  lineSpeeds: c.office.lineSpeeds.map((x) => ({ id: x.id as LineSpeed, factor: milli(x.factor), rejectPpm: x.rejectPpm })),
-  straightenerRate: milli(c.office.straightenerGramsPerSecond),
-  /** The first order is a trial run of loose clips; the carton orders follow once it is approved. */
-  trial: { clips: c.office.trial.clips, replyMs: c.office.trial.replySeconds * 1000 },
-  /** The slow start: the machine under a dust sheet, and terminal files that arrive one at a time. */
-  opening: {
-    sheetAfterMs: c.office.opening.sheetAfterSeconds * 1000,
-    sheetAfterClips: c.office.opening.sheetAfterClips,
-    fileGapMs: c.office.opening.fileGapSeconds * 1000,
+  quota: office.quotaClips,
+  boxSize: office.boxSize,
+  wire: big(office.wireMicrograms),
+  spareWire: big(office.spareWireMicrograms),
+  nightStorySeconds: office.nightStorySeconds,
+  storyPerSecond: milli(office.storySecondsPerSecond),
+  vanMinute: office.vanMinute,
+  /** Clips the building starts with for each carton of the big order that made the early van. */
+  vanBonusPerCarton: office.vanBonusPerCarton,
+  handClips: office.hands.perPress,
+  jamInterval: office.jam.intervalClips,
+  tensionedJamInterval: office.jam.tensionedIntervalClips,
+  /** Speed bursts: now and then the wire runs perfectly straight; grabbing it multiplies everything for a while. */
+  bursts: {
+    firstAfterMs: office.bursts.firstAfterSeconds * 1000,
+    everyMs: office.bursts.everySeconds * 1000,
+    spreadMs: office.bursts.spreadSeconds * 1000,
+    windowMs: office.bursts.windowSeconds * 1000,
+    runMs: office.bursts.runSeconds * 1000,
+    multiplier: milli(office.bursts.multiplier),
   },
-  projects: c.office.projects.map(
-    (p): OfficeProject => ({
+  /** The first order is a trial run of loose clips; the carton orders follow once it is approved. */
+  trial: { clips: office.trial.clips, replyMs: office.trial.replySeconds * 1000 },
+  /** The quiet start: terminal files arrive one at a time. */
+  opening: {
+    sheetAfterMs: office.opening.sheetAfterSeconds * 1000,
+    sheetAfterClips: office.opening.sheetAfterClips,
+    fileGapMs: office.opening.fileGapSeconds * 1000,
+  },
+  projects: office.projects.map((raw): OfficeProject => {
+    const p = raw as RawProject;
+    return {
       id: p.id as OfficeProjectId,
       name: p.name,
+      short: p.short,
+      text: p.text,
       costClips: p.costClips,
       installMs: p.installSeconds * 1000,
-      group: p.group as OfficeProject['group'],
-      addedRate: milli((p as { addedRate?: number }).addedRate ?? 0),
-      multiplier: milli((p as { multiplier?: number }).multiplier ?? 1),
-      lineMultiplier: milli((p as { lineMultiplier?: number }).lineMultiplier ?? 1),
-      exclusive: (p as { exclusive?: string }).exclusive as OfficeProject['exclusive'],
+      kind: p.kind as OfficeProject['kind'],
+      addedRate: milli(p.addedRate ?? 0),
+      multiplier: milli(p.multiplier ?? 1),
+      rackRate: milli(p.rackRate ?? 0),
+      lineMultiplier: milli(p.lineMultiplier ?? 1),
+      handClips: p.handClips ?? 0,
+      pedalSeconds: p.pedalSeconds ?? 0,
+      exclusive: p.exclusive as OfficeProject['exclusive'],
       unlock: p.unlock as OfficeProject['unlock'],
-    }),
-  ),
-  active: {
-    tending: {
-      perBend: c.office.active.tending.perBendMilli,
-      decayPerSecond: c.office.active.tending.decayPerSecondMilli,
-      maxBonus: milli(c.office.active.tending.maxBonus),
-      pedalMaxBonus: milli(c.office.active.tending.pedalMaxBonus),
-      /** With the governor, tending never drains below this share of the meter (thousandths). */
-      governorFloor: milli(c.office.active.tending.governorFloor),
-    },
-    trueWire: {
-      firstAfterMs: c.office.active.trueWire.firstAfterSeconds * 1000,
-      windowMs: c.office.active.trueWire.windowSeconds * 1000,
-      runMs: c.office.active.trueWire.runSeconds * 1000,
-      multiplier: milli(c.office.active.trueWire.multiplier),
-      intervalMs: c.office.active.trueWire.intervalSeconds * 1000,
-      spreadMs: c.office.active.trueWire.intervalSpreadSeconds * 1000,
-    },
-    tuning: {
-      levels: c.office.active.tuning.levels,
-      bonusPerLevel: milli(c.office.active.tuning.bonusPerLevel),
-      bandWidth: c.office.active.tuning.bandWidth,
-      bandShrink: c.office.active.tuning.bandShrink,
-      cooldownMs: c.office.active.tuning.cooldownSeconds * 1000,
-      periodMs: c.office.active.tuning.periodSeconds * 1000,
-      slowMs: c.office.active.tuning.slowSeconds * 1000,
-      settleMs: c.office.active.tuning.settleSeconds * 1000,
-    },
-    practice: {
-      bendsPerLevel: c.office.active.practice.bendsPerLevel,
-      maxExtra: c.office.active.practice.maxExtra,
-    },
-  },
+    };
+  }),
   /** The original office upgrades, kept for importing version 1 office saves. */
   legacyUpgrades: c.office.legacyUpgrades as Array<{ id: 'bender' | 'feeder' | 'jig'; costClips: number; addedRate: number }>,
   salvage: c.office.salvage.map((s) => ({

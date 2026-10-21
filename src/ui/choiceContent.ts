@@ -73,9 +73,9 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
         body: [CHARTERS.buildingLease.body],
         facts: [
           ['Trial run', c1.trialClips > 0 ? `${c1.trialClips} clips, approved` : 'approved'],
-          ['Cartons sealed', '1 + 11'],
-          ['On the 5:22 van', `${c1.vanCartons ?? 12} of 12`],
-          ['For the 7:00 van', `${12 - (c1.vanCartons ?? 12)}`],
+          ['First carton', 'delivered'],
+          ['Big order on the 5:22 van', `${c1.vanCartons ?? 11} of 11`],
+          ['Early-delivery bonus', `${(c1.vanCartons ?? 11) * OFFICE.vanBonusPerCarton} clips for the building`],
           ['Clips left on the desk', fmtClips(s.clips.currentMicrograms - BigInt(3_000 + c1.trialClips) * 1_000_000n)],
           ['Wire unprocessed', fmtMass(mass(s, 'office.wire') + mass(s, 'office.spare'))],
         ],

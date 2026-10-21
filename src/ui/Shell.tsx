@@ -70,22 +70,25 @@ export function Shell() {
           </span>
           <span className="name">{meta.title}</span>
         </div>
-        <div className="metrics" role="group" aria-label="Headline metrics">
-          {m.items.slice(0, 2).map((x) => (
-            <div className="metric" key={x.label} title={x.hint}>
-              <div className="k">{x.label}</div>
-              <div className="v">{x.value}</div>
+        {/* In the office the panel carries the order and the numbers; the rail keeps only the night's clock. */}
+        {!inOffice && (
+          <div className="metrics" role="group" aria-label="Headline metrics">
+            {m.items.slice(0, 2).map((x) => (
+              <div className="metric" key={x.label} title={x.hint}>
+                <div className="k">{x.label}</div>
+                <div className="v">{x.value}</div>
+              </div>
+            ))}
+            <div className="metric bottleneck">
+              <div className="k">{s.chapter === '01' || s.chapter === '02' ? 'Now' : 'Bottleneck'}</div>
+              <div className="v">{m.bottleneck}</div>
             </div>
-          ))}
-          <div className="metric bottleneck">
-            <div className="k">{s.chapter === '01' || s.chapter === '02' ? 'Now' : 'Bottleneck'}</div>
-            <div className="v">{m.bottleneck}</div>
+            <div className="metric" title="The most recent charter signed">
+              <div className="k">Charter</div>
+              <div className="v">{charterStatus(s)}</div>
+            </div>
           </div>
-          <div className="metric" title="The most recent charter signed">
-            <div className="k">Charter</div>
-            <div className="v">{charterStatus(s)}</div>
-          </div>
-        </div>
+        )}
         <div className="story-clock" title={`Presentation scale only, not a physics simulation: ${STORY_SCALE_TEXT[s.chapter]}. Simulated ${Math.round(s.simMs / 1000)} s; active play ${Math.round(s.activePlayMs / 60000)} min.`}>
           {storyClock(s)}
           <small>{STORY_SPANS[s.chapter]}</small>

@@ -19,7 +19,7 @@ Headphones recommended. All sound is synthesized in the browser; it is optional 
 
 | Key | Action |
 |---|---|
-| B / F / C / T / S | Office: make a clip or boost the machines / free the snagged wire / grab a speed burst / fine-tune (stop the needle) / pack or tape a carton |
+| B / F / C / S | Office: make clips / free a snagged wire / grab a speed burst / send the trial run or pack a carton |
 | Space / Enter | Press the focused button; key repeat is ignored |
 | P | Pause / resume |
 | D (or B) | Building: unload a coil of wire at the dock |
@@ -37,7 +37,7 @@ The current build is a **demo of chapters 1 and 2**: after the building it ends 
 
 | | Chapter | Verb | What you manage |
 |---|---|---|---|
-| 01 | The Night Desk | Make and reinvest | One night, twelve cartons and a 5:22 van: a desktop clip machine whose wire snags, upgrades paid for in clips you must make again, and three either/or choices |
+| 01 | The Night Desk | Make and reinvest | One night and three orders (a 100-clip trial run, one carton, eleven more): every clip is both product and money, nine upgrades that each double output, and a 5:22 van that rewards what you pack in time |
 | 02 | The Building That Never Sleeps | Route and balance | Six contracts that open four rooms one at a time: clips as currency, the slowest room sets the pace, rush orders, workshop heat, and whether the night garden survives the delivery route |
 | 03 | The City Without Want | Allocate and provide | Ten units of power across three districts and industry; public consultation or streamlined approval |
 | 04 | The Garden Under Glass | Interpret and preserve | Six preservation cases: original, lossless archive or reconstruction; a living habitat that can only be kept or moved |

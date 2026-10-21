@@ -197,6 +197,13 @@ export const c02: Controller = {
       title: 'The building',
       text: 'A ground-floor workshop and a loading dock. More of the building opens with each contract. Wire is bought from a finite disclosed supply.',
     });
+    // The customer's bonus for cartons on the early van becomes the building's first clips to spend.
+    const bonus = Number(s.flags['c01.vanBonus'] ?? 0);
+    if (bonus > 0 && s.ledger.accounts['building.supply'].mass >= BigInt(bonus) * CLIP) {
+      makeClips(s, 'c02.vanBonus', 'building.supply', BigInt(bonus) * CLIP);
+      (s.chapterState as C02State).stock += bonus;
+      log(s, { id: 'c02.vanBonus', kind: 'system', title: 'Early delivery', text: `The customer’s bonus for the cartons on the 5:22 van: ${bonus} clips to spend in the building.` });
+    }
     startContract(s);
   },
 
