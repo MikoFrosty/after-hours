@@ -70,7 +70,7 @@
       "sheetAfterClips": 0,
       "fileGapSeconds": 40
     },
-    "storySecondsPerSecond": 38,
+    "storySecondsPerSecond": 40,
     "vanMinute": 335,
     "vanBonusPerCarton": 25,
     "hands": {
@@ -146,7 +146,7 @@
         "name": "Second bending arm",
         "short": "Clip machine ×2",
         "text": "A second arm on the clip machine, so it bends two wires at a time.",
-        "costClips": 400,
+        "costClips": 450,
         "installSeconds": 8,
         "kind": "machine",
         "multiplier": 2,
@@ -187,7 +187,7 @@
         "name": "Side-table rack",
         "short": "Three small machines, +6 clips/s",
         "text": "A rack on the side table with three small clip machines of its own, running beside the main one.",
-        "costClips": 700,
+        "costClips": 500,
         "installSeconds": 10,
         "kind": "machine",
         "rackRate": 6,
@@ -198,12 +198,12 @@
       {
         "id": "station6",
         "name": "Fill the rack",
-        "short": "Three more small machines, +10 clips/s",
+        "short": "Three more small machines, +14 clips/s",
         "text": "Three more small machines, newer and quicker, in the rack's empty slots.",
-        "costClips": 1200,
+        "costClips": 600,
         "installSeconds": 10,
         "kind": "machine",
-        "rackRate": 10,
+        "rackRate": 14,
         "unlock": {
           "after": "jig"
         }

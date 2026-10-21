@@ -2,7 +2,7 @@
 // It only dispatches ordinary player actions; it never mutates state directly.
 import { COSMIC, PRESERVATION } from '../content/campaign';
 import { dispatch, step } from './engine';
-import { bestUpgrade, burstReady, canStart, loose, offeredProjects, owns, paysBeforeVan, sheetReady, spareOffered } from './chapters/c01';
+import { bestUpgrade, burstReady, canStart, loose, offeredProjects, owns, paysInTime, sheetReady, spareOffered } from './chapters/c01';
 import { clearable, OFFICE_ITEMS } from './officeSalvage';
 import { cooling, heatGain, heatOpen, lineRate, price, roomRate, routeOpen, shopOpen, slowestRoom } from './chapters/c02';
 import type { RoomId } from '../content/campaign';
@@ -184,7 +184,7 @@ function officeNight(s: CampaignState, r: Route) {
   if (c.installing) return;
   const best = bestUpgrade(s);
   const chosen = best && best.id === avoid ? null : best;
-  const target = chosen && paysBeforeVan(s, chosen) ? chosen : (offered.find((p) => p.exclusive && paysBeforeVan(s, p)) ?? null);
+  const target = chosen && paysInTime(s, chosen) ? chosen : (offered.find((p) => p.exclusive && paysInTime(s, p)) ?? null);
   if (target && !canStart(s, target.id)) {
     dispatch(s, { type: 'c01/project', id: target.id });
     return;

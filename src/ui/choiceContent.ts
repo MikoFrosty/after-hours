@@ -1,11 +1,12 @@
 import { OFFICE, PRESERVATION } from '../content/campaign';
-import { CASE_EVIDENCE, CERTIFICATE_LINE, CHARTERS, EPILOGUES, FORK, LIVING_RELEASE, PRESERVATION_CERT, TERMINAL_AUTH, TERMINAL_SCRIPT } from '../content/narrative';
+import { CASE_EVIDENCE, CERTIFICATE_LINE, CHARTERS, FORK, LIVING_RELEASE, PRESERVATION_CERT, TERMINAL_AUTH, TERMINAL_SCRIPT } from '../content/narrative';
 import { ANCHOR_LABELS } from '../content/world';
 import { caseAccounts } from '../game/chapters/c04';
 import { pathDelay } from '../game/chapters/c06';
 import { schedulePreview } from '../game/chapters/c08';
+import { steadyRate } from '../game/chapters/c01';
 import { mass } from '../game/ledger';
-import { fmtMass, fmtClips } from '../game/mass';
+import { fmtMass } from '../game/mass';
 import type { C01State, CampaignState, CaseId, PendingChoice } from '../game/types';
 
 export interface ChoiceOption {
@@ -63,21 +64,31 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
       };
     }
     case 'c01/report': {
+      // The end of the night: what went out, how the van did, and the offer that leads into the building.
       const c1 = s.chapterState as C01State;
-      const n = Object.values(c1.salvaged).filter(Boolean).length;
-      const variant = n === 0 ? 'kept' : n === 3 ? 'salvaged' : 'partial';
+      const van = c1.vanCartons ?? 11;
+      const bonus = van * OFFICE.vanBonusPerCarton;
+      // Game time: the same as time played at normal speed, and unaffected by the debug speed-up.
+      const played = s.simMs - s.chapterEnteredSimMs;
+      const minutes = Math.max(1, Math.round(played / 60000));
+      const quote =
+        van === 11
+          ? 'Every carton made the 5:22 van. The customer added a bonus for the early delivery.'
+          : van === 0
+            ? 'The 5:22 van left empty. Everything went out on the seven o’clock run.'
+            : `The 5:22 van took ${van} of the eleven cartons, and the customer paid a bonus for those. The rest went out at seven.`;
       return {
-        eyebrow: 'Shift report · three orders',
-        title: 'Order complete. Renewal clause active.',
-        quote: EPILOGUES.office[variant],
-        body: [CHARTERS.buildingLease.body],
+        eyebrow: 'End of the night',
+        title: 'Three orders, one night',
+        quote,
+        body: [CHARTERS.buildingLease.body, ...(bonus > 0 ? [`The early-delivery bonus, ${bonus} clips, comes with you.`] : [])],
         facts: [
-          ['Trial run', c1.trialClips > 0 ? `${c1.trialClips} clips, approved` : 'approved'],
-          ['First carton', 'delivered'],
-          ['Big order on the 5:22 van', `${c1.vanCartons ?? 11} of 11`],
-          ['Early-delivery bonus', `${(c1.vanCartons ?? 11) * OFFICE.vanBonusPerCarton} clips for the building`],
-          ['Clips left on the desk', fmtClips(s.clips.currentMicrograms - BigInt(3_000 + c1.trialClips) * 1_000_000n)],
-          ['Wire unprocessed', fmtMass(mass(s, 'office.wire') + mass(s, 'office.spare'))],
+          ['Clips shipped', `${(3000 + c1.trialClips).toLocaleString('en-US')} · trial run and 12 cartons`],
+          ['Clips made', c1.madeClips.toLocaleString('en-US')],
+          ['On the 5:22 van', `${van} of 11 cartons`],
+          ['Early-delivery bonus', bonus > 0 ? `${bonus} clips for the building` : 'none'],
+          ['Top speed', `${Math.round(steadyRate(s) / 1000)} clips a second`],
+          ['The night took', `${minutes} min`],
         ],
         options: [
           { id: 'decline', label: CHARTERS.buildingLease.decline },

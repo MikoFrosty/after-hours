@@ -39,7 +39,7 @@ export const STORY_SPANS: Record<ChapterId, string> = {
 };
 
 export const STORY_SCALE_TEXT: Record<ChapterId, string> = {
-  '01': '1 simulated second ≈ 38 story seconds; dawn waits for the last carton',
+  '01': '1 simulated second ≈ 40 story seconds; dawn waits for the last carton',
   '02': '1 simulated second = 6 story hours',
   '03': '1 simulated second = 20 story days',
   '04': '1 simulated second = 1 story year',

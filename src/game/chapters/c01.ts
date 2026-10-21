@@ -187,12 +187,33 @@ export function bestUpgrade(s: CampaignState): OfficeProject | null {
   return scored[0].p;
 }
 
-/** Whether an upgrade pays for itself before the van (always true before the big order or after the van). */
-export function paysBeforeVan(s: CampaignState, p: OfficeProject): boolean {
-  const left = secondsToVan(s);
+/** Seconds until the whole order is made at the machines' steady pace, counting what is already on the desk. */
+export function secondsToFinish(s: CampaignState): number {
+  const c = cs(s);
+  const need = Math.max(0, (CARTONS - c.sealed) * OFFICE.boxSize - loose(s));
+  const rate = steadyRate(s);
+  return rate > 0 ? (need * 1000) / rate : Infinity;
+}
+
+/**
+ * How long an upgrade has to pay for itself during the big order: until the van while it is still
+ * coming, and never past the end of the order. Null before the big order (everything is worth it then).
+ */
+export function paybackHorizon(s: CampaignState): { seconds: number; until: 'the van' | 'the order is done' } | null {
+  const c = cs(s);
+  if (c.sealed === 0 || c.capped) return null;
+  const finish = secondsToFinish(s);
+  const van = secondsToVan(s);
+  if (van !== null && van < finish) return { seconds: van, until: 'the van' };
+  return { seconds: finish, until: 'the order is done' };
+}
+
+/** Whether an upgrade makes its price back in time (always true for upgrades that don't add machine output). */
+export function paysInTime(s: CampaignState, p: OfficeProject): boolean {
+  const h = paybackHorizon(s);
   const t = paybackSeconds(s, p);
-  if (left === null || cs(s).sealed === 0 || t === null) return true;
-  return t <= left;
+  if (!h || t === null) return true;
+  return t <= h.seconds;
 }
 
 // ---------- goals ----------
@@ -223,14 +244,14 @@ export function nextGoal(s: CampaignState): string {
     return `Keep making clips: ${OFFICE.boxSize - l} more fill the carton.`;
   }
   const best = bestUpgrade(s);
-  if (best && paysBeforeVan(s, best)) {
+  if (best && paysInTime(s, best)) {
     const t = paybackSeconds(s, best);
     const pays = t !== null ? ` It pays for itself in ${fmtTime(t)}.` : '';
     if (l >= best.costClips) return `Buy the ${best.name.toLowerCase()}.${pays}`;
     if (l < OFFICE.boxSize || best.costClips - l < OFFICE.boxSize) return `Saving for the ${best.name.toLowerCase()}: ${l} of ${best.costClips}.${pays}`;
   }
   if (l >= OFFICE.boxSize) return 'Pack a carton.';
-  if (secondsToVan(s) !== null && best && !paysBeforeVan(s, best)) return `Pack for the van: the ${best.name.toLowerCase()} would not pay back in time.`;
+  if (best && !paysInTime(s, best)) return `Pack cartons: the ${best.name.toLowerCase()} would not pay for itself before ${paybackHorizon(s)!.until}.`;
   return `Next carton: ${l} of 250.`;
 }
 

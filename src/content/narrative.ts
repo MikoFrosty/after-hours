@@ -23,9 +23,9 @@ export const MARA = {
 export const CHARTERS = {
   buildingLease: {
     title: 'Building lease',
-    body: 'The current order is complete. A standing order from the other floors is available. Accepting it grants workshop and freight access, together with responsibility for maintenance.',
-    accept: 'Open building lease',
-    decline: 'End shift',
+    body: 'One more message on the terminal. The other floors want the same thing, every night: a standing order. The building offers its empty ground-floor workshop, the freight lift and the loading dock, if you take on the upkeep.',
+    accept: 'Take the building lease',
+    decline: 'End the night here',
   },
   maintenanceCharter: {
     title: 'Maintenance charter',
@@ -106,9 +106,9 @@ export const EPILOGUES = {
   protected: 'The inventory remained incomplete. Something remained that was not required to justify itself as material.',
   building: 'The building continued. Freight arrived when the schedule said it would, and the lights stayed on without a night crew.',
   office: {
-    kept: 'Shift report. 3,000 clips. Order complete. Cabinet, lamp and frame remain in the room. The lamp is on.',
-    partial: 'Shift report. 3,000 clips. Order complete. Metal was recovered from part of the room. The rest is as it was left.',
-    salvaged: 'Shift report. 3,000 clips. Order complete. Metal was recovered from the cabinet, the lamp and the frame. The photograph is on the desk.',
+    kept: 'The night ended with the order. A trial run, one carton, eleven more. The machines are quiet, and the office is as Mara left it.',
+    partial: 'The night ended with the order. Metal was recovered from part of the room. The rest is as it was left.',
+    salvaged: 'The night ended with the order. Metal was recovered from the cabinet, the lamp and the frame. The photograph is on the desk.',
   },
 };
 

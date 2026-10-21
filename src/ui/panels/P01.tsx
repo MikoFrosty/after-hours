@@ -18,7 +18,8 @@ import {
   offeredProjects,
   owns,
   paybackSeconds,
-  paysBeforeVan,
+  paybackHorizon,
+  paysInTime,
   pressYield,
   project,
   rateGain,
@@ -422,7 +423,7 @@ function UpgradeRow({ p, best }: { p: OfficeProject; best: boolean }) {
   const installing = c.installing?.id === p.id;
   const gain = rateGain(s, p);
   const payback = paybackSeconds(s, p);
-  const pays = paysBeforeVan(s, p);
+  const pays = paysInTime(s, p);
   const l = loose(s);
   const affordable = l >= p.costClips;
   let worth: string;
@@ -436,7 +437,7 @@ function UpgradeRow({ p, best }: { p: OfficeProject; best: boolean }) {
           {p.name} {best && pays && !installing && <span className="pill accent">best value</span>}
         </span>
         <span className="d">{gain > 0 ? p.short : ''}</span>
-        <span className={`d mono ${!pays ? 'o-warn' : ''}`}>{!pays ? `${worth} · not before the van` : worth}</span>
+        <span className={`d mono ${!pays ? 'o-warn' : ''}`}>{!pays ? `${worth} · not before ${paybackHorizon(s)?.until ?? 'the end'}` : worth}</span>
         {open && <span className="d o-more">{p.text}</span>}
       </button>
       <button className={`btn small ${!reason && pays ? 'primary' : ''}`} disabled={Boolean(reason)} onClick={() => act({ type: 'c01/project', id: p.id })} title={reason ?? undefined}>

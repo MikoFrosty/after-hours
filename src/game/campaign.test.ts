@@ -12,7 +12,7 @@ import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
 import { schedulePreview } from './chapters/c08';
 import { protectedLines } from './chapters/c07';
-import { burstReady, loose, machineRate, nextGoal, offeredProjects, paybackSeconds, paysBeforeVan, pressYield, rateGain, secondsToVan, sheetReady, steadyRate, vanForecast } from './chapters/c01';
+import { burstReady, loose, machineRate, nextGoal, offeredProjects, paybackSeconds, paysInTime, pressYield, rateGain, secondsToVan, sheetReady, steadyRate, vanForecast } from './chapters/c01';
 import type { C01State, C02State, C03State, C05State, C07State, C08State, CampaignState } from './types';
 
 function invariantEveryStep(s: CampaignState, steps: number) {
@@ -161,7 +161,7 @@ describe('chapter 01 office', () => {
     const engaged = autoplay(EFFICIENT, '02').summaries['01']!.simMs / 60000;
     expect(relaxed).toBeGreaterThanOrEqual(9);
     expect(relaxed).toBeLessThanOrEqual(14);
-    expect(engaged).toBeGreaterThanOrEqual(6);
+    expect(engaged).toBeGreaterThanOrEqual(5.5);
     expect(engaged).toBeLessThan(relaxed);
   });
 
@@ -173,7 +173,7 @@ describe('chapter 01 office', () => {
       c.owned.push(id);
       rates.push(steadyRate(s));
     }
-    expect(rates).toEqual([1000, 2000, 4000, 8000, 14_000, 24_000]);
+    expect(rates).toEqual([1000, 2000, 4000, 8000, 14_000, 28_000]);
     c.owned = ['calibrate', 'oil', 'feeder'];
     const die2 = OFFICE.projects.find((p) => p.id === 'die2')!;
     expect(rateGain(s, die2)).toBe(4000);
@@ -221,7 +221,7 @@ describe('chapter 01 office', () => {
     // Close to the van, an upgrade that cannot make its price back in time is called out.
     s.storySeconds = OFFICE.vanMinute * 60 - 38 * 20; // twenty seconds before the van
     const jig = OFFICE.projects.find((p) => p.id === 'jig')!;
-    expect(paysBeforeVan(s, jig)).toBe(false);
+    expect(paysInTime(s, jig)).toBe(false);
     expect(nextGoal(s)).toMatch(/Pack/);
   });
 
