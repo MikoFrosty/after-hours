@@ -20,6 +20,7 @@ import {
   tendingBonus,
   tendsLine,
   packerKeeps,
+  handPackKeeps,
   sheetReady,
   tuningOpen,
   boxFull,
@@ -362,11 +363,11 @@ function ActionDock() {
           <Bar value={c.tending} max={100_000} />
         </div>
       )}
-      {/* Cartons stay out of view until the first one is packed by hand; until then, once the feeder is in, one button appears when a carton's worth is on the desk. */}
-      {c.sealed === 0 && !c.capped && owns(c, 'feeder') && deskClips >= OFFICE.boxSize && (
+      {/* Cartons stay out of view until the first one is packed by hand; until then one button appears once a carton's worth is on the desk on top of the price of the next upgrade, so packing never strands a purchase. */}
+      {c.sealed === 0 && !c.capped && deskClips >= OFFICE.boxSize + handPackKeeps(s) && (
         <div className="dock-order reveal">
           <div className="row between" style={{ gap: 8 }}>
-            <span className="tiny muted">The order is {CARTONS} cartons of {OFFICE.boxSize} clips. You have enough on the desk to fill the first one.</span>
+            <span className="tiny muted">The order is {CARTONS} cartons of {OFFICE.boxSize} clips. You have enough on the desk to fill the first one{handPackKeeps(s) > 0 ? ` and still afford the next upgrade` : ''}.</span>
             <button className="btn small primary" onClick={() => act({ type: 'c01/pack' })}>
               Pack the first carton <span className="kbd">S</span>
             </button>
@@ -462,7 +463,7 @@ function AlertSlot() {
       <div className="alert-slot sealme" role="alert">
         <span>The carton is full. Tape it shut so it can go.</span>
         <button className="btn primary small" onClick={() => act({ type: 'c01/pack' })}>
-          Seal it <span className="kbd">S</span>
+          Tape it shut <span className="kbd">S</span>
         </button>
       </div>
     );

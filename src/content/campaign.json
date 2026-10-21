@@ -110,8 +110,7 @@
         "group": "bender",
         "unlock": {
           "after": "calibrate",
-          "made": 200,
-          "seconds": 150
+          "made": 200
         },
         "multiplier": 1.5
       },
@@ -134,8 +133,7 @@
         "group": "line",
         "unlock": {
           "after": "oil",
-          "made": 350,
-          "seconds": 240
+          "made": 350
         },
         "addedRate": 0.9
       },

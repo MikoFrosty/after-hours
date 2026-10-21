@@ -12,7 +12,7 @@ import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
 import { schedulePreview } from './chapters/c08';
 import { protectedLines } from './chapters/c07';
-import { glintActive, jamInterval, loose, machineRate, nextGoal, offeredProjects, packerKeeps, tendingBonus, tuneBand } from './chapters/c01';
+import { glintActive, handPackKeeps, jamInterval, loose, machineRate, nextGoal, offeredProjects, packerKeeps, tendingBonus, tuneBand } from './chapters/c01';
 import type { C01State, C02State, C03State, C05State, C07State, C08State, CampaignState } from './types';
 
 function invariantEveryStep(s: CampaignState, steps: number) {
@@ -307,6 +307,22 @@ describe('chapter 01 office', () => {
     expect(night(s).files.manual).toBeUndefined();
     run(s, (OFFICE.opening.fileGapMs - (s.simMs - at)) / 100 + 1);
     expect(night(s).files.manual).toBe('unread');
+  });
+
+  it('when the auto-packer waits on the first carton, the goal and the pack button agree', () => {
+    const s = newCampaign();
+    const c = night(s);
+    c.sheetLifted = true;
+    c.owned.push('calibrate', 'oil', 'feeder', 'dieHigh', 'die2');
+    c.madeClips = 700;
+    s.simMs = 5 * 60_000;
+    commit(s, { id: 'test.wire', from: 'office.wire', input: 100n * CLIP, outputs: [['clips', 100n * CLIP]] });
+    expect(handPackKeeps(s)).toBe(0);
+    expect(nextGoal(s)).toBe('Pack 1 more carton to make room for the auto-packer: 100 of 250 clips on the desk.');
+    commit(s, { id: 'test.wire2', from: 'office.wire', input: 150n * CLIP, outputs: [['clips', 150n * CLIP]] });
+    expect(nextGoal(s)).toBe('Pack 1 more carton to make room for the auto-packer.');
+    expect(dispatch(s, { type: 'c01/pack' })).toBeNull();
+    expect(c.sealed).toBe(1);
   });
 
   it('a wait on sealed cartons is named as a goal', () => {

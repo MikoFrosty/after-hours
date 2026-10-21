@@ -240,9 +240,12 @@ export function nextGoal(s: CampaignState): string {
   const gated = cartonGated(s);
   if (gated) {
     const n = gated.unlock.boxes! - c.sealed;
-    return `Pack ${n} more carton${n === 1 ? '' : 's'} to make room for the ${gated.name.toLowerCase()}.`;
+    const room = `to make room for the ${gated.name.toLowerCase()}`;
+    // Before the auto-packer, a carton is packed by hand from the clips on the desk: say how far off that is.
+    if (!owns(c, 'packer') && l < OFFICE.boxSize + handPackKeeps(s)) return `Pack ${n} more carton${n === 1 ? '' : 's'} ${room}: ${l} of ${OFFICE.boxSize + handPackKeeps(s)} clips on the desk.`;
+    return `Pack ${n} more carton${n === 1 ? '' : 's'} ${room}.`;
   }
-  if (!owns(c, 'packer') && owns(c, 'feeder') && l >= OFFICE.boxSize) return c.sealed === 0 ? 'Pack your first carton: 250 clips.' : 'Pack a carton: 250 clips.';
+  if (!owns(c, 'packer') && l >= OFFICE.boxSize + handPackKeeps(s)) return c.sealed === 0 ? 'Pack your first carton: 250 clips.' : 'Pack a carton: 250 clips.';
   const extra = nextProject(s, true);
   if (extra) return `Optional: ${saving(extra).replace(/^./, (x) => x.toLowerCase())}`;
   return `Fill the order: ${c.sealed} of ${CARTONS} cartons packed.`;
@@ -297,6 +300,14 @@ export function packerKeeps(s: CampaignState): number {
   if (c.installing) return 0;
   const next = nextProject(s) ?? OFFICE.projects.find((p) => !owns(c, p.id) && !OPTIONAL.includes(p.id) && !forkTaken(c, p));
   return next ? next.costClips : 0;
+}
+
+/**
+ * What packing a carton by hand should leave on the desk: the price of an upgrade that is on
+ * offer now. (An upgrade that is itself waiting for a packed carton doesn't count.)
+ */
+export function handPackKeeps(s: CampaignState): number {
+  return nextProject(s)?.costClips ?? 0;
 }
 
 /** The auto-packer fills the open carton with every clip above what it keeps for the next upgrade. Taping it shut is the player's job. */
