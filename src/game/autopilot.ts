@@ -2,7 +2,7 @@
 // It only dispatches ordinary player actions; it never mutates state directly.
 import { COSMIC, PRESERVATION } from '../content/campaign';
 import { dispatch, step } from './engine';
-import { boxFull, canStart, glintActive, loose, offeredProjects, owns, spareOffered, tuneBand, tuningOpen } from './chapters/c01';
+import { boxFull, canStart, glintActive, loose, offeredProjects, owns, sheetReady, spareOffered, tuneBand, tuningOpen } from './chapters/c01';
 import { clearable, OFFICE_ITEMS } from './officeSalvage';
 import { cooling, heatGain, heatOpen, lineRate, price, roomRate, routeOpen, shopOpen, slowestRoom } from './chapters/c02';
 import type { RoomId } from '../content/campaign';
@@ -140,6 +140,8 @@ function officeNight(s: CampaignState, r: Route) {
   const eff = r.player === 'efficient';
   for (const f of Object.keys(c.files)) if (c.files[f] === 'unread') dispatch(s, { type: 'c01/read', file: f });
   if (spareOffered(s)) dispatch(s, { type: 'c01/takeSpare' });
+  // The dust sheet: noticed after a few seconds (relaxed) or at once (engaged).
+  if (sheetReady(s) && (eff || s.simMs % 5_000 < 100)) dispatch(s, { type: 'c01/lift' });
   if (c.jammed) {
     jamSteps += 1;
     if (eff || jamSteps >= 20) {
@@ -194,7 +196,7 @@ function officeNight(s: CampaignState, r: Route) {
   } else fullSteps = 0;
   const reserve = pending.length ? nextCost + (eff ? 0 : 20) : 0;
   // Everyone seals the first carton by hand (that is what reveals the auto-packer).
-  const wantsCarton = !eff || allBought || (c.sealed < 1 && owns(c, 'feeder'));
+  const wantsCarton = (!eff && (c.sealed > 0 || owns(c, 'feeder'))) || allBought || (c.sealed < 1 && owns(c, 'feeder'));
   if (loose(s) >= OFFICE.boxSize + reserve && wantsCarton && !owns(c, 'packer')) dispatch(s, { type: 'c01/pack' });
 }
 

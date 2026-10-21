@@ -121,8 +121,24 @@ export function goodRate(s: CampaignState): number {
   return r - Math.floor((r * rejectPpm(cs(s))) / 1_000_000);
 }
 
-export function unlocked(c: C01State, p: OfficeProject): boolean {
+/** Simulated ms since the night began. */
+const nightMs = (s: CampaignState) => s.simMs - s.chapterEnteredSimMs;
+
+/** The clip machine is out from under its sheet (older saves that already own it count as lifted). */
+export const uncovered = (c: C01State) => c.sheetLifted || owns(c, 'calibrate');
+
+/** The dust sheet can be lifted once a few clips have been made by hand and the room has had a minute to settle. */
+export function sheetReady(s: CampaignState): boolean {
+  const c = cs(s);
+  return !uncovered(c) && c.madeClips >= OFFICE.opening.sheetAfterClips && nightMs(s) >= OFFICE.opening.sheetAfterMs;
+}
+
+export function unlocked(s: CampaignState, p: OfficeProject): boolean {
+  const c = cs(s);
   const u = p.unlock;
+  // The clip machine is under the dust sheet until it is lifted.
+  if (p.id === 'calibrate' && !uncovered(c)) return false;
+  if (u.seconds !== undefined && nightMs(s) < u.seconds * 1000) return false;
   if (u.after && !owns(c, u.after)) return false;
   if (u.made !== undefined && c.madeClips < u.made) return false;
   if (u.jams !== undefined && c.jams < u.jams) return false;
@@ -140,7 +156,7 @@ export function forkTaken(c: C01State, p: OfficeProject): boolean {
 /** Projects that have appeared and are not yet installed, in campaign order. */
 export function offeredProjects(s: CampaignState): OfficeProject[] {
   const c = cs(s);
-  return OFFICE.projects.filter((p) => !owns(c, p.id) && unlocked(c, p) && !forkTaken(c, p));
+  return OFFICE.projects.filter((p) => !owns(c, p.id) && unlocked(s, p) && !forkTaken(c, p));
 }
 
 const OPTIONAL: OfficeProjectId[] = ['straightener', 'tensioner'];
@@ -156,16 +172,23 @@ export function nextProject(s: CampaignState, optional = false): OfficeProject |
 const goalName = (p: OfficeProject) => (p.exclusive ? FORK_GOALS[p.exclusive] : `the ${p.name.toLowerCase()}`);
 
 /** The next main-line installation that is waiting only on sealed cartons, if any. */
-function cartonGated(c: C01State): OfficeProject | undefined {
+function cartonGated(s: CampaignState): OfficeProject | undefined {
+  const c = cs(s);
   return OFFICE.projects.find(
-    (p) => !owns(c, p.id) && !forkTaken(c, p) && p.unlock.boxes !== undefined && c.sealed < p.unlock.boxes && unlocked(c, { ...p, unlock: { ...p.unlock, boxes: undefined } }),
+    (p) => !owns(c, p.id) && !forkTaken(c, p) && p.unlock.boxes !== undefined && c.sealed < p.unlock.boxes && unlocked(s, { ...p, unlock: { ...p.unlock, boxes: undefined } }),
   );
 }
 
-/** The next main-line installation that is waiting only on clips made, if any. */
-function madeGated(c: C01State): OfficeProject | undefined {
+/** The next main-line installation that is waiting only on clips made or on the night going on, if any. */
+function madeGated(s: CampaignState): OfficeProject | undefined {
+  const c = cs(s);
   return OFFICE.projects.find(
-    (p) => !owns(c, p.id) && !OPTIONAL.includes(p.id) && p.unlock.made !== undefined && c.madeClips < p.unlock.made && unlocked(c, { ...p, unlock: { ...p.unlock, made: undefined } }),
+    (p) =>
+      !owns(c, p.id) &&
+      !OPTIONAL.includes(p.id) &&
+      (p.unlock.made !== undefined || p.unlock.seconds !== undefined) &&
+      !unlocked(s, p) &&
+      unlocked(s, { ...p, unlock: { ...p.unlock, made: undefined, seconds: undefined } }),
   );
 }
 
@@ -177,14 +200,15 @@ export function officeStatus(s: CampaignState): string {
   if (boxFull(c)) return 'Carton full: tape it shut';
   if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}`;
   if (c.madeClips === 0) return 'Waiting for the first clip';
+  if (!uncovered(c)) return sheetReady(s) ? 'Something under a dust sheet' : 'Making clips by hand';
   const next = nextProject(s);
   if (next && loose(s) < next.costClips) return `Saving for ${goalName(next)}`;
   if (next) return `Ready: ${goalName(next)}`;
   if (stations(c) >= 6) return 'Every machine running';
-  const made = madeGated(c);
+  const made = madeGated(s);
   if (made) return `Working toward ${goalName(made)}`;
   if (!owns(c, 'calibrate')) return 'Making clips by hand';
-  if (cartonGated(c)) return 'Filling cartons';
+  if (cartonGated(s)) return 'Filling cartons';
   const extra = nextProject(s, true);
   if (extra && loose(s) < extra.costClips) return `Saving for ${goalName(extra)}`;
   return 'Filling cartons';
@@ -196,6 +220,7 @@ export function nextGoal(s: CampaignState): string {
   if (c.capped) return 'The order is complete.';
   if (c.madeClips === 0) return 'Make a clip by hand from the coil of wire.';
   if (c.jammed) return 'The wire snagged: free it to restart the clip machine.';
+  if (!uncovered(c)) return sheetReady(s) ? 'There is something on the desk under a dust sheet.' : 'Keep making clips by hand.';
   if (boxFull(c)) return 'The packer’s carton is full: tape it shut.';
   const l = loose(s);
   const saving = (p: OfficeProject) => {
@@ -206,17 +231,18 @@ export function nextGoal(s: CampaignState): string {
   if (next && !c.installing) return saving(next);
   if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}.`;
   // Something is waiting only on clips made or cartons sealed: say so, so the wait is a goal.
-  const made = madeGated(c);
+  const made = madeGated(s);
   if (made) {
-    const n = made.unlock.made! - c.madeClips;
-    return `Make ${n} more clip${n === 1 ? '' : 's'} to unlock the ${made.name.toLowerCase()}.`;
+    const n = (made.unlock.made ?? 0) - c.madeClips;
+    if (n > 0) return `Make ${n} more clip${n === 1 ? '' : 's'} to unlock the ${made.name.toLowerCase()}.`;
+    return `Let the machine run: the ${made.name.toLowerCase()} comes a little later in the night.`;
   }
-  const gated = cartonGated(c);
+  const gated = cartonGated(s);
   if (gated) {
     const n = gated.unlock.boxes! - c.sealed;
     return `Pack ${n} more carton${n === 1 ? '' : 's'} to make room for the ${gated.name.toLowerCase()}.`;
   }
-  if (!owns(c, 'packer') && l >= OFFICE.boxSize) return c.sealed === 0 ? 'Pack your first carton: 250 clips.' : 'Pack a carton: 250 clips.';
+  if (!owns(c, 'packer') && owns(c, 'feeder') && l >= OFFICE.boxSize) return c.sealed === 0 ? 'Pack your first carton: 250 clips.' : 'Pack a carton: 250 clips.';
   const extra = nextProject(s, true);
   if (extra) return `Optional: ${saving(extra).replace(/^./, (x) => x.toLowerCase())}`;
   return `Fill the order: ${c.sealed} of ${CARTONS} cartons packed.`;
@@ -227,7 +253,7 @@ export function canStart(s: CampaignState, id: OfficeProjectId): string | null {
   const p = project(id);
   if (c.capped) return 'The order is complete.';
   if (owns(c, id)) return 'Already bought.';
-  if (!unlocked(c, p)) return 'Not available yet.';
+  if (!unlocked(s, p)) return 'Not available yet.';
   if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}.`;
   if (forkTaken(c, p)) return 'The other option was chosen.';
   if (loose(s) < p.costClips) return `Needs ${p.costClips} clips on the desk.`;
@@ -440,21 +466,29 @@ export const c01: Controller = {
       }
     }
 
-    // Terminal files appear as the night goes on.
+    // The shape under the dust sheet is noticed once: a quiet caption, nothing more.
+    if (sheetReady(s) && once(s, 'c01.sheetNoticed')) {
+      emit({ type: 'beat', title: 'On the desk', text: 'Something sits under a dust sheet beside the terminal.' });
+      emit({ type: 'sound', id: 'notice' });
+      bump(s);
+    }
+
+    // Terminal files appear as the night goes on, one at a time and never two close together.
     const fileRules: Array<[string, boolean]> = [
       ['order', c.madeClips >= 1],
-      ['contract', c.madeClips >= 10],
-      ['manual', owns(c, 'calibrate')],
-      ['inventory', c.madeClips >= 40],
+      ['contract', c.madeClips >= 15],
+      ['manual', uncovered(c)],
+      ['inventory', owns(c, 'calibrate') && c.madeClips >= 100],
       ['ticket', c.madeClips >= 200],
       ['memo', owns(c, 'feeder')],
     ];
-    for (const [id, ok] of fileRules) {
-      if (ok && !c.files[id]) {
-        c.files[id] = 'unread';
-        emit({ type: 'sound', id: 'file' });
-        bump(s);
-      }
+    const gapOk = Object.keys(c.files).length === 0 || s.simMs - c.lastFileMs >= OFFICE.opening.fileGapMs;
+    const due = gapOk ? fileRules.find(([id, ok]) => ok && !c.files[id]) : undefined;
+    if (due) {
+      c.files[due[0]] = 'unread';
+      c.lastFileMs = s.simMs;
+      emit({ type: 'sound', id: 'file' });
+      bump(s);
     }
 
     const offered = offeredProjects(s);
@@ -624,6 +658,15 @@ export const c01: Controller = {
         if (!c.files[a.file]) return 'No such file.';
         c.files[a.file] = 'read';
         return null;
+      case 'c01/lift': {
+        if (uncovered(c)) return null;
+        if (!sheetReady(s)) return 'Not yet.';
+        c.sheetLifted = true;
+        log(s, { id: 'c01.sheet', kind: 'system', title: 'Dust sheet', text: 'Under the sheet: a small desktop clip machine, switched off, with its manual tucked under it.' });
+        emit({ type: 'sound', id: 'install' });
+        bump(s);
+        return null;
+      }
       case 'c01/takeSpare': {
         if (!spareOffered(s)) return 'Not available.';
         const m = mass(s, 'office.spare');

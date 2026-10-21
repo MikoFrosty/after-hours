@@ -54,12 +54,13 @@ describe('chapter 01 office', () => {
 
   it('reinvestment spends clips that must be made again; lifetime is unchanged', () => {
     const s = newCampaign();
-    for (let i = 0; i < 15; i++) dispatch(s, { type: 'c01/make' });
+    for (let i = 0; i < 30; i++) dispatch(s, { type: 'c01/make' });
+    night(s).sheetLifted = true;
     const life = s.clips.lifetimeMadeMicrograms;
     expect(dispatch(s, { type: 'c01/project', id: 'calibrate' })).toBeNull();
     expect(s.clips.currentMicrograms).toBe(0n);
     expect(s.clips.lifetimeMadeMicrograms).toBe(life);
-    expect(mass(s, 'office.machines')).toBe(15n * CLIP);
+    expect(mass(s, 'office.machines')).toBe(30n * CLIP);
     expect(checkInvariant(s)).toBeNull();
   });
 
@@ -71,7 +72,8 @@ describe('chapter 01 office', () => {
 
   it('the wire catches until a feeder is installed, and freeing it resumes the bender', () => {
     const s = newCampaign();
-    for (let i = 0; i < 15; i++) dispatch(s, { type: 'c01/make' });
+    for (let i = 0; i < 30; i++) dispatch(s, { type: 'c01/make' });
+    night(s).sheetLifted = true;
     dispatch(s, { type: 'c01/project', id: 'calibrate' });
     let guard = 0;
     while (!night(s).jammed && guard++ < 5000) step(s);
@@ -285,10 +287,26 @@ describe('chapter 01 office', () => {
     expect(night(fast).vanCartons).toBe(12);
   });
 
-  it('the first goal names the first installation, not the whole order', () => {
+  it('the night opens slowly: the machine waits under a dust sheet and files arrive one at a time', () => {
     const s = newCampaign();
-    dispatch(s, { type: 'c01/make' });
-    expect(nextGoal(s)).toMatch(/Make 9 more clips to unlock the clip machine/);
+    for (let i = 0; i < 60; i++) dispatch(s, { type: 'c01/make' });
+    expect(nextGoal(s)).toBe('Keep making clips by hand.');
+    expect(offeredProjects(s)).toEqual([]);
+    expect(dispatch(s, { type: 'c01/lift' })).not.toBeNull();
+    run(s, 10);
+    // The order arrives at once; the contract has to wait its turn.
+    expect(Object.keys(night(s).files)).toEqual(['order']);
+    run(s, OFFICE.opening.sheetAfterMs / 100);
+    expect(Object.keys(night(s).files)).toEqual(['order', 'contract']);
+    expect(nextGoal(s)).toMatch(/dust sheet/);
+    expect(dispatch(s, { type: 'c01/lift' })).toBeNull();
+    expect(offeredProjects(s).map((p) => p.id)).toEqual(['calibrate']);
+    // The manual comes with the machine, but not on top of the contract.
+    const at = night(s).lastFileMs;
+    run(s, 5);
+    expect(night(s).files.manual).toBeUndefined();
+    run(s, (OFFICE.opening.fileGapMs - (s.simMs - at)) / 100 + 1);
+    expect(night(s).files.manual).toBe('unread');
   });
 
   it('a wait on sealed cartons is named as a goal', () => {
@@ -297,6 +315,7 @@ describe('chapter 01 office', () => {
     c.owned.push('calibrate', 'oil', 'feeder', 'dieSmooth', 'die2', 'packer', 'roller', 'governor', 'fan');
     c.sealed = 1;
     c.madeClips = 600;
+    s.simMs = 10 * 60_000;
     expect(nextGoal(s)).toMatch(/1 more carton .* side-table rack/);
   });
 

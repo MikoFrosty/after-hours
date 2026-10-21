@@ -133,6 +133,8 @@ export function newOfficeState(): C01State {
     tuneAttempts: 0,
     tuneCooldownUntilMs: 0,
     lastTune: null,
+    sheetLifted: false,
+    lastFileMs: 0,
     wearMs: 0,
     wornAtMs: 0,
     slowTuneMs: null,

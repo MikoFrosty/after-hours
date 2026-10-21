@@ -20,6 +20,7 @@ import {
   tendingBonus,
   tendsLine,
   packerKeeps,
+  sheetReady,
   tuningOpen,
   boxFull,
   tuneBand,
@@ -361,8 +362,8 @@ function ActionDock() {
           <Bar value={c.tending} max={100_000} />
         </div>
       )}
-      {/* Cartons stay out of view until the first one is packed by hand; until then one button appears once a carton's worth is on the desk. */}
-      {c.sealed === 0 && !c.capped && deskClips >= OFFICE.boxSize && (
+      {/* Cartons stay out of view until the first one is packed by hand; until then, once the feeder is in, one button appears when a carton's worth is on the desk. */}
+      {c.sealed === 0 && !c.capped && owns(c, 'feeder') && deskClips >= OFFICE.boxSize && (
         <div className="dock-order reveal">
           <div className="row between" style={{ gap: 8 }}>
             <span className="tiny muted">The order is {CARTONS} cartons of {OFFICE.boxSize} clips. You have enough on the desk to fill the first one.</span>
@@ -428,6 +429,16 @@ function AlertSlot() {
         <span>The wire snagged. The clip machine has stopped.</span>
         <button className="btn primary small" onClick={() => act({ type: 'c01/free' })}>
           Free it <span className="kbd">F</span>
+        </button>
+      </div>
+    );
+  }
+  if (sheetReady(s)) {
+    return (
+      <div className="alert-slot sealme" role="alert">
+        <span>Something on the desk is under a dust sheet.</span>
+        <button className="btn primary small" onClick={() => act({ type: 'c01/lift' })}>
+          Lift the sheet
         </button>
       </div>
     );

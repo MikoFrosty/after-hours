@@ -72,7 +72,7 @@ export interface OfficeProject {
   lineMultiplier: number;
   /** Either/or installations: buying one member of a group removes the others. */
   exclusive?: 'die' | 'hands' | 'finish';
-  unlock: { after?: OfficeProjectId; made?: number; jams?: number; boxes?: number; rejects?: number };
+  unlock: { after?: OfficeProjectId; made?: number; jams?: number; boxes?: number; rejects?: number; seconds?: number };
 }
 
 export type LineSpeed = 'steady' | 'brisk' | 'hard';
@@ -94,6 +94,12 @@ export const OFFICE = {
   carefulRunMs: c.office.carefulRunSeconds * 1000,
   lineSpeeds: c.office.lineSpeeds.map((x) => ({ id: x.id as LineSpeed, factor: milli(x.factor), rejectPpm: x.rejectPpm })),
   straightenerRate: milli(c.office.straightenerGramsPerSecond),
+  /** The slow start: the machine under a dust sheet, and terminal files that arrive one at a time. */
+  opening: {
+    sheetAfterMs: c.office.opening.sheetAfterSeconds * 1000,
+    sheetAfterClips: c.office.opening.sheetAfterClips,
+    fileGapMs: c.office.opening.fileGapSeconds * 1000,
+  },
   projects: c.office.projects.map(
     (p): OfficeProject => ({
       id: p.id as OfficeProjectId,

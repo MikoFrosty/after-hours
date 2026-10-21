@@ -85,15 +85,20 @@
       }
     ],
     "straightenerGramsPerSecond": 0.5,
+    "opening": {
+      "sheetAfterSeconds": 75,
+      "sheetAfterClips": 25,
+      "fileGapSeconds": 40
+    },
     "projects": [
       {
         "id": "calibrate",
         "name": "Clip machine",
-        "costClips": 15,
+        "costClips": 30,
         "installSeconds": 8,
         "group": "bender",
         "unlock": {
-          "made": 10
+          "made": 25
         },
         "addedRate": 0.32
       },
@@ -105,7 +110,8 @@
         "group": "bender",
         "unlock": {
           "after": "calibrate",
-          "made": 50
+          "made": 120,
+          "seconds": 150
         },
         "multiplier": 1.5
       },
@@ -123,12 +129,13 @@
       {
         "id": "feeder",
         "name": "Wire feeder",
-        "costClips": 200,
+        "costClips": 150,
         "installSeconds": 25,
         "group": "line",
         "unlock": {
           "after": "oil",
-          "made": 250
+          "made": 200,
+          "seconds": 240
         },
         "addedRate": 0.64
       },

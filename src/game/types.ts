@@ -323,6 +323,10 @@ export interface C01State {
   tuneAttempts: number;
   tuneCooldownUntilMs: number;
   lastTune: 'hit' | 'miss' | null;
+  /** The clip machine starts under a dust sheet; lifting it reveals the machine and its manual. */
+  sheetLifted: boolean;
+  /** When the last terminal file appeared (simulated ms), so files arrive one at a time. */
+  lastFileMs: number;
   /** No longer used (machines no longer wear); kept so older saves load unchanged. */
   wearMs: number;
   wornAtMs: number;
@@ -532,6 +536,7 @@ export type Action =
   | { type: 'c01/speed'; speed: LineSpeed }
   | { type: 'c01/read'; file: string }
   | { type: 'c01/takeSpare' }
+  | { type: 'c01/lift' }
   | { type: 'c01/catch' }
   | { type: 'c01/tune'; needle: number }
   | { type: 'c01/tuneSlow' }

@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import type { CampaignState, C01State, OfficeProjectId } from '../../game/types';
-import { cleanRunActive, glintActive, goodRate, loose, project } from '../../game/chapters/c01';
+import { cleanRunActive, glintActive, goodRate, loose, project, uncovered } from '../../game/chapters/c01';
 import { mass } from '../../game/ledger';
 import { OFFICE } from '../../content/campaign';
 import { CLIP } from '../../game/mass';
@@ -16,6 +16,8 @@ export interface OfficeView {
   frame: boolean;
   photo: 'frame' | 'desk' | 'none';
   bender: boolean;
+  /** The clip machine still under its dust sheet (the start of the night). */
+  sheet: boolean;
   feeder: boolean;
   jig: boolean;
   running: boolean;
@@ -159,13 +161,20 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
   const clipsLevel = c1 ? Math.min(1, Math.log10(desk + 1) / Math.log10(1001)) : Math.min(1, 0.7 + Math.log10(desk + 1) / 200);
   const wireFraction = Math.min(1.5, Number((mass(s, 'office.wire') * 1000n) / OFFICE.wire) / 1000);
   const photoPresent = a.photograph.fidelity !== 'absent';
+  // The screen fits about fourteen characters a line; every line here stays within that.
+  const unread = c1 ? Object.values(c1.files).filter((f) => f === 'unread').length : 0;
   const screen = c1
     ? c1.madeClips === 0
-      ? ['MARA: WIRE CATCHES IF', 'YOU PULL TOO HARD.', 'ORDER 4471 · 0 / 12', '>']
+      ? ['NIGHT POWER', 'AWAITING INPUT', '>']
       : c1.capped
-        ? ['ORDER 4471 COMPLETE', '12 / 12 CARTONS', 'CONTRACT §9 ACTIVE', '>']
-        : [`CARTONS ${c1.sealed} / 12`, `ON DESK ${desk}`, c1.jammed ? 'WIRE CAUGHT · FREE IT' : `RATE ${(goodRate(s) / 1000).toFixed(1)}/S`, '>']
-    : ['PRODUCTION LOG', `CHAPTER ${s.chapter}`, 'OFFICE BOOKMARK', '>'];
+        ? ['ORDER 4471', 'COMPLETE', 'CLAUSE 9 LIVE', '>']
+        : [
+            c1.sealed > 0 ? `CARTONS ${c1.sealed}/12` : 'ORDER 4471',
+            `DESK ${desk.toLocaleString('en-US')}`,
+            c1.jammed ? 'WIRE SNAGGED' : unread > 0 ? `NEW FILE (${unread})` : has('calibrate') ? `${(goodRate(s) / 1000).toFixed(1)} CLIPS/S` : 'BY HAND',
+            '>',
+          ]
+    : ['PRODUCTION LOG', `CHAPTER ${s.chapter}`, 'BOOKMARK', '>'];
   return {
     mode: m,
     frozen,
@@ -173,7 +182,8 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
     cabinet: present('cabinet'),
     frame: present('frame'),
     photo: !photoPresent ? 'none' : present('frame') ? 'frame' : 'desk',
-    bender: has('calibrate'),
+    bender: c1 ? uncovered(c1) : true,
+    sheet: c1 ? !uncovered(c1) : false,
     feeder: has('feeder'),
     jig: has('jig'),
     running: c1 ? !c1.capped && has('calibrate') && !c1.jammed : false,
@@ -279,6 +289,9 @@ function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
           <stop offset="0.5" stopColor="#aab2b6" />
           <stop offset="1" stopColor="#5e676b" />
         </radialGradient>
+ <clipPath id="screenclip" clipPathUnits="userSpaceOnUse">
+          <rect x={0.04} y={0} width={1.08} height={1.12} />
+        </clipPath>
         <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
           <rect width="4" height="1" fill="rgba(94,242,164,0.08)" />
         </pattern>
@@ -552,7 +565,7 @@ function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
       <g transform={faceY(1.72, 4.151, 4.18)}>
         <rect x={0} y={0} width={1.16} height={1.12} rx={0.08} fill={wire ? 'none' : '#06150e'} stroke={wire ? st.stroke : '#1d2a22'} strokeWidth={0.05} />
         {!last ? (
-          <g fill="#79ffb6" fontFamily="IBM Plex Mono, monospace" fontSize={0.105} style={{ letterSpacing: 0 }}>
+          <g fill="#79ffb6" fontFamily="IBM Plex Mono, monospace" fontSize={0.105} style={{ letterSpacing: 0 }} clipPath="url(#screenclip)">
             {v.screen.map((line, i) => (
               <text key={i} x={0.1} y={0.24 + i * 0.2} opacity={0.92}>
                 {line}
@@ -623,6 +636,13 @@ function OfficeSvg({ v, onGlint }: { v: OfficeView; onGlint?: () => void }) {
           stroke="#c7cdd0"
           strokeWidth={1.4}
         />
+      )}
+      {/* the clip machine under its dust sheet, before anyone has looked */}
+      {v.sheet && (
+        <g>
+          <Box at={[3.3, 2.65, 2.72]} size={[1.0, 0.85, 0.55]} color="#bdb8aa" st={st} />
+          <Box at={[3.45, 2.8, 3.27]} size={[0.6, 0.5, 0.14]} color="#c9c4b6" st={st} />
+        </g>
       )}
       {/* bender */}
       {v.bender && (
