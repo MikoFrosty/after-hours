@@ -361,8 +361,19 @@ function ActionDock() {
           <Bar value={c.tending} max={100_000} />
         </div>
       )}
-      {c.files.order && (
-        <div className="dock-order">
+      {/* Cartons stay out of view until the first one is packed by hand; until then one button appears once a carton's worth is on the desk. */}
+      {c.sealed === 0 && !c.capped && deskClips >= OFFICE.boxSize && (
+        <div className="dock-order reveal">
+          <div className="row between" style={{ gap: 8 }}>
+            <span className="tiny muted">The order is {CARTONS} cartons of {OFFICE.boxSize} clips. You have enough on the desk to fill the first one.</span>
+            <button className="btn small primary" onClick={() => act({ type: 'c01/pack' })}>
+              Pack the first carton <span className="kbd">S</span>
+            </button>
+          </div>
+        </div>
+      )}
+      {(c.sealed > 0 || c.capped) && (
+        <div className="dock-order reveal">
           <div className="cartons" role="img" aria-label={`${c.sealed} of ${CARTONS} cartons sealed`}>
             {Array.from({ length: CARTONS }, (_, i) => (
               <span key={i} className={`carton ${i < c.sealed ? 'sealed' : i === c.sealed && c.openBox > 0 ? 'open' : ''} ${i === c.sealed && full250 ? 'waiting' : ''} ${i === justSealed ? 'just' : ''}`}>

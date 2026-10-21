@@ -216,7 +216,7 @@ export function nextGoal(s: CampaignState): string {
     const n = gated.unlock.boxes! - c.sealed;
     return `Pack ${n} more carton${n === 1 ? '' : 's'} to make room for the ${gated.name.toLowerCase()}.`;
   }
-  if (!owns(c, 'packer') && l >= OFFICE.boxSize) return 'Fill and tape a carton: 250 clips.';
+  if (!owns(c, 'packer') && l >= OFFICE.boxSize) return c.sealed === 0 ? 'Pack your first carton: 250 clips.' : 'Pack a carton: 250 clips.';
   const extra = nextProject(s, true);
   if (extra) return `Optional: ${saving(extra).replace(/^./, (x) => x.toLowerCase())}`;
   return `Fill the order: ${c.sealed} of ${CARTONS} cartons packed.`;
