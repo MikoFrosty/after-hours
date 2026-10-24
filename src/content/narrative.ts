@@ -342,7 +342,7 @@ export const TERMINAL_FILES: Record<string, TerminalFile> = {
     lines: [
       'FACILITIES INVENTORY — ROOM 1104',
       'Desk (1). Chair (1). Terminal (1). Desktop clip machine (1).',
-      'Filing cabinet, four drawers. Drawers 1–3: records. Drawer 4: spare wire coil, 4 kg.',
+      'Filing cabinet, four drawers. Drawers 1–3: records. Drawer 4: spare wire coil, 6 kg.',
       'Desk lamp. See ticket 0832.',
       'Picture frame with photograph. Provenance not recorded.',
       'Wastebasket (1).',

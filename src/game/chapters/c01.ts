@@ -208,12 +208,18 @@ export function paybackHorizon(s: CampaignState): { seconds: number; until: 'the
   return { seconds: finish, until: 'the order is done' };
 }
 
-/** Whether an upgrade makes its price back in time (always true for upgrades that don't add machine output). */
+/**
+ * Whether an upgrade makes its price back in time: saving up for it (at the machines' pace) and then
+ * paying it back both fit before the van, or before the order is done. Always true for upgrades
+ * that don't add machine output.
+ */
 export function paysInTime(s: CampaignState, p: OfficeProject): boolean {
   const h = paybackHorizon(s);
   const t = paybackSeconds(s, p);
   if (!h || t === null) return true;
-  return t <= h.seconds;
+  const rate = steadyRate(s);
+  const saving = rate > 0 ? (Math.max(0, p.costClips - loose(s)) * 1000) / rate : Infinity;
+  return saving + t <= h.seconds;
 }
 
 // ---------- goals ----------
@@ -248,7 +254,7 @@ export function nextGoal(s: CampaignState): string {
     const t = paybackSeconds(s, best);
     const pays = t !== null ? ` It pays for itself in ${fmtTime(t)}.` : '';
     if (l >= best.costClips) return `Buy the ${best.name.toLowerCase()}.${pays}`;
-    if (l < OFFICE.boxSize || best.costClips - l < OFFICE.boxSize) return `Saving for the ${best.name.toLowerCase()}: ${l} of ${best.costClips}.${pays}`;
+    return `Save for the ${best.name.toLowerCase()}: ${l} of ${best.costClips}.${pays}`;
   }
   if (l >= OFFICE.boxSize) return 'Pack a carton.';
   if (best && !paysInTime(s, best)) return `Pack cartons: the ${best.name.toLowerCase()} would not pay for itself before ${paybackHorizon(s)!.until}.`;

@@ -82,8 +82,8 @@ describe('chapter 01 office', () => {
     expect(night(s).madeClips).toBe(200);
     const c = night(s);
     c.owned.push('calibrate', 'oil', 'feeder', 'die2', 'pedal');
-    // 8 clips a second from the machines; a quarter second of that rides on each press.
-    expect(steadyRate(s)).toBe(8000);
+    // 10 clips a second from the machines; a quarter second of that rides on each press.
+    expect(steadyRate(s)).toBe(10_000);
     expect(pressYield(s)).toBe(1 + 2);
   });
 
@@ -156,12 +156,12 @@ describe('chapter 01 office', () => {
     expect(s.clips.currentMicrograms >= BigInt(OFFICE.quota) * CLIP).toBe(true);
   });
 
-  it('the night takes about 9–14 minutes for a relaxed player and is shorter, not a sprint, played hard', () => {
+  it('the night takes about 7.5–12 minutes for a relaxed player and is shorter, not a sprint, played hard', () => {
     const relaxed = autoplay(CANONICAL, '02').summaries['01']!.simMs / 60000;
     const engaged = autoplay(EFFICIENT, '02').summaries['01']!.simMs / 60000;
-    expect(relaxed).toBeGreaterThanOrEqual(9);
-    expect(relaxed).toBeLessThanOrEqual(14);
-    expect(engaged).toBeGreaterThanOrEqual(5.5);
+    expect(relaxed).toBeGreaterThanOrEqual(7.5);
+    expect(relaxed).toBeLessThanOrEqual(12);
+    expect(engaged).toBeGreaterThanOrEqual(5);
     expect(engaged).toBeLessThan(relaxed);
   });
 
@@ -173,11 +173,11 @@ describe('chapter 01 office', () => {
       c.owned.push(id);
       rates.push(steadyRate(s));
     }
-    expect(rates).toEqual([1000, 2000, 4000, 8000, 14_000, 28_000]);
+    expect(rates).toEqual([1000, 2000, 4000, 10_000, 30_000, 75_000]);
     c.owned = ['calibrate', 'oil', 'feeder'];
     const die2 = OFFICE.projects.find((p) => p.id === 'die2')!;
-    expect(rateGain(s, die2)).toBe(4000);
-    expect(paybackSeconds(s, die2)).toBe(die2.costClips / 4);
+    expect(rateGain(s, die2)).toBe(6000);
+    expect(paybackSeconds(s, die2)).toBe(die2.costClips / 6);
   });
 
   it('speed bursts start with the clip machine; grabbing one triples output and frees a snag', () => {
@@ -217,9 +217,9 @@ describe('chapter 01 office', () => {
     give(s, 3 * 250 + 100);
     const left = secondsToVan(s)!;
     expect(left).toBeGreaterThan(0);
-    expect(vanForecast(s)).toBe(Math.min(11, 2 + Math.floor((100 + 8 * left) / 250)));
+    expect(vanForecast(s)).toBe(Math.min(11, 2 + Math.floor((100 + 10 * left) / 250)));
     // Close to the van, an upgrade that cannot make its price back in time is called out.
-    s.storySeconds = OFFICE.vanMinute * 60 - 38 * 20; // twenty seconds before the van
+    s.storySeconds = OFFICE.vanMinute * 60 - (OFFICE.storyPerSecond / 1000) * 20; // twenty seconds before the van
     const jig = OFFICE.projects.find((p) => p.id === 'jig')!;
     expect(paysInTime(s, jig)).toBe(false);
     expect(nextGoal(s)).toMatch(/Pack/);

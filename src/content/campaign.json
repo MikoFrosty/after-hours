@@ -59,7 +59,7 @@
       }
     ],
     "boxSize": 250,
-    "spareWireMicrograms": "5000000000",
+    "spareWireMicrograms": "6000000000",
     "nightStorySeconds": 22980,
     "trial": {
       "clips": 100,
@@ -70,7 +70,7 @@
       "sheetAfterClips": 0,
       "fileGapSeconds": 40
     },
-    "storySecondsPerSecond": 40,
+    "storySecondsPerSecond": 43,
     "vanMinute": 335,
     "vanBonusPerCarton": 25,
     "hands": {
@@ -144,12 +144,12 @@
       {
         "id": "die2",
         "name": "Second bending arm",
-        "short": "Clip machine ×2",
-        "text": "A second arm on the clip machine, so it bends two wires at a time.",
-        "costClips": 450,
+        "short": "Clip machine ×2.5",
+        "text": "A second arm on the clip machine, so it bends more than one wire at a time: two and a half times as fast.",
+        "costClips": 400,
         "installSeconds": 8,
         "kind": "machine",
-        "multiplier": 2,
+        "multiplier": 2.5,
         "unlock": {
           "after": "feeder"
         }
@@ -159,7 +159,7 @@
         "name": "Foot pedal",
         "short": "Each press also gives ¼ s of every machine",
         "text": "Wired to the machines under the desk. Every press of yours also gives a quarter of a second of everything the machines make. Worth it if you keep pressing.",
-        "costClips": 600,
+        "costClips": 1000,
         "installSeconds": 8,
         "kind": "hands",
         "pedalSeconds": 0.25,
@@ -173,7 +173,7 @@
         "name": "Overnight mode",
         "short": "All machines ×1.5",
         "text": "A switch on the back of the machine for running unattended. Everything runs half again as fast, whether you press or not.",
-        "costClips": 600,
+        "costClips": 1000,
         "installSeconds": 8,
         "kind": "machine",
         "lineMultiplier": 1.5,
@@ -185,12 +185,12 @@
       {
         "id": "jig",
         "name": "Side-table rack",
-        "short": "Three small machines, +6 clips/s",
+        "short": "Three small machines, +20 clips/s",
         "text": "A rack on the side table with three small clip machines of its own, running beside the main one.",
-        "costClips": 500,
+        "costClips": 800,
         "installSeconds": 10,
         "kind": "machine",
-        "rackRate": 6,
+        "rackRate": 20,
         "unlock": {
           "after": "die2"
         }
@@ -198,12 +198,12 @@
       {
         "id": "station6",
         "name": "Fill the rack",
-        "short": "Three more small machines, +14 clips/s",
+        "short": "Three more small machines, +45 clips/s",
         "text": "Three more small machines, newer and quicker, in the rack's empty slots.",
-        "costClips": 600,
+        "costClips": 1200,
         "installSeconds": 10,
         "kind": "machine",
-        "rackRate": 14,
+        "rackRate": 45,
         "unlock": {
           "after": "jig"
         }
