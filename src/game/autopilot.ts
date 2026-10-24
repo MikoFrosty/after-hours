@@ -167,6 +167,11 @@ function officeNight(s: CampaignState, r: Route) {
       if (eff ? glintSeen % 10 !== 0 : glintSeen % 3 !== 0) dispatch(s, { type: 'c01/catch' });
     }
   }
+  // The late-night events. Relaxed: lets hot machines cool, takes the courier only with a carton's worth ready.
+  // Engaged: keeps the machines running and always takes the courier.
+  if (c.hot?.phase === 'offer' && s.simMs % 3_000 < 100) dispatch(s, { type: 'c01/hot', cool: !eff });
+  if (c.courier?.phase === 'offer' && s.simMs % 3_000 < 100) dispatch(s, { type: 'c01/courier', accept: eff || loose(s) >= OFFICE.boxSize });
+  if (c.courier?.phase === 'run' && loose(s) >= OFFICE.boxSize) dispatch(s, { type: 'c01/pack' });
   if (c.capped || c.installing) return;
   const l = loose(s);
   // The one either/or: overnight mode for a relaxed player, the foot pedal for an engaged one.

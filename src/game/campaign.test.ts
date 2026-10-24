@@ -12,7 +12,7 @@ import { limits, output } from './chapters/c05';
 import { deliverMessages, pathDelay } from './chapters/c06';
 import { schedulePreview } from './chapters/c08';
 import { protectedLines } from './chapters/c07';
-import { burstReady, loose, machineRate, nextGoal, offeredProjects, paybackSeconds, paysInTime, pressYield, rateGain, secondsToVan, sheetReady, steadyRate, vanForecast } from './chapters/c01';
+import { burstReady, earlyCartons, vanBonus, loose, machineRate, nextGoal, offeredProjects, paybackSeconds, paysInTime, pressYield, rateGain, secondsToVan, sheetReady, steadyRate, vanForecast } from './chapters/c01';
 import type { C01State, C02State, C03State, C05State, C07State, C08State, CampaignState } from './types';
 
 function invariantEveryStep(s: CampaignState, steps: number) {
@@ -209,6 +209,41 @@ describe('chapter 01 office', () => {
     expect(checkInvariant(s)).toBeNull();
   });
 
+  it('a courier can take two cartons early for a bonus; ignoring or missing it costs nothing', () => {
+    const s = approved();
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder');
+    c.sealed = 2;
+    s.storySeconds = OFFICE.events.courier.atMinute * 60;
+    s.chapterEnteredSimMs = s.simMs - 60_000;
+    step(s);
+    expect(c.courier?.phase).toBe('offer');
+    expect(dispatch(s, { type: 'c01/courier', accept: true })).toBeNull();
+    // Two cartons already counted as packed, plus two more to pack for the courier.
+    give(s, 1000);
+    dispatch(s, { type: 'c01/pack' });
+    dispatch(s, { type: 'c01/pack' });
+    step(s);
+    expect(c.courier).toBeNull();
+    expect(c.courierCartons).toBe(2);
+    expect(c.courierBonus).toBe(OFFICE.events.courier.bonus);
+    expect(vanBonus(c)).toBe(OFFICE.events.courier.bonus);
+  });
+
+  it('running hot: cooling stops the machines briefly; pushing on may stall them for longer', () => {
+    const s = approved();
+    const c = night(s);
+    c.owned.push('calibrate', 'oil', 'feeder', 'die2', 'jig');
+    c.sealed = 1;
+    step(s);
+    expect(c.hot?.phase).toBe('offer');
+    expect(dispatch(s, { type: 'c01/hot', cool: true })).toBeNull();
+    expect(machineRate(s)).toBe(0);
+    run(s, OFFICE.events.hot.coolMs / 100 + 1);
+    expect(c.hot).toBeNull();
+    expect(machineRate(s)).toBe(steadyRate(s));
+  });
+
   it('the van forecast counts what is packed and what the machines will make before 5:22', () => {
     const s = approved();
     const c = night(s);
@@ -222,7 +257,8 @@ describe('chapter 01 office', () => {
     s.storySeconds = OFFICE.vanMinute * 60 - (OFFICE.storyPerSecond / 1000) * 20; // twenty seconds before the van
     const jig = OFFICE.projects.find((p) => p.id === 'jig')!;
     expect(paysInTime(s, jig)).toBe(false);
-    expect(nextGoal(s)).toMatch(/Pack/);
+    // The hint line leaves the choice to the player; the numbers are on the upgrade rows.
+    expect(nextGoal(s)).not.toMatch(/Buy|Save for/);
   });
 
   it('the 5:22 van takes the big order’s packed cartons, and the bonus becomes the building’s first clips', () => {
@@ -231,9 +267,9 @@ describe('chapter 01 office', () => {
     expect(c.vanCartons).not.toBeNull();
     expect(c.vanCartons!).toBeGreaterThanOrEqual(1);
     expect(c.vanCartons!).toBeLessThanOrEqual(11);
-    expect(s.flags['c01.vanBonus']).toBe(c.vanCartons! * OFFICE.vanBonusPerCarton);
     const fast = autoplay({ ...EFFICIENT, holdAt: '01' });
-    expect(night(fast).vanCartons).toBe(11);
+    expect(earlyCartons(night(fast))).toBe(11);
+    expect(s.flags['c01.vanBonus']).toBe(c.vanCartons! * OFFICE.vanBonusPerCarton + c.courierBonus);
     const b = autoplay(CANONICAL, '02');
     const bonus = Number(b.flags['c01.vanBonus']);
     expect((b.chapterState as C02State).stock).toBeGreaterThanOrEqual(bonus);

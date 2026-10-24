@@ -88,6 +88,22 @@ export const OFFICE = {
     runMs: office.bursts.runSeconds * 1000,
     multiplier: milli(office.bursts.multiplier),
   },
+  /** Two late-night events with a real choice: a courier offering a bonus, and the machines running hot. */
+  events: {
+    courier: {
+      atMinute: office.events.courier.atMinute,
+      offerMs: office.events.courier.offerSeconds * 1000,
+      runMs: office.events.courier.runSeconds * 1000,
+      cartons: office.events.courier.cartons,
+      bonus: office.events.courier.bonusClips,
+    },
+    hot: {
+      atRate: office.events.hot.atRate * 1000,
+      offerMs: office.events.hot.offerSeconds * 1000,
+      coolMs: office.events.hot.coolSeconds * 1000,
+      stallMs: office.events.hot.stallSeconds * 1000,
+    },
+  },
   /** The first order is a trial run of loose clips; the carton orders follow once it is approved. */
   trial: { clips: office.trial.clips, replyMs: office.trial.replySeconds * 1000 },
   /** The quiet start: terminal files arrive one at a time. */

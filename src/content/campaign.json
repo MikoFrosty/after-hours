@@ -208,7 +208,22 @@
           "after": "jig"
         }
       }
-    ]
+    ],
+    "events": {
+      "courier": {
+        "atMinute": 200,
+        "offerSeconds": 15,
+        "runSeconds": 60,
+        "cartons": 2,
+        "bonusClips": 80
+      },
+      "hot": {
+        "atRate": 30,
+        "offerSeconds": 12,
+        "coolSeconds": 15,
+        "stallSeconds": 45
+      }
+    }
   },
   "building": {
     "rooms": [

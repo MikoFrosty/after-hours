@@ -82,9 +82,15 @@ export const burstReady = (s: CampaignState) => cs(s).burstReadyUntilMs > s.simM
 export const burstRunning = (s: CampaignState) => cs(s).burstUntilMs > s.simMs;
 
 /** What the machines are making right now (milli-clips per second). */
+/** The machines are cooling or stalled after running hot. */
+export const machinesHalted = (s: CampaignState) => {
+  const h = cs(s).hot;
+  return Boolean(h && h.phase !== 'offer' && h.untilMs > s.simMs);
+};
+
 export function machineRate(s: CampaignState): number {
   const c = cs(s);
-  if (c.jammed || c.capped) return 0;
+  if (c.jammed || c.capped || machinesHalted(s)) return 0;
   const r = steadyRate(s);
   return burstRunning(s) ? mulMilli(r, OFFICE.bursts.multiplier) : r;
 }
@@ -175,7 +181,7 @@ export function vanForecast(s: CampaignState): number | null {
   const left = secondsToVan(s);
   if (left === null || c.sealed === 0 || c.capped) return null;
   const clips = loose(s) + (steadyRate(s) * left) / 1000;
-  return Math.min(BIG_ORDER, bigPacked(c) + Math.floor(clips / OFFICE.boxSize));
+  return Math.min(BIG_ORDER - c.courierCartons, bigPacked(c) - c.courierCartons + Math.floor(clips / OFFICE.boxSize));
 }
 
 /** The upgrade most worth buying next: the best payback among those on offer (or the first, before the big order). */
@@ -249,16 +255,10 @@ export function nextGoal(s: CampaignState): string {
     if (best && l >= best.costClips) return `You can buy the ${best.name.toLowerCase()} now, or keep filling the carton.`;
     return `Keep making clips: ${OFFICE.boxSize - l} more fill the carton.`;
   }
-  const best = bestUpgrade(s);
-  if (best && paysInTime(s, best)) {
-    const t = paybackSeconds(s, best);
-    const pays = t !== null ? ` It pays for itself in ${fmtTime(t)}.` : '';
-    if (l >= best.costClips) return `Buy the ${best.name.toLowerCase()}.${pays}`;
-    return `Save for the ${best.name.toLowerCase()}: ${l} of ${best.costClips}.${pays}`;
-  }
-  if (l >= OFFICE.boxSize) return 'Pack a carton.';
-  if (best && !paysInTime(s, best)) return `Pack cartons: the ${best.name.toLowerCase()} would not pay for itself before ${paybackHorizon(s)!.until}.`;
-  return `Next carton: ${l} of 250.`;
+  // During the big order the panel shows the numbers (payback, the van forecast) and leaves the decision to the player.
+  if (c.courier?.phase === 'run') return `The courier is waiting: ${Math.max(0, c.courier.goal - c.sealed)} more carton${c.courier.goal - c.sealed === 1 ? '' : 's'} to go.`;
+  if (l >= OFFICE.boxSize) return 'You can pack a carton, or keep the clips for an upgrade.';
+  return `${OFFICE.boxSize - l} more clips for the next carton.`;
 }
 
 /** A short status for places that need one (the log and debug tools). */
@@ -278,8 +278,29 @@ export function spareOffered(s: CampaignState): boolean {
   return !c.spareTaken && mass(s, 'office.spare') > 0n && (c.files.inventory === 'read' || wireGrams(s) < 800);
 }
 
-/** Clips the building starts with for the cartons that made the early van. */
-export const vanBonus = (c: C01State) => (c.vanCartons ?? 0) * OFFICE.vanBonusPerCarton;
+/** Clips the building starts with: the van's early-delivery bonus and the courier's. */
+export const vanBonus = (c: C01State) => (c.vanCartons ?? 0) * OFFICE.vanBonusPerCarton + c.courierBonus;
+
+/** Cartons of the big order that left before 7:00, on the van or with the courier. */
+export const earlyCartons = (c: C01State) => (c.vanCartons ?? 0) + c.courierCartons;
+
+/**
+ * A grade for the night: all eleven cartons out early is an A (an S if the night took six minutes
+ * or less), then B for eight or more, C for five or more, D below that.
+ */
+export function nightGrade(c: C01State, seconds: number): 'S' | 'A' | 'B' | 'C' | 'D' {
+  const early = earlyCartons(c);
+  if (early >= BIG_ORDER) return seconds <= 360 ? 'S' : 'A';
+  if (early >= 8) return 'B';
+  if (early >= 5) return 'C';
+  return 'D';
+}
+
+/** Put a short message on the room's monitor (two lines of up to fourteen characters). */
+function screen(s: CampaignState, a: string, b: string) {
+  s.flags['c01.screen'] = `${a}|${b}`;
+  s.flags['c01.screenAt'] = s.simMs;
+}
 
 // ---------- making clips ----------
 
@@ -314,11 +335,50 @@ function finishInstall(s: CampaignState, id: OfficeProjectId) {
     c.sinceJam = 0;
   }
   if (id === 'jig') s.projects.jig = 'complete';
+  // The big steps are moments: a caption with the new speed, a warm pulse in the room, and the terminal noticing.
+  const speed = `${Math.round(steadyRate(s) / 1000)} clips a second`;
+  const milestone: Partial<Record<OfficeProjectId, [string, string]>> = {
+    feeder: ['Wire feeder', `The machine pulls its own wire now, and it never snags. ${speed}.`],
+    die2: ['Second bending arm', `Two arms on the machine, bending in turn. ${speed}.`],
+    jig: ['Side-table rack', `Three small machines start up beside the big one. ${speed}.`],
+    station6: ['The rack is full', `Six small machines and the big one, all running. ${speed}.`],
+    governor: ['Overnight mode', `The machines are set to run unattended. ${speed}.`],
+    pedal: ['Foot pedal', 'Every press now runs every machine for a moment.'],
+  };
+  const m = milestone[id];
+  if (m) {
+    emit({ type: 'beat', title: m[0], text: m[1] });
+    s.flags['c01.milestoneAt'] = s.simMs;
+  }
+  if (id === 'feeder') {
+    screen(s, 'TARGET REVISED', 'UPWARD');
+    log(s, { id: 'c01.terminal.target', kind: 'system', title: 'Terminal', text: 'Throughput target revised upward. Revised by: this terminal.' });
+    emit({ type: 'beat', title: 'Terminal', text: 'Throughput target revised upward. Revised by: this terminal.' });
+  }
+  if (id === 'jig') screen(s, 'OPERATOR: NONE', 'NOT REQUIRED');
   emit({ type: 'sound', id: 'install' });
   // The two-note motif marks the night's turning points.
   if (id === 'calibrate' || id === 'feeder' || id === 'jig') emit({ type: 'sound', id: 'motif' });
-  if (id === 'station6') emit({ type: 'sound', id: 'fullSpeed' });
+  if (id === 'station6' || id === 'jig') emit({ type: 'sound', id: 'fullSpeed' });
   emit({ type: 'save', reason: 'install' });
+  bump(s);
+}
+
+/** Keep hot machines running: about half the time the bending arm seizes for a while. */
+function pushOn(s: CampaignState) {
+  const c = cs(s);
+  const E = OFFICE.events.hot;
+  const seized = Math.floor(s.simMs / 100) % 2 === 0;
+  if (seized) {
+    c.hot = { phase: 'stalled', untilMs: s.simMs + E.stallMs };
+    log(s, { id: 'c01.hot.stalled', kind: 'system', title: 'Running hot', text: `The bending arm seized. It takes ${E.stallMs / 1000} seconds to free it.` });
+    emit({ type: 'beat', title: 'Running hot', text: 'The bending arm seized. Everything stops while it is freed.' });
+    emit({ type: 'sound', id: 'jam' });
+  } else {
+    c.hot = null;
+    log(s, { id: 'c01.hot.held', kind: 'system', title: 'Running hot', text: 'The machines ran hot and held.' });
+    emit({ type: 'beat', title: 'Running hot', text: 'The machines ran hot, and held.' });
+  }
   bump(s);
 }
 
@@ -366,6 +426,25 @@ export const c01: Controller = {
         bump(s);
       }
     }
+    // The late-night events run on their own clocks.
+    if (c.courier && s.simMs >= c.courier.untilMs) {
+      if (c.courier.phase === 'run') {
+        log(s, { id: `c01.courier.missed`, kind: 'system', title: 'Courier', text: 'The courier could not wait any longer and drove on. The cartons stay for the van.' });
+        emit({ type: 'beat', title: 'Courier', text: 'The courier could not wait any longer and drove on.' });
+      }
+      c.courier = null;
+      bump(s);
+    }
+    if (c.hot && s.simMs >= c.hot.untilMs) {
+      if (c.hot.phase === 'offer') {
+        // Ignored: the machines keep running, and take their chances.
+        pushOn(s);
+      } else {
+        c.hot = null;
+        emit({ type: 'sound', id: 'free' });
+        bump(s);
+      }
+    }
     if (c.burstUntilMs !== 0 && s.simMs >= c.burstUntilMs) {
       c.burstUntilMs = 0;
       emit({ type: 'sound', id: 'cleanEnd' });
@@ -410,6 +489,7 @@ export const c01: Controller = {
       beatNow(s, '01', 1, t, x);
       if (once(s, 'c01.mara.home')) {
         log(s, { id: MARA.home.id, kind: 'note', title: 'Mara Venn', text: MARA.home.text, dateline: MARA.home.dateline, author: 'Mara Venn' });
+        emit({ type: 'beat', title: 'A saved note from Mara', text: MARA.home.text });
         bump(s);
       }
     }
@@ -426,6 +506,32 @@ export const c01: Controller = {
       emit({ type: 'sound', id: 'notice' });
       bump(s);
     }
+    // A courier passing in the night, once, during the big order.
+    const E = OFFICE.events;
+    if (c.sealed >= 2 && !c.capped && c.vanCartons === null && s.storySeconds / 60 >= E.courier.atMinute && once(s, 'c01.courierOffered')) {
+      c.courier = { phase: 'offer', untilMs: s.simMs + E.courier.offerMs, goal: 0 };
+      emit({ type: 'beat', title: 'A courier', text: `A courier is passing. Two more cartons in the next minute go with them, for a bonus of ${E.courier.bonus} clips.` });
+      emit({ type: 'sound', id: 'phone' });
+      bump(s);
+    }
+    if (c.courier?.phase === 'run' && c.sealed >= c.courier.goal) {
+      c.courier = null;
+      c.courierCartons += E.courier.cartons;
+      c.courierBonus += E.courier.bonus;
+      log(s, { id: 'c01.courier.done', kind: 'system', title: 'Courier', text: `The courier took two cartons. ${E.courier.bonus} clips for the building.` });
+      emit({ type: 'beat', title: 'Courier', text: `Two cartons gone with the courier. +${E.courier.bonus} clips for the building.` });
+      emit({ type: 'sound', id: 'van' });
+      bump(s);
+    }
+    // The machines run hot once they are really going.
+    if (!c.capped && steadyRate(s) >= E.hot.atRate && !c.hot && once(s, 'c01.hotOffered')) {
+      c.hot = { phase: 'offer', untilMs: s.simMs + E.hot.offerMs };
+      emit({ type: 'beat', title: 'Running hot', text: 'The clip machine is running hot. Let it cool for a few seconds, or keep going and hope it holds.' });
+      emit({ type: 'sound', id: 'jam' });
+      bump(s);
+    }
+    // The terminal speaks up, quietly, on the monitor in the room.
+    if (c.madeClips >= 1 && once(s, 'c01.screen.first')) screen(s, 'OUTPUT LOGGED', 'OPERATOR: ?');
     // The big order arrives with the first carton.
     if (c.sealed >= 1 && !c.capped && once(s, 'c01.bigOrder')) {
       emit({ type: 'beat', title: 'A bigger order', text: 'Eleven more cartons, by morning. A van stops across the street at 5:22.' });
@@ -470,6 +576,7 @@ export const c01: Controller = {
     // Mara's last note arrives when the rack goes in on the side table, beside the photograph.
     if (owns(c, 'jig') && once(s, 'c01.mara.photograph')) {
       log(s, { id: MARA.photograph.id, kind: 'note', title: 'Mara Venn', text: MARA.photograph.text, dateline: MARA.photograph.dateline, author: 'Mara Venn' });
+      emit({ type: 'beat', title: 'A saved note from Mara', text: MARA.photograph.text });
       bump(s);
     }
 
@@ -478,9 +585,10 @@ export const c01: Controller = {
       if (minute >= ev.atMinute && once(s, ev.id)) {
         if (ev.id === 'night.van') {
           // The early van takes the big order's sealed cartons; the rest go on the seven o'clock run.
-          c.vanCartons = bigPacked(c);
+          c.vanCartons = bigPacked(c) - c.courierCartons;
           s.flags['c01.vanBonus'] = vanBonus(c);
-          const rest = BIG_ORDER - c.vanCartons;
+          s.flags['c01.vanAt'] = s.simMs;
+          const rest = BIG_ORDER - c.courierCartons - c.vanCartons;
           const text =
             c.sealed === 0
               ? 'A delivery van waited across the street, then left. Nothing was ready for it.'
@@ -506,9 +614,12 @@ export const c01: Controller = {
       s.flags['c01.cappedStory'] = s.storySeconds;
       // If the order is done before the van, every carton goes on it.
       if (c.vanCartons === null) {
-        c.vanCartons = BIG_ORDER;
+        c.vanCartons = BIG_ORDER - c.courierCartons;
         s.flags['c01.vanBonus'] = vanBonus(c);
       }
+      c.courier = null;
+      c.hot = null;
+      screen(s, 'CLAUSE 9', 'RENEWAL: AUTO');
       c.jammed = false;
       c.installing = null;
       c.burstReadyUntilMs = 0;
@@ -542,6 +653,29 @@ export const c01: Controller = {
         c.jammed = false;
         emit({ type: 'sound', id: 'catch' });
         bump(s);
+        return null;
+      }
+      case 'c01/courier': {
+        if (c.courier?.phase !== 'offer') return 'The courier has gone.';
+        if (!a.accept) {
+          c.courier = null;
+          log(s, { id: 'c01.courier.declined', kind: 'system', title: 'Courier', text: 'You let the courier go. The cartons wait for the van.' });
+          bump(s);
+          return null;
+        }
+        c.courier = { phase: 'run', untilMs: s.simMs + OFFICE.events.courier.runMs, goal: c.sealed + OFFICE.events.courier.cartons };
+        emit({ type: 'sound', id: 'switch' });
+        bump(s);
+        return null;
+      }
+      case 'c01/hot': {
+        if (c.hot?.phase !== 'offer') return null;
+        if (a.cool) {
+          c.hot = { phase: 'cooling', untilMs: s.simMs + OFFICE.events.hot.coolMs };
+          log(s, { id: 'c01.hot.cooled', kind: 'system', title: 'Running hot', text: 'You let the machines cool for a few seconds.' });
+          emit({ type: 'sound', id: 'switch' });
+          bump(s);
+        } else pushOn(s);
         return null;
       }
       case 'c01/sendTrial': {

@@ -35,6 +35,10 @@ export interface BeatToast {
 
 const AUTOSAVE_MS = 5000;
 const MAX_CATCHUP_MS = 1000;
+/** A caption stays at least this long before a waiting one replaces it. */
+const MIN_CAPTION_MS = 3500;
+/** A caption that waited longer than this is dropped. */
+const STALE_CAPTION_MS = 8000;
 
 class GameRuntime {
   state: CampaignState | null = null;
@@ -344,6 +348,33 @@ class GameRuntime {
     this.notify();
   }
 
+  private toastQueue: Array<{ title: string; text: string; at: number }> = [];
+  private toastShownAt = 0;
+
+  private showToast(title: string, text: string) {
+    this.toastSeq += 1;
+    const id = this.toastSeq;
+    this.toast = { id, title, text };
+    this.toastShownAt = Date.now();
+    // The next caption in line takes over after the minimum; otherwise this one fades after its full time.
+    window.setTimeout(() => {
+      if (this.toast?.id !== id) return;
+      // Captions that waited too long are stale (time has moved on); skip them.
+      this.toastQueue = this.toastQueue.filter((q) => Date.now() - q.at < STALE_CAPTION_MS);
+      const next = this.toastQueue.shift();
+      if (next) {
+        this.showToast(next.title, next.text);
+        this.notify();
+      }
+    }, MIN_CAPTION_MS);
+    window.setTimeout(() => {
+      if (this.toast?.id === id) {
+        this.toast = null;
+        this.notify();
+      }
+    }, 7200);
+  }
+
   private onSignal(sig: Signal) {
     const s = this.state;
     switch (sig.type) {
@@ -356,18 +387,13 @@ class GameRuntime {
         if (s) addCheckpoint(clone(s), sig.label, sig.kind);
         break;
       case 'beat':
-        this.toastSeq += 1;
-        this.toast = { id: this.toastSeq, title: sig.title, text: sig.text };
         this.dirty = true;
-        {
-          const id = this.toastSeq;
-          window.setTimeout(() => {
-            if (this.toast?.id === id) {
-              this.toast = null;
-              this.notify();
-            }
-          }, 7200);
-        }
+        // A caption gets at least a few seconds before the next one replaces it; the rest wait in line.
+        if (this.toast && Date.now() - this.toastShownAt < MIN_CAPTION_MS) {
+          // At most two wait in line; when more arrive (a fast-forward), the newest win.
+          this.toastQueue.push({ title: sig.title, text: sig.text, at: Date.now() });
+          if (this.toastQueue.length > 2) this.toastQueue.splice(0, this.toastQueue.length - 2);
+        } else this.showToast(sig.title, sig.text);
         break;
       case 'sound':
         audio.cue(sig.id);
@@ -375,6 +401,7 @@ class GameRuntime {
       case 'transition':
         this.introChapter = sig.chapter;
         this.toast = null;
+        this.toastQueue = [];
         if (s) audio.setChapter(sig.chapter, s);
         break;
       case 'error':

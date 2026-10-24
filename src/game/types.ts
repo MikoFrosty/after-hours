@@ -322,6 +322,13 @@ export interface C01State {
   lastFileMs: number;
   /** Terminal files that have appeared, and whether they have been opened. */
   files: Record<string, 'unread' | 'read'>;
+  /** A courier passing in the night: offered, then (if taken) a race to pack two cartons. */
+  courier: { phase: 'offer' | 'run'; untilMs: number; goal: number } | null;
+  /** Cartons of the big order that went with the courier, and the bonus it paid (clips for the building). */
+  courierCartons: number;
+  courierBonus: number;
+  /** The machines running hot: offered a choice, then cooling or stalled until untilMs. */
+  hot: { phase: 'offer' | 'cooling' | 'stalled'; untilMs: number } | null;
   salvaged: { cabinet: boolean; lamp: boolean; frame: boolean };
   capped: boolean;
   reportShown: boolean;
@@ -525,6 +532,8 @@ export type Action =
   | { type: 'c01/takeSpare' }
   | { type: 'c01/lift' }
   | { type: 'c01/sendTrial' }
+  | { type: 'c01/courier'; accept: boolean }
+  | { type: 'c01/hot'; cool: boolean }
   | { type: 'c01/catch' }
   | { type: 'c02/buy'; room: BuildingRoom | 'fan' }
   | { type: 'c02/unload' }

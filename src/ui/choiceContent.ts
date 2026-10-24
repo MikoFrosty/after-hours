@@ -4,7 +4,8 @@ import { ANCHOR_LABELS } from '../content/world';
 import { caseAccounts } from '../game/chapters/c04';
 import { pathDelay } from '../game/chapters/c06';
 import { schedulePreview } from '../game/chapters/c08';
-import { steadyRate } from '../game/chapters/c01';
+import { earlyCartons, nightGrade, steadyRate, vanBonus } from '../game/chapters/c01';
+import { better, fmtNightTime, recordNight } from './bestNight';
 import { mass } from '../game/ledger';
 import { fmtMass } from '../game/mass';
 import type { C01State, CampaignState, CaseId, PendingChoice } from '../game/types';
@@ -64,31 +65,36 @@ export function choiceView(s: CampaignState, c: PendingChoice): ChoiceView {
       };
     }
     case 'c01/report': {
-      // The end of the night: what went out, how the van did, and the offer that leads into the building.
+      // The end of the night: a grade, what went out, how the van did, and the offer that leads into the building.
       const c1 = s.chapterState as C01State;
-      const van = c1.vanCartons ?? 11;
-      const bonus = van * OFFICE.vanBonusPerCarton;
+      const van = c1.vanCartons ?? 11 - c1.courierCartons;
+      const early = earlyCartons(c1);
+      const bonus = vanBonus(c1);
       // Game time: the same as time played at normal speed, and unaffected by the debug speed-up.
-      const played = s.simMs - s.chapterEnteredSimMs;
-      const minutes = Math.max(1, Math.round(played / 60000));
+      const seconds = Math.round((s.simMs - s.chapterEnteredSimMs) / 1000);
+      const grade = nightGrade(c1, seconds);
+      const result = { grade, early, seconds };
+      const before = recordNight(`${s.flags['c01.cappedAt'] ?? 0}-${c1.madeClips}`, result);
+      const record = !before ? 'your first night' : better(result, before) ? 'a new best' : `best so far: ${before.grade} · ${before.early} early · ${fmtNightTime(before.seconds)}`;
+      const courier = c1.courierCartons > 0 ? ` Two went earlier with a courier.` : '';
       const quote =
-        van === 11
-          ? 'Every carton made the 5:22 van. The customer added a bonus for the early delivery.'
-          : van === 0
+        early === 11
+          ? `Every carton left before seven.${courier} The customer added a bonus for the early delivery.`
+          : van === 0 && c1.courierCartons === 0
             ? 'The 5:22 van left empty. Everything went out on the seven o’clock run.'
-            : `The 5:22 van took ${van} of the eleven cartons, and the customer paid a bonus for those. The rest went out at seven.`;
+            : `The 5:22 van took ${van} carton${van === 1 ? '' : 's'}.${courier} The rest went out at seven.`;
       return {
         eyebrow: 'End of the night',
-        title: 'Three orders, one night',
+        title: `Three orders, one night · grade ${grade}`,
         quote,
         body: [CHARTERS.buildingLease.body, ...(bonus > 0 ? [`The early-delivery bonus, ${bonus} clips, comes with you.`] : [])],
         facts: [
-          ['Clips shipped', `${(3000 + c1.trialClips).toLocaleString('en-US')} · trial run and 12 cartons`],
-          ['Clips made', c1.madeClips.toLocaleString('en-US')],
-          ['On the 5:22 van', `${van} of 11 cartons`],
-          ['Early-delivery bonus', bonus > 0 ? `${bonus} clips for the building` : 'none'],
+          ['Grade', `${grade} · ${record}`],
+          ['Out before seven', `${early} of 11 cartons${c1.courierCartons ? ` (${c1.courierCartons} by courier)` : ''}`],
+          ['Bonus for the building', bonus > 0 ? `${bonus} clips` : 'none'],
           ['Top speed', `${Math.round(steadyRate(s) / 1000)} clips a second`],
-          ['The night took', `${minutes} min`],
+          ['Clips made', c1.madeClips.toLocaleString('en-US')],
+          ['The night took', fmtNightTime(seconds)],
         ],
         options: [
           { id: 'decline', label: CHARTERS.buildingLease.decline },

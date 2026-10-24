@@ -2432,3 +2432,154 @@ details.exact .digits {
     top: 0;
   }
 }
+
+/* Buttons are pressed quickly and often: no double-tap zoom on touch screens. */
+button,
+.btn {
+  touch-action: manipulation;
+}
+/* Keyboard hints mean nothing on a touch screen. */
+@media (hover: none) and (pointer: coarse) {
+  .kbd {
+    display: none !important;
+  }
+}
+/* A choice in the alert line: the text above, two buttons below when space is short. */
+.alert-slot.o-choice {
+  flex-wrap: wrap;
+}
+.alert-slot.o-choice .row {
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+/* The pinned button bar only exists on phones. */
+.o-pinned {
+  display: none;
+}
+@media (max-width: 520px) {
+  .o-dock .dock-main {
+    display: none;
+  }
+  .o-pinned {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    position: sticky;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+    z-index: 15;
+    padding: 8px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line-strong);
+    background: color-mix(in srgb, var(--bg-2) 96%, #000);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+  }
+  .o-pinned .make-btn {
+    min-height: 58px;
+  }
+  .o-pinned-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 64px;
+  }
+  .o-pinned-stat .mono {
+    font-size: 1.25em;
+  }
+}
+
+/* ---------- office night: the van, milestones and strain ---------- */
+.office-svg .headlights {
+  animation: headlights 6s ease-in-out infinite;
+}
+@keyframes headlights {
+  0% {
+    transform: translateX(-2.4px);
+    opacity: 0;
+  }
+  20%,
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(2.4px);
+    opacity: 0;
+  }
+}
+.office-svg .cartonout {
+  animation: cartonout 5s ease-in forwards;
+}
+@keyframes cartonout {
+  0%,
+  30% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-60px, -30px);
+  }
+}
+.office-svg .vancount {
+  animation: vancount 9s ease forwards;
+}
+@keyframes vancount {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  12%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.office-svg .milestoneflash {
+  animation: milestoneflash 1.4s ease-out forwards;
+  mix-blend-mode: screen;
+}
+@keyframes milestoneflash {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.22;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* When the machines run hard the lamp flickers with them: a small thing that is slightly off. */
+.office-svg .lamp-glow.strain {
+  animation: lampstrain 2.3s steps(1, end) infinite;
+}
+@keyframes lampstrain {
+  0%,
+  100% {
+    opacity: 0.95;
+  }
+  37% {
+    opacity: 0.6;
+  }
+  41% {
+    opacity: 0.92;
+  }
+  73% {
+    opacity: 0.75;
+  }
+  76% {
+    opacity: 0.95;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .office-svg .headlights,
+  .office-svg .cartonout,
+  .office-svg .vancount,
+  .office-svg .milestoneflash,
+  .office-svg .lamp-glow.strain {
+    animation: none;
+  }
+}

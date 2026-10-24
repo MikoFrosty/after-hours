@@ -27,6 +27,7 @@ import {
   sheetReady,
   spareOffered,
   uncovered,
+  vanBonus,
   vanForecast,
   wireGrams,
   forkTaken,
@@ -69,6 +70,7 @@ export function P01() {
       )}
       {!c.capped && uncovered(c) && <Upgrades />}
       <Desk />
+      <MakeRow pinned />
     </>
   );
 }
@@ -203,15 +205,16 @@ function OrderCard() {
         ))}
       </div>
       {left !== null && forecast !== null ? (
-        <div className={`o-forecast ${forecast >= BIG_ORDER ? 'ok' : ''}`}>
+        <div className={`o-forecast ${forecast >= BIG_ORDER - c.courierCartons ? 'ok' : ''}`}>
           <span>
-            Van at {VAN_LABEL}, in {fmtPayback(left)}. At this rate: <b>{forecast} of {BIG_ORDER}</b> on it
+            Van at {VAN_LABEL}, in {fmtPayback(left)}. At this rate: <b>{forecast} of {BIG_ORDER - c.courierCartons}</b> on it
+            {c.courierCartons > 0 && <> · {c.courierCartons} went by courier</>}
           </span>
           <span className="mono">+{forecast * OFFICE.vanBonusPerCarton} clips</span>
         </div>
       ) : (
         <div className="o-forecast done">
-          {c.vanCartons} went on the {VAN_LABEL} van (+{(c.vanCartons ?? 0) * OFFICE.vanBonusPerCarton} clips for the building). The rest go at 7:00.
+          {c.vanCartons} went on the {VAN_LABEL} van{c.courierCartons > 0 ? ` and ${c.courierCartons} by courier` : ''} (+{vanBonus(c)} clips for the building). The rest go at 7:00.
         </div>
       )}
       <div className="o-act">
@@ -225,7 +228,11 @@ function OrderCard() {
 }
 
 /** The main button, and the two numbers that matter: clips on the desk and what the machines make. */
-function MakeRow() {
+/**
+ * The main button with the desk count and machine speed. On a phone a second, pinned copy sits at
+ * the bottom of the screen (with the pack button) so it stays under the thumb while the page scrolls.
+ */
+function MakeRow({ pinned = false }: { pinned?: boolean }) {
   const s = useGameState();
   const c = s.chapterState as C01State;
   const [floaters, setFloaters] = useState<Floater[]>([]);
@@ -246,6 +253,7 @@ function MakeRow() {
   const pressRef = useRef(press);
   pressRef.current = press;
   useEffect(() => {
+    if (pinned) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement;
@@ -254,9 +262,36 @@ function MakeRow() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [pinned]);
 
   if (c.capped) return null;
+  if (pinned) {
+    const l = loose(s);
+    const canPack = c.trial === 'approved' && l >= OFFICE.boxSize;
+    return (
+      <div className="o-pinned" aria-hidden={false}>
+        <div className="make-wrap">
+          <button className={`btn primary make-btn ${pressed ? `press-${pressed % 2}` : ''}`} onClick={press} disabled={wireGrams(s) === 0}>
+            {per > 1 ? `Make · +${per}` : 'Make a clip'}
+          </button>
+          {floaters.map((f) => (
+            <span key={f.id} className="floater" style={{ left: `${f.x}%` }} aria-hidden>
+              {f.text}
+            </span>
+          ))}
+        </div>
+        <div className="o-pinned-stat">
+          <span className="mono">{l.toLocaleString('en-US')}</span>
+          <span className="tiny muted">{owns(c, 'calibrate') ? (c.jammed ? 'stopped' : perSec(rate)) : 'on the desk'}</span>
+        </div>
+        {canPack && (
+          <button className="btn small primary" onClick={() => act({ type: 'c01/pack' })}>
+            Pack
+          </button>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="dock-main">
       <div className="make-wrap">
@@ -302,6 +337,41 @@ function AlertLine() {
       </div>
     );
   }
+  const E = OFFICE.events;
+  if (c.hot?.phase === 'offer') {
+    return (
+      <div className="alert-slot jam o-choice" role="alert">
+        <span>
+          The machine is running hot · <span className="mono">{left(c.hot.untilMs)} s</span>
+        </span>
+        <span className="row">
+          <button className="btn small" onClick={() => act({ type: 'c01/hot', cool: true })} title={`Everything stops for ${E.hot.coolMs / 1000} s`}>
+            Let it cool · {E.hot.coolMs / 1000} s
+          </button>
+          <button className="btn small" onClick={() => act({ type: 'c01/hot', cool: false })} title={`About half the time it seizes for ${E.hot.stallMs / 1000} s`}>
+            Keep going
+          </button>
+        </span>
+      </div>
+    );
+  }
+  if (c.courier?.phase === 'offer') {
+    return (
+      <div className="alert-slot truewire o-choice" role="alert">
+        <span>
+          A courier can take {E.courier.cartons} cartons in the next {E.courier.runMs / 1000} s for +{E.courier.bonus} clips · <span className="mono">{left(c.courier.untilMs)} s</span>
+        </span>
+        <span className="row">
+          <button className="btn small primary" onClick={() => act({ type: 'c01/courier', accept: true })}>
+            Take it
+          </button>
+          <button className="btn small" onClick={() => act({ type: 'c01/courier', accept: false })}>
+            Not tonight
+          </button>
+        </span>
+      </div>
+    );
+  }
   if (burstReady(s)) {
     return (
       <div className="alert-slot truewire" role="alert">
@@ -331,6 +401,24 @@ function AlertLine() {
         <button className="btn small" onClick={() => act({ type: 'c01/takeSpare' })}>
           Load the spare coil
         </button>
+      </div>
+    );
+  }
+  if (c.hot) {
+    return (
+      <div className="alert-slot jam" role="status">
+        <span>{c.hot.phase === 'cooling' ? 'Letting the machines cool.' : 'The bending arm seized. Freeing it.'}</span>
+        <span className="mono">{left(c.hot.untilMs)} s</span>
+      </div>
+    );
+  }
+  if (c.courier?.phase === 'run') {
+    return (
+      <div className="alert-slot truewire" role="status">
+        <span>
+          The courier is waiting: {Math.max(0, c.courier.goal - c.sealed)} more carton{c.courier.goal - c.sealed === 1 ? '' : 's'}
+        </span>
+        <span className="mono">{left(c.courier.untilMs)} s</span>
       </div>
     );
   }

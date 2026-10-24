@@ -29,6 +29,12 @@ export interface OfficeView {
   jammed: boolean;
   /** Sealed cartons stacked by the cabinet (0–12). */
   cartons: number;
+  /** The 5:22 van is outside: how many cartons it is taking (they slide off the stack), or null. */
+  van: number | null;
+  /** A big upgrade just went in: a warm pulse over the room. */
+  flash: boolean;
+  /** The machines are running hard: the lamp flickers with them. */
+  strain: boolean;
   /** Fill of the open carton under the auto-packer, 0–1; null when there is no packer. */
   openBox: number | null;
   tensioner: boolean;
@@ -163,8 +169,12 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
   const photoPresent = a.photograph.fidelity !== 'absent';
   // The screen fits about fourteen characters a line; every line here stays within that.
   const unread = c1 ? Object.values(c1.files).filter((f) => f === 'unread').length : 0;
+  const msgAt = Number(s.flags['c01.screenAt'] ?? -Infinity);
+  const msg = c1 && !c1.capped && s.simMs - msgAt < 20_000 ? String(s.flags['c01.screen'] ?? '').split('|') : null;
   const screen = c1
-    ? c1.madeClips === 0
+    ? msg
+      ? [...msg, '>']
+      : c1.madeClips === 0
       ? ['NIGHT POWER', 'AWAITING INPUT', '>']
       : c1.capped
         ? ['ORDER 4471', 'COMPLETE', 'CLAUSE 9 LIVE', '>']
@@ -196,6 +206,9 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
     // Cartons that left on the 5:22 van are gone from the stack once it has pulled away.
     cartons: c1 ? c1.sealed - (c1.vanCartons !== null && s.storySeconds / 60 >= OFFICE.vanMinute + 15 ? c1.vanCartons : 0) : 0,
     openBox: null,
+    van: c1 && c1.vanCartons !== null && s.storySeconds / 60 < OFFICE.vanMinute + 15 && s.storySeconds / 60 >= OFFICE.vanMinute ? c1.vanCartons : null,
+    flash: c1 ? s.simMs - Number(s.flags['c01.milestoneAt'] ?? -Infinity) < 1500 : false,
+    strain: c1 ? !c1.capped && machineRate(s) >= 30_000 : false,
     tensioner: has('tensioner'),
     die2: has('die2'),
     stations: c1 ? rackMachines(c1) : 6,
@@ -379,6 +392,13 @@ function OfficeSvg({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: () => voi
               ))}
             </g>
           )}
+          {/* the 5:22 van: headlights sweeping across the window */}
+          {v.van !== null && !wire && (
+            <g pointerEvents="none">
+              <ellipse className={anim ? 'headlights' : undefined} cx={1.5} cy={2.4} rx={0.9} ry={0.35} fill="#ffe7b0" opacity={0.55} />
+              <ellipse className={anim ? 'headlights' : undefined} cx={1.5} cy={2.4} rx={0.35} ry={0.14} fill="#fff8e6" opacity={0.9} />
+            </g>
+          )}
           {/* blinds */}
           {detail && (
             <g fill={wire ? 'none' : '#1b2022'} stroke={wire ? st.stroke : 'none'} strokeWidth={0.01}>
@@ -494,7 +514,7 @@ function OfficeSvg({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: () => voi
           const y = 2.9 + row * 0.7;
           const z = layer * 0.52;
           return (
-            <g key={`carton${n}`} className={anim ? 'cartonin' : undefined}>
+            <g key={`carton${n}`} className={anim ? (v.van !== null && n >= v.cartons - v.van ? 'cartonout' : 'cartonin') : undefined}>
               <Box at={[x, y, z]} size={[0.76, 0.64, 0.5]} color="#9a7650" st={st} />
               {!wire && <polygon points={pts([[x + 0.34, y, z + 0.505], [x + 0.42, y, z + 0.505], [x + 0.42, y + 0.64, z + 0.505], [x + 0.34, y + 0.64, z + 0.505]])} fill="#e6d3a8" opacity={0.6 * st.dim} />}
             </g>
@@ -539,7 +559,7 @@ function OfficeSvg({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: () => voi
 
       {/* lamp glow on the desk */}
       {lampOn && (
-        <ellipse className={anim ? 'lamp-glow' : undefined} cx={P(1.9, 4.0, 2.72)[0]} cy={P(1.9, 4.0, 2.72)[1]} rx={170} ry={95} fill="url(#lampglow)" />
+        <ellipse className={anim ? `lamp-glow ${v.strain ? 'strain' : ''}` : undefined} cx={P(1.9, 4.0, 2.72)[0]} cy={P(1.9, 4.0, 2.72)[1]} rx={170} ry={95} fill="url(#lampglow)" />
       )}
 
       {/* frame with photograph, or the photograph lying on the desk */}
@@ -745,6 +765,16 @@ function OfficeSvg({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: () => voi
             +{g.n}
           </text>
         ))}
+      {/* the van's count, by the stack */}
+      {v.van !== null && !wire && !last && (
+        <g pointerEvents="none" className={anim ? 'vancount' : undefined}>
+          <text x={P(8.0, 3.4, 2.4)[0]} y={P(8.0, 3.4, 2.4)[1]} textAnchor="middle" fontFamily="var(--font-serif)" fontSize={26} fill="#fff3d6" style={{ paintOrder: 'stroke' }} stroke="rgba(0,0,0,0.6)" strokeWidth={4}>
+            {v.van === 0 ? 'Nothing for the van' : `${v.van} carton${v.van === 1 ? '' : 's'} → the 5:22 van`}
+          </text>
+        </g>
+      )}
+      {/* a big upgrade just went in */}
+      {v.flash && !wire && !last && <rect className={anim ? 'milestoneflash' : undefined} x={-2000} y={-2000} width={6000} height={6000} fill="#f6d39a" opacity={0} pointerEvents="none" />}
       {/* a clean run: warm light over the machines */}
       {v.cleanRun && !wire && !last && (
         <ellipse className={anim ? 'cleanglow' : undefined} cx={P(4.6, 3.2, 3.2)[0]} cy={P(4.6, 3.2, 3.2)[1]} rx={120} ry={60} fill="url(#lampglow)" opacity={0.9} pointerEvents="none" />
