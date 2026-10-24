@@ -93,7 +93,7 @@
         "id": "calibrate",
         "name": "Clip machine",
         "short": "Makes clips by itself",
-        "text": "The desktop clip machine from under the dust sheet. Once it is set up it makes a clip every second, whether you press or not.",
+        "text": "The desktop clip machine from the dark end of the desk. Once it is set up it makes a clip every second, whether you press or not.",
         "costClips": 100,
         "installSeconds": 6,
         "kind": "machine",

@@ -387,9 +387,9 @@ function AlertLine() {
   if (sheetReady(s)) {
     return (
       <div className="alert-slot truewire" role="alert">
-        <span>Something on the desk is under a dust sheet.</span>
+        <span>Something sits at the dark end of the desk.</span>
         <button className="btn primary small" onClick={() => act({ type: 'c01/lift' })}>
-          Lift the sheet
+          Turn the lamp toward it
         </button>
       </div>
     );

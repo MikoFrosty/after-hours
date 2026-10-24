@@ -142,7 +142,7 @@ function officeNight(s: CampaignState, r: Route) {
   for (const f of Object.keys(c.files)) if (c.files[f] === 'unread') dispatch(s, { type: 'c01/read', file: f });
   if (spareOffered(s)) dispatch(s, { type: 'c01/takeSpare' });
   if (c.trial === 'open' && loose(s) >= OFFICE.trial.clips) dispatch(s, { type: 'c01/sendTrial' });
-  // The dust sheet: noticed after a few seconds (relaxed) or at once (engaged).
+  // The dark end of the desk: noticed after a few seconds (relaxed) or at once (engaged).
   if (sheetReady(s) && (eff || s.simMs % 3_000 < 100)) dispatch(s, { type: 'c01/lift' });
   if (c.jammed) {
     jamSteps += 1;

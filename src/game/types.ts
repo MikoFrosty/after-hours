@@ -316,7 +316,7 @@ export interface C01State {
   trialAtMs: number;
   /** Clips that left in the trial run (0 for nights saved before there was one). */
   trialClips: number;
-  /** The clip machine starts under a dust sheet; lifting it reveals the machine and its manual. */
+  /** The clip machine starts in the dark at the far end of the desk; turning the lamp toward it reveals the machine and its manual. */
   sheetLifted: boolean;
   /** When the last terminal file appeared (simulated ms), so files arrive one at a time. */
   lastFileMs: number;

@@ -2619,6 +2619,9 @@ button,
     opacity: 0;
   }
 }
+.office-art .art-dark {
+  transition: opacity 1.6s ease-out;
+}
 .office-art .lampdip {
   opacity: 0;
   animation: lampdip 2.3s steps(1, end) infinite;

@@ -20,8 +20,7 @@ const CITY_LIGHTS: Array<[number, number]> = [
   [91, 222],
   [150, 217],
 ];
-/** The monitor's screen: the unit box (140 × 100) mapped onto the slanted glass. */
-const SCREEN_QUAD = '307,224 376,242 372,292 304,281';
+/** The monitor's screen: a 140 × 100 box mapped onto the slanted glass. */
 const SCREEN_MATRIX = `matrix(${69 / 140} ${18 / 140} ${-3 / 100} ${57 / 100} 307 224)`;
 /** The floor's two directions in the painting (towards the back right, towards the back left) and up. */
 const AX: [number, number] = [1, -0.53];
@@ -116,30 +115,30 @@ export function OfficeArt({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: ()
           <stop offset="0" stopColor="#ffcf8a" stopOpacity="0.55" />
           <stop offset="1" stopColor="#ffcf8a" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="art-screen" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0" stopColor="#7dffb8" stopOpacity="0.35" />
-          <stop offset="1" stopColor="#7dffb8" stopOpacity="0" />
+        <radialGradient id="art-crt" cx="0.45" cy="0.45" r="0.6">
+          <stop offset="0" stopColor="#123a26" stopOpacity="0.96" />
+          <stop offset="0.7" stopColor="#0b2618" stopOpacity="0.94" />
+          <stop offset="1" stopColor="#0b2618" stopOpacity="0" />
         </radialGradient>
-        {/* linen under the lamp: lit from the upper left, falling into shadow on the right */}
-        <radialGradient id="art-sheet" gradientUnits="userSpaceOnUse" cx="400" cy="270" r="210">
-          <stop offset="0" stopColor="#9c825d" />
-          <stop offset="0.3" stopColor="#6c5a43" />
-          <stop offset="0.65" stopColor="#3b3127" />
-          <stop offset="1" stopColor="#1c1712" />
+        <clipPath id="art-screen-clip">
+          <rect x={8} y={6} width={124} height={88} rx={12} />
+        </clipPath>
+        {/* phosphor: a faint bloom around bright text */}
+        <filter id="art-phosphor" x="-10%" y="-30%" width="120%" height="160%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="bloom" />
+          <feMerge>
+            <feMergeNode in="bloom" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        {/* the far end of the desk before the lamp is turned toward it: deep shadow, the machine's outline only just there */}
+        <radialGradient id="art-dark" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#030303" stopOpacity="0.9" />
+          <stop offset="0.6" stopColor="#030303" stopOpacity="0.8" />
+          <stop offset="1" stopColor="#030303" stopOpacity="0" />
         </radialGradient>
         <filter id="art-soft" x="-10%" y="-10%" width="120%" height="120%">
           <feGaussianBlur stdDeviation="1.8" />
-        </filter>
-        {/* a coarse weave and slightly soft edges, so the cloth sits in the painting rather than on it */}
-        <filter id="art-cloth" x="-5%" y="-5%" width="110%" height="110%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="noise" />
-          <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.28 0" result="grain" />
-          <feComposite in="grain" in2="SourceGraphic" operator="in" result="grainIn" />
-          <feGaussianBlur in="SourceGraphic" stdDeviation="0.7" result="soft" />
-          <feMerge>
-            <feMergeNode in="soft" />
-            <feMergeNode in="grainIn" />
-          </feMerge>
         </filter>
         <radialGradient id="art-headlight" cx="0.5" cy="0.5" r="0.5">
           <stop offset="0" stopColor="#fff4d6" stopOpacity="0.9" />
@@ -164,18 +163,18 @@ export function OfficeArt({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: ()
           <rect key={`${x},${y}`} x={x - 3.5} y={y - 4.5} width={7} height={9} fill="#232a3d" />
         ))}
         {anim &&
-          Array.from({ length: Math.round(18 * rainAmt) }, (_, i) => (
+          Array.from({ length: Math.round(40 * rainAmt) }, (_, i) => (
             <line
               key={i}
               className="rainline-art"
-              style={{ animationDelay: `${(i * 0.137) % 0.8}s`, animationDuration: `${0.6 + (i % 5) * 0.08}s` }}
+              style={{ animationDelay: `${(i * 0.113) % 0.9}s`, animationDuration: `${0.45 + (i % 7) * 0.05}s` }}
               x1={55 + ((i * 37) % 125)}
-              y1={60 + ((i * 53) % 150)}
-              x2={53 + ((i * 37) % 125)}
-              y2={74 + ((i * 53) % 150)}
-              stroke="#9fb4d8"
-              strokeWidth={0.8}
-              opacity={0.45}
+              y1={50 + ((i * 53) % 170)}
+              x2={54.4 + ((i * 37) % 125)}
+              y2={50 + ((i * 53) % 170) + 5 + (i % 3) * 1.5}
+              stroke="#c9d6ec"
+              strokeWidth={0.45}
+              opacity={0.12 + (i % 4) * 0.05}
             />
           ))}
         {v.van !== null && (
@@ -193,21 +192,24 @@ export function OfficeArt({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: ()
       {v.lamp && v.strain && anim && <ellipse className="lampdip" cx={300} cy={320} rx={240} ry={170} fill="url(#art-dark)" pointerEvents="none" />}
 
       {/* the monitor: the terminal's own lines */}
-      <polygon points={SCREEN_QUAD} fill="#071a10" />
-      <g transform={SCREEN_MATRIX} fill="#79ffb6" fontFamily="IBM Plex Mono, monospace" fontSize={13}>
-        <clipPath id="art-screen-clip">
-          <rect x={4} y={2} width={132} height={96} />
-        </clipPath>
+      {/* mute the painting's own lines without hiding the glass: a soft, slightly smaller patch of the screen's colour */}
+      <g transform={SCREEN_MATRIX} pointerEvents="none">
+        <rect x={10} y={8} width={120} height={84} rx={14} fill="url(#art-crt)" filter="url(#art-soft)" />
         <g clipPath="url(#art-screen-clip)">
-          {v.screen.map((line, i) => (
-            <text key={i} x={10} y={20 + i * 19} opacity={0.92}>
-              {line}
-              {i === v.screen.length - 1 && anim && <tspan className="cursor">_</tspan>}
-            </text>
+          <g fill="#8dffbf" fontFamily="IBM Plex Mono, monospace" fontSize={10.5} filter="url(#art-phosphor)" opacity={0.88}>
+            {v.screen.map((line, i) => (
+              <text key={i} x={14} y={24 + i * 15}>
+                {line}
+                {i === v.screen.length - 1 && anim && <tspan className="cursor">_</tspan>}
+              </text>
+            ))}
+          </g>
+          {/* scanlines */}
+          {Array.from({ length: 34 }, (_, i) => (
+            <rect key={i} x={0} y={i * 3} width={140} height={1} fill="#000" opacity={0.18} />
           ))}
         </g>
       </g>
-      <ellipse cx={340} cy={258} rx={52} ry={40} fill="url(#art-screen)" pointerEvents="none" />
 
       {/* the clip machine's extras: the wire spring, the second arm, the powered feeder */}
       {!v.sheet && v.tensioner && (
@@ -235,32 +237,16 @@ export function OfficeArt({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: ()
       {/* clips in the tray: more of them as the desk fills up */}
       <TrayClips n={clipCount} />
 
-      {/* the clip machine under its dust sheet, before anyone has looked: a low hump over the machine, a taller one over the spool */}
-      {v.sheet && (
-        <g onClick={onSheet} style={{ cursor: onSheet ? 'pointer' : undefined }} role={onSheet ? 'button' : undefined} aria-label={onSheet ? 'Lift the dust sheet' : undefined}>
-          <ellipse cx={476} cy={382} rx={124} ry={18} fill="url(#art-shadow)" />
-          {/* the cloth: a low hump over the machine with the lever poking up, a tall round one over the spool */}
-          <path
-            filter="url(#art-cloth)"
-            d="M366 366 C362 336 368 300 384 282 C396 270 416 270 430 282 C436 288 442 294 446 298 L452 282 C454 276 458 276 460 282 L466 296 C474 284 488 272 506 268 C530 264 554 272 568 290 C580 306 584 330 582 354 C584 362 586 368 588 372 C572 380 556 374 540 384 C520 392 498 382 478 390 C458 396 440 386 420 390 C400 392 384 384 374 376 Z"
-            fill="url(#art-sheet)"
-          />
-          {/* the round top of the spool showing through */}
-          <ellipse cx={530} cy={280} rx={36} ry={10} fill="#d9c09a" opacity={0.1} filter="url(#art-soft)" />
-          {/* fold valleys (dark) and ridges (light), soft */}
-          <g filter="url(#art-soft)" fill="none" strokeLinecap="round">
-            <path d="M458 298 C452 324 446 352 438 386" stroke="#1d1711" strokeWidth={4} opacity={0.55} />
-            <path d="M506 272 C504 306 498 346 490 388" stroke="#1d1711" strokeWidth={4} opacity={0.5} />
-            <path d="M556 284 C566 314 568 346 562 378" stroke="#120e0a" strokeWidth={5} opacity={0.55} />
-            <path d="M412 304 C406 330 404 356 406 388" stroke="#1d1711" strokeWidth={3} opacity={0.4} />
-            <path d="M430 300 C426 326 424 356 424 386" stroke="#e8d2a8" strokeWidth={2.5} opacity={0.35} />
-            <path d="M478 282 C476 312 472 348 466 388" stroke="#e8d2a8" strokeWidth={2.5} opacity={0.3} />
-            <path d="M400 312 C420 302 440 298 456 300 M468 290 C488 276 512 270 534 274" stroke="#e9cf9f" strokeWidth={2} opacity={0.35} />
-          </g>
-          {/* the hem lying on the desk */}
-          <path d="M366 372 C384 382 404 386 422 388 C442 394 460 388 478 392 C500 394 520 384 540 384 C556 380 572 376 588 374" fill="none" stroke="#17120d" strokeWidth={1.6} opacity={0.7} />
-        </g>
-      )}
+      {/* the clip machine in the dark at the far end of the desk, until the lamp is turned toward it */}
+      <g
+        className="art-dark"
+        style={{ opacity: v.sheet ? 1 : 0, pointerEvents: v.sheet ? undefined : 'none', cursor: v.sheet && onSheet ? 'pointer' : undefined }}
+        onClick={v.sheet ? onSheet : undefined}
+        role={v.sheet && onSheet ? 'button' : undefined}
+        aria-label={v.sheet && onSheet ? 'Turn the lamp toward it' : undefined}
+      >
+        <ellipse cx={482} cy={326} rx={150} ry={92} fill="url(#art-dark)" />
+      </g>
 
       {/* the machine running: a soft warm light where it works */}
       {v.running && !v.sheet && <ellipse className={anim ? 'machineglow' : undefined} cx={445} cy={318} rx={60} ry={30} fill="url(#art-warm)" opacity={0.35} pointerEvents="none" />}
@@ -363,7 +349,7 @@ export function OfficeArt({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: ()
 
 function label(v: OfficeView): string {
   const parts = ['The 11th-floor office at night: a desk under a lamp, a green terminal, a filing cabinet, rain on the window.'];
-  if (v.sheet) parts.push('Something on the desk is under a dust sheet.');
+  if (v.sheet) parts.push('Something sits at the dark end of the desk.');
   else if (v.bender) parts.push(`The clip machine is ${v.running ? 'running' : v.jammed ? 'stopped: the wire has snagged' : 'off'}.`);
   if (v.jig) parts.push(`A rack by the wall holds ${v.stations} small machines.`);
   if (v.cartons > 0) parts.push(`${v.cartons} sealed carton${v.cartons === 1 ? '' : 's'} on the floor.`);

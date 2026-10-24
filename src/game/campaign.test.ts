@@ -282,7 +282,7 @@ describe('chapter 01 office', () => {
     for (let i = 0; i < 99; i++) dispatch(s, { type: 'c01/make' });
     expect(nextGoal(s)).toBe('Make 1 more clip for the trial run.');
     expect(dispatch(s, { type: 'c01/sendTrial' })).not.toBeNull();
-    // No carton order exists yet, and nothing under the dust sheet is offered.
+    // No carton order exists yet, and nothing at the dark end of the desk is offered.
     expect(dispatch(s, { type: 'c01/pack' })).not.toBeNull();
     expect(offeredProjects(s)).toEqual([]);
     dispatch(s, { type: 'c01/make' });
@@ -294,8 +294,8 @@ describe('chapter 01 office', () => {
     run(s, OFFICE.trial.replyMs / 100 + 1);
     expect(c.trial).toBe('approved');
     expect(c.files.order2).toBe('unread');
-    // The reply brings the dust sheet into view; the machine under it is the way to a carton's worth.
-    expect(nextGoal(s)).toMatch(/dust sheet/);
+    // The reply draws the eye to the dark end of the desk; the machine there is the way to a carton's worth.
+    expect(nextGoal(s)).toMatch(/dark end of the desk/);
     expect(dispatch(s, { type: 'c01/lift' })).toBeNull();
     expect(offeredProjects(s).map((p) => p.id)).toEqual(['calibrate']);
     for (let i = 0; i < 250; i++) dispatch(s, { type: 'c01/make' });

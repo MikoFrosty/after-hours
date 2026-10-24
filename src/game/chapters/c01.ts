@@ -35,7 +35,7 @@ export function wireGrams(s: CampaignState): number {
 /** Simulated ms since the night began. */
 const nightMs = (s: CampaignState) => s.simMs - s.chapterEnteredSimMs;
 
-// ---------- the dust sheet and the orders ----------
+// ---------- the dark end of the desk and the orders ----------
 
 /** The clip machine is out from under its sheet (older saves that already own it count as lifted). */
 export const uncovered = (c: C01State) => c.sheetLifted || owns(c, 'calibrate');
@@ -117,7 +117,7 @@ export const rackMachines = (c: C01State) => (owns(c, 'jig') ? 3 : 0) + (owns(c,
 export function unlocked(s: CampaignState, p: OfficeProject): boolean {
   const c = cs(s);
   const u = p.unlock;
-  // The clip machine is under the dust sheet until it is lifted.
+  // The clip machine is in the dark at the far end of the desk until the lamp is turned toward it.
   if (p.id === 'calibrate' && !uncovered(c)) return false;
   if (u.after && !owns(c, u.after)) return false;
   if (u.made !== undefined && c.madeClips < u.made) return false;
@@ -246,7 +246,7 @@ export function nextGoal(s: CampaignState): string {
   if (c.jammed) return 'The wire snagged and the clip machine stopped. Free it.';
   if (c.trial === 'open') return l >= OFFICE.trial.clips ? 'The trial run is ready. Send it.' : `Make ${OFFICE.trial.clips - l} more clip${OFFICE.trial.clips - l === 1 ? '' : 's'} for the trial run.`;
   if (c.trial === 'sent') return 'Waiting to hear back. Keep making clips: you will need them.';
-  if (!uncovered(c)) return 'There is something under a dust sheet on the desk.';
+  if (!uncovered(c)) return 'Something sits at the dark end of the desk.';
   if (c.installing) return `Installing the ${project(c.installing.id).name.toLowerCase()}…`;
   if (c.sealed === 0) {
     if (!owns(c, 'calibrate')) return l >= 100 ? 'Buy the clip machine: it makes clips while you do other things.' : `Save ${100 - l} more clips for the clip machine.`;
@@ -500,9 +500,9 @@ export const c01: Controller = {
       emit({ type: 'beat', title: 'Sample approved', text: 'The customer liked the trial run. Next: one carton of 250.' });
       bump(s);
     }
-    // The shape under the dust sheet is noticed once: a quiet caption.
+    // The shape at the dark end of the desk is noticed once: a quiet caption.
     if (sheetReady(s) && once(s, 'c01.sheetNoticed')) {
-      emit({ type: 'beat', title: 'On the desk', text: 'Something sits under a dust sheet beside the terminal.' });
+      emit({ type: 'beat', title: 'On the desk', text: 'Something sits at the far end of the desk, out of the lamp\'s light.' });
       emit({ type: 'sound', id: 'notice' });
       bump(s);
     }
@@ -695,7 +695,7 @@ export const c01: Controller = {
         if (uncovered(c)) return null;
         if (!sheetReady(s)) return 'Not yet.';
         c.sheetLifted = true;
-        log(s, { id: 'c01.sheet', kind: 'system', title: 'Dust sheet', text: 'Under the sheet: a small desktop clip machine, switched off, with its manual tucked under it.' });
+        log(s, { id: 'c01.sheet', kind: 'system', title: 'The lamp', text: 'In the lamp\'s light: a small desktop clip machine, switched off, with its manual tucked under it.' });
         emit({ type: 'sound', id: 'install' });
         bump(s);
         return null;

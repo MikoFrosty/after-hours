@@ -663,7 +663,7 @@ function OfficeSvg({ v, onGlint, onSheet }: { v: OfficeView; onGlint?: () => voi
       )}
       {/* the clip machine under its dust sheet, before anyone has looked */}
       {v.sheet && (
-        <g onClick={onSheet} style={{ cursor: onSheet ? 'pointer' : undefined }} role={onSheet ? 'button' : undefined} aria-label={onSheet ? 'Lift the dust sheet' : undefined}>
+        <g onClick={onSheet} style={{ cursor: onSheet ? 'pointer' : undefined }} role={onSheet ? 'button' : undefined} aria-label={onSheet ? 'Turn the lamp toward it' : undefined}>
           <Box at={[3.3, 2.65, 2.72]} size={[1.0, 0.85, 0.55]} color="#bdb8aa" st={st} />
           <Box at={[3.45, 2.8, 3.27]} size={[0.6, 0.5, 0.14]} color="#c9c4b6" st={st} />
         </g>
