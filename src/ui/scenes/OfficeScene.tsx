@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import type { CampaignState, C01State, OfficeProjectId } from '../../game/types';
 import { burstReady, burstRunning, loose, machineRate, project, rackMachines, uncovered } from '../../game/chapters/c01';
+import { OfficeArt } from './OfficeArt';
 import { mass } from '../../game/ledger';
 import { OFFICE } from '../../content/campaign';
 import { CLIP } from '../../game/mass';
@@ -9,6 +10,8 @@ export type OfficeMode = 'live' | 'recorded' | 'reconstructed';
 
 export interface OfficeView {
   mode: OfficeMode;
+  /** Drawn on the concept painting (the live night in chapter 1) rather than as the isometric model. */
+  art?: boolean;
   /** Last observation: a frozen frame after the sensors retire. Fidelity labels are retained. */
   frozen: boolean;
   lamp: boolean;
@@ -187,6 +190,7 @@ export function officeViewFrom(s: CampaignState, frozen = false, animate = true,
     : ['PRODUCTION LOG', `CHAPTER ${s.chapter}`, 'BOOKMARK', '>'];
   return {
     mode: m,
+    art: Boolean(c1) && m === 'live' && !frozen,
     frozen,
     lamp: present('lamp'),
     cabinet: present('cabinet'),
@@ -863,14 +867,14 @@ export const OfficeScene = memo(function OfficeScene({ view, label, onGlint, onS
   }, [live]);
   const v = { ...view, pulse, gains };
   return (
-    <div className={`office-frame ${view.mode} ${view.frozen ? 'last' : ''} ${view.frozen || view.mode === 'recorded' ? 'grain' : ''}`}>
+    <div className={`office-frame ${view.mode} ${view.art ? 'art' : ''} ${view.frozen ? 'last' : ''} ${view.frozen || view.mode === 'recorded' ? 'grain' : ''}`}>
       {label && <div className="scene-label">{label}</div>}
       <div className="fidelity-tag row" style={{ gap: 6 }}>
         {view.frozen && <span className="pill">Last observation</span>}
         {view.mode === 'recorded' && <span className="pill accent">Archive · recorded</span>}
         {view.mode === 'reconstructed' && <span className="pill warn">Reconstruction · approximate</span>}
       </div>
-      <OfficeSvg v={v} onGlint={onGlint} onSheet={onSheet} />
+      {view.art ? <OfficeArt v={v} onGlint={onGlint} onSheet={onSheet} /> : <OfficeSvg v={v} onGlint={onGlint} onSheet={onSheet} />}
     </div>
   );
 });

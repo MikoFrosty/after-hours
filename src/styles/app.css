@@ -2583,3 +2583,91 @@ button,
     animation: none;
   }
 }
+
+/* ---------- the office night on the concept painting ---------- */
+.office-frame.art {
+  background: #0f1113;
+}
+.office-art {
+  max-height: 100%;
+}
+.office-art .rainline-art {
+  animation: dropart 0.8s linear infinite;
+}
+@keyframes dropart {
+  from {
+    transform: translateY(-30px);
+  }
+  to {
+    transform: translateY(40px);
+  }
+}
+.office-art .headlights-art {
+  animation: headlightsart 6s ease-in-out infinite;
+}
+@keyframes headlightsart {
+  0% {
+    transform: translateX(-90px);
+    opacity: 0;
+  }
+  20%,
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(90px);
+    opacity: 0;
+  }
+}
+.office-art .lampdip {
+  opacity: 0;
+  animation: lampdip 2.3s steps(1, end) infinite;
+}
+@keyframes lampdip {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  37% {
+    opacity: 0.7;
+  }
+  41% {
+    opacity: 0.05;
+  }
+  73% {
+    opacity: 0.45;
+  }
+  76% {
+    opacity: 0;
+  }
+}
+.office-art .machineglow {
+  animation: machineglow 1.1s ease-in-out infinite;
+  mix-blend-mode: screen;
+}
+@keyframes machineglow {
+  50% {
+    opacity: 0.12;
+  }
+}
+.office-art .blink {
+  animation: blinkled 1.4s steps(2, end) infinite;
+}
+@keyframes blinkled {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .office-art .rainline-art,
+  .office-art .headlights-art,
+  .office-art .lampdip,
+  .office-art .machineglow,
+  .office-art .blink {
+    animation: none;
+  }
+}
+/* The painting has its own falloff into darkness: only a light vignette over it. */
+.office-frame.art::after {
+  background: radial-gradient(ellipse at 50% 48%, transparent 65%, rgba(0, 0, 0, 0.3) 100%);
+}
