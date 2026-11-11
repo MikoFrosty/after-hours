@@ -35,6 +35,7 @@ import {
 import { mass } from '../../game/ledger';
 import { fmtMass } from '../../game/mass';
 import { Bar } from './Panel';
+import { setSettings } from '../settings';
 
 /** The early van; whatever of the big order is still unsealed then goes on the 7:00 run. */
 const VAN_LABEL = '5:22';
@@ -70,13 +71,16 @@ export function P01() {
       )}
       {!c.capped && uncovered(c) && <Upgrades />}
       <Desk />
+      <button className="btn ghost small o-3d" onClick={() => setSettings({ view3d: true })}>
+        Try the 3D room (prototype)
+      </button>
       <MakeRow pinned />
     </>
   );
 }
 
 /** B makes clips, F frees a snag, C grabs a speed burst, S sends the trial run or packs a carton. */
-function useOfficeKeys() {
+export function useOfficeKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -96,7 +100,7 @@ function useOfficeKeys() {
 }
 
 /** The current order: what it is, how far along, the one next step, and (for the big order) the van. */
-function OrderCard() {
+export function OrderCard() {
   const s = useGameState();
   const c = s.chapterState as C01State;
   const l = loose(s);
@@ -322,7 +326,7 @@ function MakeRow({ pinned = false }: { pinned?: boolean }) {
 }
 
 /** One line for the thing that needs you right now. It keeps its height so nothing below jumps. */
-function AlertLine() {
+export function AlertLine() {
   const s = useGameState();
   const c = s.chapterState as C01State;
   const left = (ms: number) => Math.max(0, Math.ceil((ms - s.simMs) / 1000));
@@ -447,7 +451,7 @@ function AlertLine() {
 }
 
 /** The upgrades on offer, the next one coming, and what each one is worth. */
-function Upgrades() {
+export function Upgrades() {
   const s = useGameState();
   const c = s.chapterState as C01State;
   const offered = offeredProjects(s);
@@ -537,7 +541,7 @@ function UpgradeRow({ p, best }: { p: OfficeProject; best: boolean }) {
 }
 
 /** Mara's notes, the terminal's files and the coil: background, folded away until wanted. */
-function Desk() {
+export function Desk() {
   const s = useGameState();
   const c = s.chapterState as C01State;
   const [openFile, setOpenFile] = useState<string | null>(null);

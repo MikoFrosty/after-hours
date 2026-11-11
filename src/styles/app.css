@@ -2674,3 +2674,165 @@ button,
 .office-frame.art::after {
   background: radial-gradient(ellipse at 50% 48%, transparent 65%, rgba(0, 0, 0, 0.3) 100%);
 }
+
+/* ---------- the 3D room (prototype) ---------- */
+.stage.stage-3d {
+  display: block;
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+}
+.night3d {
+  position: absolute;
+  inset: 0;
+  background: #07090b;
+  color: var(--text, #e8e2d4);
+}
+.night3d.loading {
+  display: grid;
+  place-items: center;
+  color: #8a8478;
+  font-size: 0.9rem;
+}
+.night3d-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.n3-hud {
+  position: absolute;
+  z-index: 2;
+}
+.n3-top {
+  top: 12px;
+  left: 12px;
+  max-width: min(420px, calc(100% - 24px));
+  padding: 10px 14px;
+  background: rgba(10, 12, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+.n3-goal {
+  margin-top: 4px;
+  font-size: 0.98rem;
+  line-height: 1.35;
+}
+.n3-stats {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: #a39c8e;
+}
+.n3-cross {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 2;
+}
+.n3-label {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  background: rgba(10, 12, 14, 0.8);
+  border-radius: 6px;
+  color: #f2e6c8;
+}
+.n3-floater {
+  position: absolute;
+  left: 10px;
+  top: -10px;
+  font-family: var(--mono, monospace);
+  color: #ffd98f;
+  animation: n3float 0.8s ease-out forwards;
+}
+@keyframes n3float {
+  to {
+    transform: translateY(-36px);
+    opacity: 0;
+  }
+}
+.n3-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  text-align: center;
+  font-size: 0.85rem;
+  color: #c8c0b0;
+  background: rgba(10, 12, 14, 0.6);
+  padding: 6px 12px;
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 2;
+}
+.n3-bottom {
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 24px));
+  display: grid;
+  gap: 8px;
+}
+.n3-alert:empty {
+  display: none;
+}
+.n3-alert {
+  background: rgba(10, 12, 14, 0.82);
+  border-radius: 10px;
+}
+.n3-tools {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.n3-terminal-back {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.n3-terminal {
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #0e1311;
+  border: 1px solid rgba(120, 255, 170, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 0 40px rgba(80, 255, 150, 0.08);
+}
+.o-3d {
+  justify-self: start;
+}
+@media (hover: none) and (pointer: coarse) {
+  .n3-tools .kbd {
+    display: none;
+  }
+  .n3-make {
+    padding: 14px 22px;
+    font-size: 1rem;
+  }
+}

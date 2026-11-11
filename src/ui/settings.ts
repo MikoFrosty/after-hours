@@ -9,6 +9,8 @@ export interface UISettings {
   music: number;
   sfx: number;
   muted: boolean;
+  /** Play the night in the 3D room (prototype). */
+  view3d: boolean;
 }
 
 const prefersReduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -20,6 +22,7 @@ let settings: UISettings = {
   music: 0.55,
   sfx: 0.7,
   muted: false,
+  view3d: false,
 };
 try {
   const raw = localStorage.getItem(SETTINGS_KEY);

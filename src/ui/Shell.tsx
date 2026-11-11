@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { game } from '../runtime/game';
 import { useGameState } from './hooks';
 import { metrics, storyClock, charterStatus, STORY_SPANS, STORY_SCALE_TEXT } from '../game/selectors';
@@ -11,6 +11,10 @@ import { Ending, TerminalOverlays } from './Ending';
 import { DebugPanel, useDebugKey } from './DebugPanel';
 import { Scene } from './scenes/Scene';
 import { Panel } from './panels/Panel';
+import { useSettings } from './settings';
+
+// The 3D room (prototype) loads only when it is switched on.
+const Night3D = lazy(() => import('./three/Night3D'));
 
 export function Shell() {
   const s = useGameState();
@@ -31,6 +35,8 @@ export function Shell() {
   const inOffice = s.chapter === '01';
   const c1 = inOffice ? (s.chapterState as C01State) : null;
   const showLedger = !c1 || c1.owned.length > 0 || c1.sealed > 0;
+  const settings = useSettings();
+  const in3d = Boolean(c1) && settings.view3d && s.anchors.office.fidelity === 'original';
   const hasReflection = Object.keys(s.flags).some((k) => k.startsWith('reflection.')) || s.anchors.frame.fidelity === 'absent';
 
   useEffect(() => {
@@ -124,6 +130,13 @@ export function Shell() {
         </div>
       </header>
 
+      {in3d ? (
+        <main className="stage stage-3d">
+          <Suspense fallback={<div className="night3d loading">Turning on the lights…</div>}>
+            <Night3D />
+          </Suspense>
+        </main>
+      ) : (
       <main className="stage">
         <Scene />
         <section className={`panel ${computeGone ? 'withdrawn' : ''}`} aria-label={`${meta.title} controls`}>
@@ -138,6 +151,7 @@ export function Shell() {
           <Panel />
         </section>
       </main>
+      )}
 
       <footer className={`dock ${computeGone ? 'withdrawn' : ''}`} aria-label="Records and settings">
         {!archiveGone && (
