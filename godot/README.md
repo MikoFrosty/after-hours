@@ -1,11 +1,11 @@
 # After Hours in Godot
 
-The night desk (stage 1) as a first-person game, built with Godot 4.5 and C#. The web game in the
+The night desk (stage 1) as a first-person game, built with Godot 4.7 and C#. The web game in the
 repository root is unchanged; this folder is a separate project.
 
 ## Running it
 
-1. Install **Godot 4.5.1 (.NET)** from godotengine.org and the **.NET 8 SDK**.
+1. Install **Godot 4.7.2 (.NET)** from godotengine.org and the **.NET 8 SDK**.
 2. Open Godot, choose *Import*, and select `godot/project.godot`.
 3. Press **F5**. The first run builds the C# code.
 
