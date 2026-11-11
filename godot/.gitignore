@@ -1,0 +1,6 @@
+.godot/
+bin/
+obj/
+tests/bin/
+tests/obj/
+*.user
