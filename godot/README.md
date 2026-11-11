@@ -5,7 +5,7 @@ repository root is unchanged; this folder is a separate project.
 
 ## Running it
 
-1. Install **Godot 4.7.2 (.NET)** from godotengine.org and the **.NET 8 SDK**.
+1. Install **Godot 4.7.2 (.NET)** from godotengine.org and the **.NET SDK**, version 8 or newer (9 works).
 2. Open Godot, choose *Import*, and select `godot/project.godot`.
 3. Press **F5**. The first run builds the C# code.
 

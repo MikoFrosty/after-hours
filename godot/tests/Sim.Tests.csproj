@@ -4,6 +4,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <RootNamespace>AfterHours.Tests</RootNamespace>
+    <!-- Run on a newer .NET (such as 9) when .NET 8 itself is not installed. -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
   <ItemGroup>
     <!-- The simulation has no Godot dependency, so it is tested as plain .NET. -->
