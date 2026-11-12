@@ -1,6 +1,8 @@
 # Handoff: where the project stands
 
 For a new session picking this up. Work happens on branch `claude/creative-project-implementation-av6jz7`.
+`docs/HISTORY.md` is the full story: every request the owner made, in their words, the decisions and why, what
+was tried and dropped, their preferences, and the technical lessons. Read it after this page.
 
 ## Two versions of the game
 
