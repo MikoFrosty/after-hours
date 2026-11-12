@@ -2,7 +2,7 @@
 // the player's hands, the sound, the interface, the menus and the save file.
 //
 // For automated checks: godot --path godot -- --shot=out.png [--at=start|dark|machine|mid|late|done]
-// [--look=yaw,pitch] [--pos=x,z] [--hands=held,loaded,bent] [--terminal] plays the night with the engaged simulated
+// [--look=yaw,pitch] [--pos=x,z] [--hands=held,loaded,bent] [--terminal] [--menu=title|pause|settings] plays the night with the engaged simulated
 // player up to that point, frames the view, saves a screenshot and quits.
 using System;
 using System.Linq;
@@ -670,6 +670,12 @@ public partial class Main : Node3D
         Input.MouseMode = Input.MouseModeEnum.Visible;
         hud.HideHint();
         if (args.Contains("--terminal")) hud.ShowTerminal(true);
+        if (Arg("menu") is string m)
+        {
+            if (m == "title") menu.ShowTitle(true, "today");
+            else if (m == "pause") menu.ShowPause();
+            else menu.ShowSettings();
+        }
         shotFrames = 30;
     }
 }

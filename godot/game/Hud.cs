@@ -353,7 +353,9 @@ public partial class Hud : CanvasLayer
         foreach (var c in upgrades.GetChildren()) c.QueueFree();
         var offered = n.Uncovered && !n.Capped ? n.Offered() : new List<OfficeProject>();
         var best = offered.Count > 1 ? n.BestUpgrade() : null;
-        if (offered.Count == 0) upgrades.AddChild(Text(n.Uncovered ? "Nothing on offer right now." : "Nothing yet.", 14, Muted));
+        if (offered.Count == 0) upgrades.AddChild(Text(n.Uncovered ? "Nothing more on offer right now." : "Nothing yet.", 14, Muted));
+        if (n.Owned.Count > 0)
+            upgrades.AddChild(Text("Installed: " + string.Join(", ", n.Owned.Select(id => n.Project(id).Name.ToLowerInvariant())), 12, Muted, true));
         foreach (var p in offered)
         {
             var row = new PanelContainer();

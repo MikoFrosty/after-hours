@@ -110,8 +110,9 @@ public partial class Menu : CanvasLayer
 
     public void Close() => root.Visible = false;
 
-    void ShowSettings()
+    public void ShowSettings()
     {
+        root.Visible = true;
         title.Visible = false;
         pause.Visible = false;
         settings.Visible = true;
