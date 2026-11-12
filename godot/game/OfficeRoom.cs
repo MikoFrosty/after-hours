@@ -273,11 +273,11 @@ public partial class OfficeRoom : Node3D
         Box(monitor, new Vector3(0.38f, 0.32f, 0.36f), new Vector3(0, 0.2f, 0), beige);
         Box(monitor, new Vector3(0.3f, 0.26f, 0.14f), new Vector3(0, 0.19f, -0.24f), beige);
         Box(monitor, new Vector3(0.22f, 0.04f, 0.22f), new Vector3(0, 0.02f, 0), beige);
-        var vp = new SubViewport { Size = new Vector2I(320, 240), TransparentBg = false, RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
-        screenBg = new ColorRect { Color = new Color(0.01f, 0.06f, 0.03f), Size = new Vector2(320, 240) };
+        var vp = new SubViewport { Size = new Vector2I(640, 480), TransparentBg = false, RenderTargetUpdateMode = SubViewport.UpdateMode.Always };
+        screenBg = new ColorRect { Color = new Color(0.01f, 0.06f, 0.03f), Size = new Vector2(640, 480) };
         vp.AddChild(screenBg);
-        screenText = new Label { Position = new Vector2(20, 18), Size = new Vector2(290, 210) };
-        screenText.AddThemeFontSizeOverride("font_size", 28);
+        screenText = new Label { Position = new Vector2(40, 36), Size = new Vector2(580, 420) };
+        screenText.AddThemeFontSizeOverride("font_size", 56);
         screenText.AddThemeColorOverride("font_color", new Color(0.55f, 1f, 0.68f));
         screenText.AddThemeFontOverride("font", new SystemFont { FontNames = new[] { "DejaVu Sans Mono", "Monospace" } });
         vp.AddChild(screenText);
