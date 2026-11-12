@@ -86,4 +86,39 @@ public class OfficeParityTests
         Assert.Equal(0, n.BigPacked);
         Assert.Null(n.CheckInvariant());
     }
+
+    [Fact]
+    public void ASavedNightCarriesOnExactlyAsIfNeverSaved()
+    {
+        var cfg = Config();
+        var a = new Night(cfg);
+        var ap = new Autopilot(engaged: false);
+        for (var i = 0; i < 2600; i++)
+        {
+            ap.Act(a);
+            a.Step();
+        }
+        var json = JsonSerializer.Serialize(a.Snapshot());
+        var b = Night.Restore(cfg, JsonSerializer.Deserialize<NightSnapshot>(json)!);
+        Assert.Equal(json, JsonSerializer.Serialize(b.Snapshot()));
+        // the same moves from here play out the same on both
+        for (var i = 0; i < 3000; i++)
+        {
+            if (i % 7 == 0) { a.Make(); b.Make(); }
+            if (i % 400 == 0) { a.Pack(); b.Pack(); }
+            a.Step();
+            b.Step();
+        }
+        Assert.Equal(JsonSerializer.Serialize(a.Snapshot()), JsonSerializer.Serialize(b.Snapshot()));
+        Assert.Null(b.CheckInvariant());
+    }
+
+    [Fact]
+    public void RefusesASaveThatDoesNotAddUp()
+    {
+        var cfg = Config();
+        var snap = new Night(cfg).Snapshot();
+        snap.Accounts["clips"] += 500;
+        Assert.Throws<System.InvalidOperationException>(() => Night.Restore(cfg, snap));
+    }
 }

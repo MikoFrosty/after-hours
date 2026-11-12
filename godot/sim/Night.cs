@@ -302,7 +302,7 @@ public sealed class Night
     {
         var l = Loose;
         if (Capped) return "Every carton is packed. The machines are off.";
-        if (MadeClips == 0) return "Pull the lever on the hand bender to make a clip from the coil of wire.";
+        if (MadeClips == 0) return "Make a clip by hand at the bender: wire from the coil, bend it, snip it off.";
         if (Jammed) return "The wire snagged and the clip machine stopped. Free it.";
         if (Trial == Trial.Open)
             return l >= Cfg.TrialClips ? "The trial run is ready. Send it." : $"Make {Cfg.TrialClips - l} more clip{(Cfg.TrialClips - l == 1 ? "" : "s")} for the trial run.";
@@ -718,6 +718,44 @@ public sealed class Night
         }
     }
 
+    // ---------- saving ----------
+
+    /// <summary>Everything about the night, for a save file.</summary>
+    public NightSnapshot Snapshot() => new()
+    {
+        SimMs = SimMs, StorySeconds = StorySeconds, Mode = Mode, LeaseTaken = LeaseTaken, MadeClips = MadeClips, RateResidue = RateResidue,
+        Owned = Owned.ToList(), Installing = Installing, Jammed = Jammed, SinceJam = SinceJam, Jams = Jams, Sealed = Sealed, VanCartons = VanCartons,
+        SpareTaken = SpareTaken, HandPresses = HandPresses, NextBurstMs = NextBurstMs, BurstReadyUntilMs = BurstReadyUntilMs, BurstUntilMs = BurstUntilMs,
+        BurstsCaught = BurstsCaught, Trial = Trial, TrialAtMs = TrialAtMs, TrialClips = TrialClips, SheetLifted = SheetLifted, LastFileMs = LastFileMs,
+        Files = new Dictionary<string, string>(Files), Courier = Courier, CourierCartons = CourierCartons, CourierBonus = CourierBonus, Hot = Hot,
+        Capped = Capped, ReportShown = ReportShown, ReportPending = ReportPending, LifetimeMade = LifetimeMade, Screen = Screen, ScreenAt = ScreenAt,
+        MilestoneAt = MilestoneAt, CappedAt = CappedAt, CappedStory = CappedStory, VanAt = VanAt, EventSerial = EventSerial,
+        Log = Log.ToList(), Fired = fired.ToList(), Accounts = new Dictionary<string, long>(accounts),
+    };
+
+    /// <summary>A night as it was saved. Refuses a save whose wire and clips do not add up.</summary>
+    public static Night Restore(OfficeConfig cfg, NightSnapshot s)
+    {
+        var n = new Night(cfg)
+        {
+            SimMs = s.SimMs, StorySeconds = s.StorySeconds, Mode = s.Mode, LeaseTaken = s.LeaseTaken, MadeClips = s.MadeClips, RateResidue = s.RateResidue,
+            Installing = s.Installing, Jammed = s.Jammed, SinceJam = s.SinceJam, Jams = s.Jams, Sealed = s.Sealed, VanCartons = s.VanCartons,
+            SpareTaken = s.SpareTaken, HandPresses = s.HandPresses, NextBurstMs = s.NextBurstMs, BurstReadyUntilMs = s.BurstReadyUntilMs, BurstUntilMs = s.BurstUntilMs,
+            BurstsCaught = s.BurstsCaught, Trial = s.Trial, TrialAtMs = s.TrialAtMs, TrialClips = s.TrialClips, SheetLifted = s.SheetLifted, LastFileMs = s.LastFileMs,
+            Courier = s.Courier, CourierCartons = s.CourierCartons, CourierBonus = s.CourierBonus, Hot = s.Hot, Capped = s.Capped, ReportShown = s.ReportShown,
+            LifetimeMade = s.LifetimeMade, Screen = s.Screen, ScreenAt = s.ScreenAt, MilestoneAt = s.MilestoneAt, CappedAt = s.CappedAt, CappedStory = s.CappedStory,
+            VanAt = s.VanAt, EventSerial = s.EventSerial,
+        };
+        n.ReportPending = s.ReportPending;
+        n.Owned.AddRange(s.Owned);
+        foreach (var kv in s.Files) n.Files[kv.Key] = kv.Value;
+        n.Log.AddRange(s.Log);
+        foreach (var f in s.Fired) n.fired.Add(f);
+        if (s.Accounts.Values.Sum() != n.total || s.Accounts.Count != n.accounts.Count) throw new InvalidOperationException("The saved night's wire and clips do not add up.");
+        foreach (var kv in s.Accounts) n.accounts[kv.Key] = kv.Value;
+        return n;
+    }
+
     // ---------- what the player does ----------
 
     /// <summary>Apply an action; returns why it was refused, or null. Milestones are evaluated right after.</summary>
@@ -875,4 +913,53 @@ public sealed class Night
         Events();
         if (Sealed >= Cartons && LeaseTaken != null) Mode = NightMode.Done;
     }
+}
+
+/// <summary>A night written down for a save file (System.Text.Json).</summary>
+public sealed class NightSnapshot
+{
+    public int Version { get; set; } = 1;
+    public long SimMs { get; set; }
+    public double StorySeconds { get; set; }
+    public NightMode Mode { get; set; }
+    public bool? LeaseTaken { get; set; }
+    public int MadeClips { get; set; }
+    public long RateResidue { get; set; }
+    public List<string> Owned { get; set; } = new();
+    public Installing? Installing { get; set; }
+    public bool Jammed { get; set; }
+    public int SinceJam { get; set; }
+    public int Jams { get; set; }
+    public int Sealed { get; set; }
+    public int? VanCartons { get; set; }
+    public bool SpareTaken { get; set; }
+    public int HandPresses { get; set; }
+    public long NextBurstMs { get; set; }
+    public long BurstReadyUntilMs { get; set; }
+    public long BurstUntilMs { get; set; }
+    public int BurstsCaught { get; set; }
+    public Trial Trial { get; set; }
+    public long TrialAtMs { get; set; }
+    public int TrialClips { get; set; }
+    public bool SheetLifted { get; set; }
+    public long LastFileMs { get; set; }
+    public Dictionary<string, string> Files { get; set; } = new();
+    public Courier? Courier { get; set; }
+    public int CourierCartons { get; set; }
+    public int CourierBonus { get; set; }
+    public Hot? Hot { get; set; }
+    public bool Capped { get; set; }
+    public bool ReportShown { get; set; }
+    public bool ReportPending { get; set; }
+    public long LifetimeMade { get; set; }
+    public string Screen { get; set; } = "";
+    public long ScreenAt { get; set; }
+    public long MilestoneAt { get; set; }
+    public long CappedAt { get; set; }
+    public double? CappedStory { get; set; }
+    public long? VanAt { get; set; }
+    public int EventSerial { get; set; }
+    public List<LogEntry> Log { get; set; } = new();
+    public List<string> Fired { get; set; } = new();
+    public Dictionary<string, long> Accounts { get; set; } = new();
 }

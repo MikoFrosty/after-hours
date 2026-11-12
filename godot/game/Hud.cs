@@ -11,6 +11,9 @@ namespace AfterHours.Game;
 public partial class Hud : CanvasLayer
 {
     Night n = null!;
+    HandWork hands = new();
+    Label handLine = null!, refusal = null!;
+    ulong refusedAt;
     Label order = null!, goal = null!, stats = null!, hover = null!, prompt = null!, hint = null!, captionTitle = null!, captionText = null!;
     PanelContainer captionBox = null!, promptBox = null!;
     Control cross = null!;
@@ -49,7 +52,22 @@ public partial class Hud : CanvasLayer
 
     static readonly Color Ink = new(0.91f, 0.89f, 0.84f), Muted = new(0.64f, 0.65f, 0.62f), Accent = new(0.84f, 0.64f, 0.4f), Phosphor = new(0.56f, 0.89f, 0.69f);
 
-    public void Init(Night night) => n = night;
+    public void Init(Night night, HandWork h)
+    {
+        n = night;
+        hands = h;
+        captions.Clear();
+        captionUp = false;
+        if (captionBox != null) captionBox.Visible = false;
+    }
+
+    /// <summary>Say briefly why something cannot be done.</summary>
+    public void Refuse(string why)
+    {
+        refusal.Text = why;
+        refusal.Visible = true;
+        refusedAt = Time.GetTicksMsec();
+    }
 
     public override void _Ready()
     {
@@ -66,8 +84,11 @@ public partial class Hud : CanvasLayer
         goal = Text("", 17, Ink, true);
         goal.CustomMinimumSize = new Vector2(352, 0);
         stats = Text("", 13, Muted);
+        handLine = Text("", 14, new Color(0.62f, 0.86f, 0.72f), true);
+        handLine.CustomMinimumSize = new Vector2(352, 0);
         tv.AddChild(order);
         tv.AddChild(goal);
+        tv.AddChild(handLine);
         tv.AddChild(stats);
         top.AddChild(tv);
         root.AddChild(top);
@@ -118,12 +139,22 @@ public partial class Hud : CanvasLayer
         promptBox.AddChild(prompt);
         root.AddChild(promptBox);
 
-        hint = Text("WASD to walk · mouse to look · click to use · B bend a clip · Tab terminal · Esc frees the mouse", 14, Muted);
+        hint = Text("WASD walk · mouse look · click to use · hold and drag down to pull the lever · Tab terminal · Esc pause", 14, Muted);
         hint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         hint.HorizontalAlignment = HorizontalAlignment.Center;
         hint.Size = new Vector2(900, 24);
         hint.Position = new Vector2(-450, -40);
         root.AddChild(hint);
+
+        refusal = Text("", 15, new Color(1f, 0.72f, 0.6f));
+        refusal.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        refusal.HorizontalAlignment = HorizontalAlignment.Center;
+        refusal.Size = new Vector2(900, 24);
+        refusal.Position = new Vector2(-450, -70);
+        refusal.AddThemeConstantOverride("outline_size", 6);
+        refusal.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.85f));
+        refusal.Visible = false;
+        root.AddChild(refusal);
 
         BuildTerminal(root);
         BuildReport(root);
@@ -244,12 +275,26 @@ public partial class Hud : CanvasLayer
         }
     }
 
-    public void HideReport() => report.Visible = false;
+    public void HideReport()
+    {
+        if (report != null) report.Visible = false;
+    }
 
     public void Sync()
     {
         order.Text = (n.Trial != Trial.Approved ? "ORDER 1 OF 3 · TRIAL RUN" : n.Sealed == 0 ? "ORDER 2 OF 3 · FIRST CARTON" : $"ORDER 3 OF 3 · {n.BigPacked} OF 11 CARTONS");
         goal.Text = n.NextGoal();
+        // the hands: what the bender needs next, until the machine takes over the work
+        var busy = hands.Held > 0 || hands.Loaded > 0 || hands.Bent;
+        handLine.Visible = !n.Capped && (!n.Owns("calibrate") || busy);
+        handLine.Text = hands.Next switch
+        {
+            HandWork.Step.Pull => "By hand: pull a length of wire off the coil.",
+            HandWork.Step.Feed => "By hand: feed the wire into the bender.",
+            HandWork.Step.Bend => $"By hand: pull the lever down to bend a pair · wire for {hands.Loaded} more",
+            _ => "By hand: snip them off with the red cutter.",
+        };
+        if (refusal.Visible && Time.GetTicksMsec() - refusedAt > 2400) refusal.Visible = false;
         var rate = n.MachineRate;
         var forecast = n.VanForecast();
         stats.Text = $"{n.Loose:N0} clips on the desk{(rate > 0 ? $" · {rate / 1000.0:0.0}/s" : "")} · {n.Clock()}{(forecast != null ? $" · van at 5:22 takes ~{forecast}" : "")}";
