@@ -79,5 +79,8 @@ godot --path godot -- --shot=out.png --at=machine --look=0.05,-0.55 --pos=0.2,-0
 
 plays the night with the engaged simulated player up to a point (`start`, `dark`, `install`, `machine`,
 `mid`, `late`, `done`), places the camera (yaw and pitch in radians, position x,z in metres), optionally sets
-what is in hand (`--hands=held,loaded,bent`) or opens the terminal (`--terminal`), saves a screenshot and quits. `--off=fog,rain,moon,city,glow,ssao` turns parts of the scene off to track down
-rendering problems.
+what is in hand (`--hands=held,loaded,bent` as numbers: clips' worth of wire in hand, clips' worth fed into the
+bender, and 1 if a pair is bent and waiting, e.g. `--hands=10,0,0` or `--hands=0,8,1`) or opens the terminal
+(`--terminal`), saves a screenshot and quits. The lamp and the overhead light are put straight where the night
+has them, so a shot never catches them halfway. Options it cannot read end the run with a message (exit code 2).
+`--off=fog,rain,moon,city,glow,ssao,probe` turns parts of the scene off to track down rendering problems.

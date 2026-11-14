@@ -19,6 +19,7 @@ public partial class OfficeRoom
     StaticBody3D benderTarget = null!, coilTarget = null!;
     ArrayMesh clipMesh = null!;
     StandardMaterial3D clipMat = null!;
+    float leverShown;
     /// <summary>Where the bender sits, for sound.</summary>
     public Vector3 BenderAt => bender.GlobalPosition;
 
@@ -65,11 +66,13 @@ public partial class OfficeRoom
         RBox(lever, new Vector3(0.03f, 0.024f, 0.03f), Vector3.Zero, castIron, 0.006f);
         Rod(lever, new Vector3(0, 0, 0), new Vector3(0.0f, 0.0f, 0.17f), 0.006f, steel);
         Lathe(lever, new[] { (0f, -0.03f), (0.012f, -0.028f), (0.016f, 0f), (0.012f, 0.028f), (0f, 0.03f) }, new Vector3(0, 0, 0.19f), red, 16).RotationDegrees = new Vector3(90, 0, 0);
-        // a clip, bent and waiting on the pins
-        bentClip = new Node3D { Position = new Vector3(0, 0.098f, -0.02f), RotationDegrees = new Vector3(0, 90, 0), Visible = false };
+        // a pair of clips, bent and waiting on the pins: freshly worked steel catches the light, and the pair is drawn
+        // a little larger than life so it reads from where the player stands
+        var freshMat = new StandardMaterial3D { AlbedoColor = new Color(0.85f, 0.87f, 0.9f), Roughness = 0.2f, Metallic = 0.9f, EmissionEnabled = true, Emission = new Color(1f, 0.82f, 0.55f), EmissionEnergyMultiplier = 0.5f };
+        bentClip = new Node3D { Position = new Vector3(0, 0.1f, -0.02f), RotationDegrees = new Vector3(0, 90, 0), Scale = Vector3.One * 1.35f, Visible = false };
         bender.AddChild(bentClip);
-        bentClip.AddChild(new MeshInstance3D { Mesh = clipMesh, MaterialOverride = clipMat });
-        bentClip.AddChild(new MeshInstance3D { Mesh = clipMesh, MaterialOverride = clipMat, Position = new Vector3(0, 0.003f, 0.006f), RotationDegrees = new Vector3(0, 8, 0), Name = "Second" });
+        bentClip.AddChild(new MeshInstance3D { Mesh = clipMesh, MaterialOverride = freshMat });
+        bentClip.AddChild(new MeshInstance3D { Mesh = clipMesh, MaterialOverride = freshMat, Position = new Vector3(0, 0.003f, 0.006f), RotationDegrees = new Vector3(0, 8, 0), Name = "Second" });
         // the cutter at the front right: a fixed jaw and a red-handled moving one
         RBox(bender, new Vector3(0.03f, 0.03f, 0.03f), new Vector3(0.085f, 0.05f, 0.045f), steel, 0.005f);
         cutterJaw = new Node3D { Position = new Vector3(0.085f, 0.067f, 0.045f) };
@@ -181,9 +184,11 @@ public partial class OfficeRoom
         hands.SnipT = Mathf.Min(1, hands.SnipT + dt * 5);
         hands.FeedT = Mathf.Min(1, hands.FeedT + dt * 3);
         hands.BendT = Mathf.Min(1, hands.BendT + dt * 4);
-        // the lever follows the player's drag, then springs back up
-        var down = Mathf.Max(hands.Lever, hands.BendT < 1 ? Mathf.Sin(hands.BendT * Mathf.Pi) : 0);
-        lever.Rotation = new Vector3(Mathf.DegToRad(-28 + down * 50), 0, 0);
+        // the lever follows the player's drag; once a pair is bent it stays latched down until it is snipped, then
+        // springs back up, so the bender shows at a glance whether it is waiting for the cutter
+        var target = Mathf.Max(hands.Lever, hands.Bent ? 0.8f : hands.BendT < 1 ? Mathf.Sin(hands.BendT * Mathf.Pi) : 0);
+        leverShown = target > leverShown ? target : Mathf.MoveToward(leverShown, target, dt * 7);
+        lever.Rotation = new Vector3(Mathf.DegToRad(-28 + leverShown * 50), 0, 0);
         loadedWire.Visible = hands.Loaded > 0;
         // the fed wire slides in, and gets shorter with each clip
         var len = hands.Loaded * 0.018f * Mathf.Min(1, 0.4f + hands.FeedT * 0.6f);

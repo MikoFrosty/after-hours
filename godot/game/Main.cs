@@ -624,7 +624,21 @@ public partial class Main : Node3D
 
     void ParseShotArgs()
     {
+        // a mistyped option must end the run with a message, not leave a window waiting with nothing to do
+        try { ParseShotArgsOrThrow(); }
+        catch (Exception e) when (e is FormatException or IndexOutOfRangeException)
+        {
+            GD.PrintErr($"Screenshot options not understood ({e.Message}). Expected --look=yaw,pitch --pos=x,z --hands=held,loaded,bent as numbers, e.g. --hands=10,0,0");
+            shotPath = null;
+            GetTree().Quit(2);
+        }
+    }
+
+    void ParseShotArgsOrThrow()
+    {
         var args = OS.GetCmdlineUserArgs();
+        static float F(string s) => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+        static int I(string s) => int.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
         string? Arg(string name) => args.FirstOrDefault(a => a.StartsWith($"--{name}="))?.Split('=', 2)[1];
         shotPath = Arg("shot");
         if (shotPath == null) return;
@@ -648,18 +662,18 @@ public partial class Main : Node3D
         }
         if (Arg("look") is string look)
         {
-            var p = look.Split(',').Select(float.Parse).ToArray();
+            var p = look.Split(',').Select(F).ToArray();
             player.Yaw = p[0];
             player.Pitch = p[1];
         }
         if (Arg("pos") is string pos)
         {
-            var p = pos.Split(',').Select(float.Parse).ToArray();
+            var p = pos.Split(',').Select(F).ToArray();
             player.Position = new Vector3(p[0], 0, p[1]);
         }
         if (Arg("hands") is string h)
         {
-            var p = h.Split(',').Select(int.Parse).ToArray();
+            var p = h.Split(',').Select(I).ToArray();
             hands.Held = p[0];
             hands.Loaded = p[1];
             hands.Bent = p.Length > 2 && p[2] == 1;
@@ -676,6 +690,9 @@ public partial class Main : Node3D
             else if (m == "pause") menu.ShowPause();
             else menu.ShowSettings();
         }
+        // the lamp and the overhead light ease toward where the night says they should be: put them there, so a
+        // screenshot never catches them halfway
+        room.Settle(night);
         shotFrames = 30;
     }
 }

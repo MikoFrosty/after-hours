@@ -20,6 +20,7 @@ public partial class OfficeRoom : Node3D
     const float Street = -34f;
 
     DirectionalLight3D moon = null!;
+    ReflectionProbe probe = null!;
     OmniLight3D ceilingLight = null!;
     StandardMaterial3D ceilingPanel = null!;
     double t;
@@ -37,6 +38,7 @@ public partial class OfficeRoom : Node3D
         BuildWorkbench();
         BuildMachines();
         BuildOutside();
+        GatherRoomLights();
         // switches for tracking down rendering problems: godot ... -- --off=fog,rain,moon,city,glow,ssao
         foreach (var a in OS.GetCmdlineUserArgs())
         {
@@ -48,6 +50,7 @@ public partial class OfficeRoom : Node3D
             if (what.Contains("city")) city.Visible = false;
             if (what.Contains("glow")) Env.GlowEnabled = false;
             if (what.Contains("ssao")) Env.SsaoEnabled = false;
+            if (what.Contains("probe")) probe.Visible = false;
         }
     }
 
@@ -95,6 +98,21 @@ public partial class OfficeRoom : Node3D
         };
         AddChild(new WorldEnvironment { Environment = Env });
 
+        // shiny things indoors reflect the room, not the night sky: without this the lamp shade, the mug and the
+        // monitor show flat bands of the sky's low-resolution horizon colour once the lamp turns away from them
+        probe = new ReflectionProbe
+        {
+            Size = new Vector3(X1 - X0, H, Z1 - Z0),
+            Position = new Vector3((X0 + X1) / 2, H / 2, (Z0 + Z1) / 2),
+            OriginOffset = new Vector3(0, DeskY + 0.4f - H / 2, -1.2f),
+            BoxProjection = true,
+            Interior = true,
+            AmbientMode = ReflectionProbe.AmbientModeEnum.Disabled,
+            UpdateMode = ReflectionProbe.UpdateModeEnum.Always,
+            Intensity = 0.8f,
+        };
+        AddChild(probe);
+
         moon = new DirectionalLight3D
         {
             LightColor = new Color(0.45f, 0.55f, 0.75f),
@@ -138,6 +156,13 @@ public partial class OfficeRoom : Node3D
         ceilingLight.LightEnergy = 0.55f * dip * ceilingLevel;
         ceilingPanel.EmissionEnergyMultiplier = 0.9f * dip * ceilingLevel;
         backLight.LightEnergy = 0.35f * dip * ceilingLevel;
+    }
+
+    /// <summary>Puts everything that eases over time where it is heading, at once (for screenshots).</summary>
+    public void Settle(Night n)
+    {
+        aim = n.Uncovered ? AimMachine : AimAway;
+        ceilingLevel = n.Uncovered ? 1 : 0.35f;
     }
 
     static void SetTarget(StaticBody3D body, bool on) => body.CollisionLayer = on ? 2u : 0u;

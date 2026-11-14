@@ -30,6 +30,12 @@ public partial class OfficeRoom
     readonly Dictionary<string, (Node3D node, Vector3 at)> parts = new();
     double wheelAngle;
 
+    /// <summary>The render layer of what sits at the dark end of the desk: the room's lights skip it until the lamp turns.</summary>
+    const uint DarkLayer = 1u << 1;
+    readonly List<GeometryInstance3D> darkEnd = new();
+    readonly List<Light3D> roomLights = new();
+    bool darkLit = true;
+
     ClipMachineParts ClipMachine(Node3D parent, Vector3 pos, float yawDeg, float scale = 1)
     {
         var g = new Node3D { Position = pos, RotationDegrees = new Vector3(0, yawDeg, 0), Scale = Vector3.One * scale };
@@ -79,16 +85,22 @@ public partial class OfficeRoom
         spool = new Node3D { Position = new Vector3(0.64f, DeskY + 0.115f, -1.84f), RotationDegrees = new Vector3(0, 30, 0) };
         AddChild(spool);
         var standMat = Mat(new Color(0.1f, 0.1f, 0.1f), 0.5f, 0.5f);
-        RBox(this, new Vector3(0.12f, 0.012f, 0.16f), new Vector3(0.64f, DeskY + 0.006f, -1.84f), standMat, 0.004f).RotationDegrees = new Vector3(0, 30, 0);
+        var standBase = RBox(this, new Vector3(0.12f, 0.012f, 0.16f), new Vector3(0.64f, DeskY + 0.006f, -1.84f), standMat, 0.004f);
+        standBase.RotationDegrees = new Vector3(0, 30, 0);
+        darkEnd.Add(standBase);
         foreach (var side in new[] { -0.065f, 0.065f })
-            RBox(this, new Vector3(0.012f, 0.12f, 0.03f), new Vector3(0.64f, DeskY + 0.06f, -1.84f) + new Vector3(Mathf.Sin(Mathf.DegToRad(30)) * side, 0, Mathf.Cos(Mathf.DegToRad(30)) * side), standMat, 0.004f).RotationDegrees = new Vector3(0, 30, 0);
+        {
+            var post = RBox(this, new Vector3(0.012f, 0.12f, 0.03f), new Vector3(0.64f, DeskY + 0.06f, -1.84f) + new Vector3(Mathf.Sin(Mathf.DegToRad(30)) * side, 0, Mathf.Cos(Mathf.DegToRad(30)) * side), standMat, 0.004f);
+            post.RotationDegrees = new Vector3(0, 30, 0);
+            darkEnd.Add(post);
+        }
         var spoolBody = new Node3D { RotationDegrees = new Vector3(90, 0, 0) };
         spool.AddChild(spoolBody);
         var copper = Grain(new Color(0.66f, 0.66f, 0.64f), new Vector3(40, 2, 1), 0.3f, 0.5f, 123, 0.4f, 0.9f);
         Cyl(spoolBody, 0.075f, 0.075f, 0.1f, Vector3.Zero, copper, 40);
         foreach (var y in new[] { -0.055f, 0.055f }) Cyl(spoolBody, 0.092f, 0.092f, 0.01f, new Vector3(0, y, 0), Mat(new Color(0.12f, 0.12f, 0.12f), 0.5f, 0.3f), 40);
         wireMat = new StandardMaterial3D { AlbedoColor = new Color(0.75f, 0.77f, 0.8f), Roughness = 0.3f, Metallic = 0.9f, EmissionEnabled = true, Emission = new Color(1f, 0.85f, 0.5f), EmissionEnergyMultiplier = 0 };
-        TubeNode(this, new[] { new Vector3(0.58f, DeskY + 0.18f, -1.82f), new Vector3(0.5f, DeskY + 0.17f, -1.8f), new Vector3(0.43f, DeskY + 0.16f, -1.79f), new Vector3(0.35f, DeskY + 0.15f, -1.76f) }, 0.0018f, wireMat);
+        darkEnd.Add(TubeNode(this, new[] { new Vector3(0.58f, DeskY + 0.18f, -1.82f), new Vector3(0.5f, DeskY + 0.17f, -1.8f), new Vector3(0.43f, DeskY + 0.16f, -1.79f), new Vector3(0.35f, DeskY + 0.15f, -1.76f) }, 0.0018f, wireMat));
         glintTarget = Target(this, "glint", new Vector3(0.28f, 0.14f, 0.14f), new Vector3(0.46f, DeskY + 0.16f, -1.79f));
         glintLight = new OmniLight3D { LightColor = new Color(1f, 0.9f, 0.7f), LightEnergy = 0, OmniRange = 0.8f, Position = new Vector3(0.46f, DeskY + 0.2f, -1.74f) };
         AddChild(glintLight);
@@ -184,6 +196,25 @@ public partial class OfficeRoom
         AddChild(sparks);
         buildLight = new OmniLight3D { LightColor = new Color(0.5f, 1f, 0.7f), LightEnergy = 0, OmniRange = 0.9f };
         AddChild(buildLight);
+
+        // the dark end of the desk: the machine (with the spring and second arm that mount on it), its spool, stand and wire
+        darkEnd.AddRange(Meshes(machine.Root));
+        darkEnd.AddRange(Meshes(spool));
+        foreach (var g in darkEnd) g.Layers = DarkLayer;
+    }
+
+    /// <summary>Called once the whole room is built: the lights that keep away from the dark end until the lamp turns.</summary>
+    void GatherRoomLights()
+    {
+        roomLights.AddRange(new Light3D[] { lampLight, lampFill, ceilingLight, backLight, screenLight, moon });
+        SetDarkLit(false);
+    }
+
+    void SetDarkLit(bool lit)
+    {
+        if (lit == darkLit) return;
+        darkLit = lit;
+        foreach (var l in roomLights) l.LightCullMask = lit ? 0xFFFFFu : 0xFFFFFu & ~DarkLayer;
     }
 
     string? fadedId;
@@ -261,6 +292,8 @@ public partial class OfficeRoom
         wireMat.EmissionEnergyMultiplier = n.BurstReady ? 1 + gl * 3 : 0;
         glintLight.LightEnergy = n.BurstReady ? 0.5f + gl : 0;
 
+        // the machine stays in shadow until the lamp has swung most of the way round to it
+        SetDarkLit(n.Uncovered && aim.DistanceTo(AimMachine) < AimAway.DistanceTo(AimMachine) * 0.45f);
         SetTarget(darkTarget, !n.Uncovered);
         SetTarget(glintTarget, n.BurstReady);
         SetTarget(machineTarget, n.Uncovered);

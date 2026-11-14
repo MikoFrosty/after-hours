@@ -243,7 +243,7 @@ public partial class Hud : CanvasLayer
 
     public void Caption(string title, string text)
     {
-        captions.Enqueue((title, text, Time.GetTicksMsec()));
+        captions.Enqueue((title, Wording.InRoom(text), Time.GetTicksMsec()));
         while (captions.Count > 2) captions.Dequeue();
     }
 
@@ -353,7 +353,14 @@ public partial class Hud : CanvasLayer
         foreach (var c in upgrades.GetChildren()) c.QueueFree();
         var offered = n.Uncovered && !n.Capped ? n.Offered() : new List<OfficeProject>();
         var best = offered.Count > 1 ? n.BestUpgrade() : null;
-        if (offered.Count == 0) upgrades.AddChild(Text(n.Uncovered ? "Nothing more on offer right now." : "Nothing yet.", 14, Muted));
+        // before anything is on offer, say what opens the first upgrade, so the empty list is a goal and not a dead end
+        if (offered.Count == 0)
+            upgrades.AddChild(Text(
+                n.Uncovered ? "Nothing more on offer right now."
+                : n.Trial != Trial.Approved ? "Nothing yet. Upgrades open once the customer approves the trial run."
+                : n.SheetReady ? "Nothing yet. Something sits at the dark end of the desk: turn the lamp toward it."
+                : "Nothing yet. Keep making clips by hand.",
+                14, Muted, true));
         if (n.Owned.Count > 0)
             upgrades.AddChild(Text("Installed: " + string.Join(", ", n.Owned.Select(id => n.Project(id).Name.ToLowerInvariant())), 12, Muted, true));
         foreach (var p in offered)
@@ -363,10 +370,10 @@ public partial class Hud : CanvasLayer
             var h = new HBoxContainer();
             var info = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
             info.AddChild(Text(p.Name + (best?.Id == p.Id ? "  · best value" : ""), 15, best?.Id == p.Id ? Accent : Ink));
-            info.AddChild(Text(p.Short, 13, Muted, true));
+            info.AddChild(Text(Wording.InRoom(p.Short), 13, Muted, true));
             var gain = n.RateGain(p);
             var pay = n.PaybackSeconds(p);
-            var detail = gain > 0 ? $"+{gain / 1000.0:0.0}/s · pays for itself in {Night.FmtTime(pay!.Value)}" : p.Text;
+            var detail = gain > 0 ? $"+{gain / 1000.0:0.0}/s · pays for itself in {Night.FmtTime(pay!.Value)}" : Wording.InRoom(p.Text);
             if (horizon != null && pay != null && !n.PaysInTime(p)) detail += $" · not before {horizon.Value.Until}";
             info.AddChild(Text(detail, 12, Phosphor, true));
             h.AddChild(info);
